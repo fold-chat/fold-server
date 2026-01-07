@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust + libsql
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server/libsql-c
+      - name: Build liblibsql
+        run: |
+          cd server
+          ./gradlew cloneLibsql
+          cd libsql-c
+          cargo build --release
+          mkdir -p ../native/linux-amd64
+          cp target/release/liblibsql.so ../native/linux-amd64/
+
+      # Client
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+      - name: Build client
+        run: |
+          cd client
+          pnpm install --frozen-lockfile
+          pnpm build
+          pnpm check
+
+      # Server
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 25
+      - name: Build server
+        uses: gradle/actions/setup-gradle@v4
+      - run: |
+          cd server
+          ./gradlew build
