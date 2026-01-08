@@ -19,9 +19,8 @@ jobs:
           workspaces: server/libsql-c
       - name: Build liblibsql
         run: |
-          cd server
-          ./gradlew cloneLibsql
-          cd libsql-c
+          git clone --depth 1 https://github.com/tursodatabase/libsql-c.git server/libsql-c
+          cd server/libsql-c
           cargo build --release
           mkdir -p ../native/linux-amd64
           cp target/release/liblibsql.so ../native/linux-amd64/
@@ -47,8 +46,8 @@ jobs:
         with:
           distribution: zulu
           java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
       - name: Build server
-        uses: gradle/actions/setup-gradle@v4
-      - run: |
+        run: |
           cd server
           ./gradlew build
