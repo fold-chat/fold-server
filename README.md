@@ -17,7 +17,7 @@ Open-source, self-hostable community tool for small, privacy-conscious communiti
 - **Client:** SvelteKit (TypeScript)
 - **Database:** Turso / libSQL (embedded or managed)
 - **Voice/Video:** LiveKit
-- **Build:** Gradle (server), Vite (client)
+- **Build:** Gradle 9.1+ (server), Vite (client)
 
 ## Project Structure
 
@@ -31,9 +31,10 @@ fray-app/
 
 ### Prerequisites
 
-- Java 17+
-- Node.js 18+
+- Java 25+
+- Node.js 24+
 - pnpm
+- Rust (for libsql wrapper development)
 
 ### Running Locally
 
@@ -58,4 +59,4 @@ Set env vars prefixed with `FRAY_` or use config file. See docs for details.
 
 ## License
 
-TBD
+[AGPL-3.0](LICENSE)
