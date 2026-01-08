@@ -1,0 +1,25 @@
+# Server
+server/build/
+server/.gradle/
+server/native/
+server/libsql-c/
+server/src/main/resources/META-INF/resources/
+
+# Client
+client/node_modules/
+client/.svelte-kit/
+client/build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# DB
+*.db
+*.db-journal
+*.db-wal
