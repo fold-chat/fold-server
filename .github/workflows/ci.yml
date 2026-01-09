@@ -19,7 +19,7 @@ jobs:
           workspaces: server/libsql-c
       - name: Build liblibsql
         run: |
-          [ -d server/libsql-c ] || git clone --depth 1 https://github.com/tursodatabase/libsql-c.git server/libsql-c
+          [ -f server/libsql-c/Cargo.toml ] || (rm -rf server/libsql-c && git clone --depth 1 https://github.com/tursodatabase/libsql-c.git server/libsql-c)
           cd server/libsql-c
           cargo build --release
           mkdir -p ../native/linux-amd64
