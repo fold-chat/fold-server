@@ -128,7 +128,7 @@ jobs:
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
-          ./gradlew build -x test -Dquarkus.native.enabled=true
+          ./gradlew quarkusBuild -Dquarkus.native.enabled=true
       - uses: actions/upload-artifact@v4
         with:
           name: native-linux-amd64
@@ -156,7 +156,7 @@ jobs:
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
-          ./gradlew build -x test -Dquarkus.native.enabled=true
+          ./gradlew quarkusBuild -Dquarkus.native.enabled=true
       - uses: actions/upload-artifact@v4
         with:
           name: native-linux-arm64
@@ -184,7 +184,7 @@ jobs:
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
-          ./gradlew build -x test -Dquarkus.native.enabled=true
+          ./gradlew quarkusBuild -Dquarkus.native.enabled=true
       - uses: actions/upload-artifact@v4
         with:
           name: native-macos-arm64
@@ -212,7 +212,7 @@ jobs:
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
-          ./gradlew build -x test -Dquarkus.native.enabled=true
+          ./gradlew quarkusBuild -Dquarkus.native.enabled=true
       - uses: actions/upload-artifact@v4
         with:
           name: native-windows-amd64
