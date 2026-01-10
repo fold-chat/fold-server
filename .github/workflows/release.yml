@@ -249,8 +249,8 @@ jobs:
           cat > docker/amd64/Dockerfile <<'EOF'
           FROM gcr.io/distroless/base-nossl-debian12
           WORKDIR /app
-          COPY server/build/fray-runner /app/fray
-          COPY server/native/linux-amd64/liblibsql.so /app/liblibsql.so
+          COPY build/fray-runner /app/fray
+          COPY native/linux-amd64/liblibsql.so /app/liblibsql.so
           EXPOSE 8080
           ENTRYPOINT ["/app/fray"]
           EOF
@@ -258,8 +258,8 @@ jobs:
           cat > docker/arm64/Dockerfile <<'EOF'
           FROM gcr.io/distroless/base-nossl-debian12
           WORKDIR /app
-          COPY server/build/fray-runner /app/fray
-          COPY server/native/linux-aarch64/liblibsql.so /app/liblibsql.so
+          COPY build/fray-runner /app/fray
+          COPY native/linux-aarch64/liblibsql.so /app/liblibsql.so
           EXPOSE 8080
           ENTRYPOINT ["/app/fray"]
           EOF
