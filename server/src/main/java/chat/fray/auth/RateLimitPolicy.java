@@ -1,0 +1,19 @@
+package chat.fray.auth;
+
+import java.time.Duration;
+
+public record RateLimitPolicy(int maxTokens, Duration window) {
+
+    public static final RateLimitPolicy LOGIN = new RateLimitPolicy(5, Duration.ofMinutes(1));
+    public static final RateLimitPolicy REGISTER = new RateLimitPolicy(3, Duration.ofHours(1));
+    public static final RateLimitPolicy INVITE_JOIN = new RateLimitPolicy(5, Duration.ofMinutes(1));
+    public static final RateLimitPolicy REFRESH = new RateLimitPolicy(10, Duration.ofMinutes(1));
+    public static final RateLimitPolicy PROFILE_UPDATE = new RateLimitPolicy(5, Duration.ofMinutes(1));
+    public static final RateLimitPolicy PASSWORD_CHANGE = new RateLimitPolicy(3, Duration.ofHours(1));
+
+    /** Parse from string format "count/windowSeconds", e.g. "5/60" */
+    public static RateLimitPolicy parse(String spec) {
+        var parts = spec.split("/");
+        return new RateLimitPolicy(Integer.parseInt(parts[0]), Duration.ofSeconds(Long.parseLong(parts[1])));
+    }
+}
