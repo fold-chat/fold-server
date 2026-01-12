@@ -15,6 +15,9 @@ import java.nio.file.StandardCopyOption;
  */
 public final class LibSqlLoader {
 
+    // Global arena — keeps the library loaded for the lifetime of the JVM.
+    // Using Arena.ofAuto() so it's never explicitly closed (survives hot reloads).
+    private static final Arena LIB_ARENA = Arena.ofAuto();
     private static volatile SymbolLookup lookup;
 
     private LibSqlLoader() {}
@@ -37,8 +40,7 @@ public final class LibSqlLoader {
         // 1. Co-located with binary (native-image mode)
         var colocated = Path.of(libName);
         if (Files.exists(colocated)) {
-            System.load(colocated.toAbsolutePath().toString());
-            return SymbolLookup.loaderLookup();
+            return SymbolLookup.libraryLookup(colocated, LIB_ARENA);
         }
 
         // 2. Extract from classpath native/{os}-{arch}/
@@ -48,8 +50,7 @@ public final class LibSqlLoader {
                 // 3. Try from project native/ dir (dev mode)
                 var devPath = Path.of("native", platform, libName);
                 if (Files.exists(devPath)) {
-                    System.load(devPath.toAbsolutePath().toString());
-                    return SymbolLookup.loaderLookup();
+                    return SymbolLookup.libraryLookup(devPath, LIB_ARENA);
                 }
                 throw new RuntimeException("Native library not found: " + resource + " (also tried " + devPath + ")");
             }
@@ -58,8 +59,7 @@ public final class LibSqlLoader {
             Files.copy(is, tmpFile, StandardCopyOption.REPLACE_EXISTING);
             tmpFile.toFile().deleteOnExit();
             tmpDir.toFile().deleteOnExit();
-            System.load(tmpFile.toAbsolutePath().toString());
-            return SymbolLookup.loaderLookup();
+            return SymbolLookup.libraryLookup(tmpFile, LIB_ARENA);
         } catch (IOException e) {
             throw new RuntimeException("Failed to extract native library", e);
         }

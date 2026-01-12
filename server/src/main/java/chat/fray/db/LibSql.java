@@ -97,7 +97,6 @@ public final class LibSql {
             JAVA_BOOLEAN.withName("webpki"),
             JAVA_BOOLEAN.withName("synced"),
             JAVA_BOOLEAN.withName("disable_safety_assert"),
-            MemoryLayout.paddingLayout(2), // align to pointer
             ADDRESS.withName("namespace")
     ).withName("libsql_database_desc_t");
 
@@ -287,7 +286,7 @@ public final class LibSql {
             }
             desc.set(JAVA_LONG, DATABASE_DESC_LAYOUT.byteOffset(MemoryLayout.PathElement.groupElement("sync_interval")),
                     syncInterval);
-            var result = (MemorySegment) DATABASE_INIT.invokeExact(desc);
+            var result = (MemorySegment) DATABASE_INIT.invokeExact((SegmentAllocator) arena, desc);
             checkHandle(result);
             return result;
         } catch (LibSqlException e) {
@@ -299,7 +298,7 @@ public final class LibSql {
 
     public static void databaseSync(MemorySegment db) {
         try {
-            var result = (MemorySegment) DATABASE_SYNC.invokeExact(db);
+            var result = (MemorySegment) DATABASE_SYNC.invokeExact((SegmentAllocator) Arena.ofAuto(), db);
             var errPtr = result.get(ADDRESS, SYNC_LAYOUT.byteOffset(MemoryLayout.PathElement.groupElement("err")));
             if (!errPtr.equals(MemorySegment.NULL)) {
                 throw new LibSqlException(readErrorMessage(errPtr));
@@ -313,7 +312,7 @@ public final class LibSql {
 
     public static MemorySegment databaseConnect(MemorySegment db) {
         try {
-            var result = (MemorySegment) DATABASE_CONNECT.invokeExact(db);
+            var result = (MemorySegment) DATABASE_CONNECT.invokeExact((SegmentAllocator) Arena.ofAuto(), db);
             checkHandle(result);
             return result;
         } catch (LibSqlException e) {
@@ -325,7 +324,7 @@ public final class LibSql {
 
     public static MemorySegment connectionTransaction(MemorySegment conn) {
         try {
-            var result = (MemorySegment) CONNECTION_TRANSACTION.invokeExact(conn);
+            var result = (MemorySegment) CONNECTION_TRANSACTION.invokeExact((SegmentAllocator) Arena.ofAuto(), conn);
             checkHandle(result);
             return result;
         } catch (LibSqlException e) {
@@ -338,7 +337,7 @@ public final class LibSql {
     public static void connectionBatch(Arena arena, MemorySegment conn, String sql) {
         try {
             var sqlSeg = arena.allocateFrom(sql);
-            var result = (MemorySegment) CONNECTION_BATCH.invokeExact(conn, sqlSeg);
+            var result = (MemorySegment) CONNECTION_BATCH.invokeExact((SegmentAllocator) arena, conn, sqlSeg);
             checkErrOnly(result);
         } catch (LibSqlException e) {
             throw e;
@@ -350,7 +349,7 @@ public final class LibSql {
     public static void transactionBatch(Arena arena, MemorySegment tx, String sql) {
         try {
             var sqlSeg = arena.allocateFrom(sql);
-            var result = (MemorySegment) TRANSACTION_BATCH.invokeExact(tx, sqlSeg);
+            var result = (MemorySegment) TRANSACTION_BATCH.invokeExact((SegmentAllocator) arena, tx, sqlSeg);
             checkErrOnly(result);
         } catch (LibSqlException e) {
             throw e;
@@ -362,7 +361,7 @@ public final class LibSql {
     public static MemorySegment connectionPrepare(Arena arena, MemorySegment conn, String sql) {
         try {
             var sqlSeg = arena.allocateFrom(sql);
-            var result = (MemorySegment) CONNECTION_PREPARE.invokeExact(conn, sqlSeg);
+            var result = (MemorySegment) CONNECTION_PREPARE.invokeExact((SegmentAllocator) arena, conn, sqlSeg);
             checkHandle(result);
             return result;
         } catch (LibSqlException e) {
@@ -375,7 +374,7 @@ public final class LibSql {
     public static MemorySegment transactionPrepare(Arena arena, MemorySegment tx, String sql) {
         try {
             var sqlSeg = arena.allocateFrom(sql);
-            var result = (MemorySegment) TRANSACTION_PREPARE.invokeExact(tx, sqlSeg);
+            var result = (MemorySegment) TRANSACTION_PREPARE.invokeExact((SegmentAllocator) arena, tx, sqlSeg);
             checkHandle(result);
             return result;
         } catch (LibSqlException e) {
@@ -387,7 +386,7 @@ public final class LibSql {
 
     public static long statementExecute(MemorySegment stmt) {
         try {
-            var result = (MemorySegment) STATEMENT_EXECUTE.invokeExact(stmt);
+            var result = (MemorySegment) STATEMENT_EXECUTE.invokeExact((SegmentAllocator) Arena.ofAuto(), stmt);
             var errPtr = result.get(ADDRESS, EXECUTE_LAYOUT.byteOffset(MemoryLayout.PathElement.groupElement("err")));
             if (!errPtr.equals(MemorySegment.NULL)) {
                 throw new LibSqlException(readErrorMessage(errPtr));
@@ -402,7 +401,7 @@ public final class LibSql {
 
     public static MemorySegment statementQuery(MemorySegment stmt) {
         try {
-            var result = (MemorySegment) STATEMENT_QUERY.invokeExact(stmt);
+            var result = (MemorySegment) STATEMENT_QUERY.invokeExact((SegmentAllocator) Arena.ofAuto(), stmt);
             checkHandle(result);
             return result;
         } catch (LibSqlException e) {
@@ -422,7 +421,7 @@ public final class LibSql {
 
     public static void bindValue(MemorySegment stmt, MemorySegment value) {
         try {
-            var result = (MemorySegment) STATEMENT_BIND_VALUE.invokeExact(stmt, value);
+            var result = (MemorySegment) STATEMENT_BIND_VALUE.invokeExact((SegmentAllocator) Arena.ofAuto(), stmt, value);
             checkErrOnly(result);
         } catch (LibSqlException e) {
             throw e;
@@ -434,7 +433,7 @@ public final class LibSql {
     public static void bindNamed(Arena arena, MemorySegment stmt, String name, MemorySegment value) {
         try {
             var nameSeg = arena.allocateFrom(name);
-            var result = (MemorySegment) STATEMENT_BIND_NAMED.invokeExact(stmt, nameSeg, value);
+            var result = (MemorySegment) STATEMENT_BIND_NAMED.invokeExact((SegmentAllocator) arena, stmt, nameSeg, value);
             checkErrOnly(result);
         } catch (LibSqlException e) {
             throw e;
@@ -447,7 +446,7 @@ public final class LibSql {
 
     public static MemorySegment integer(long v) {
         try {
-            return (MemorySegment) VALUE_INTEGER.invokeExact(v);
+            return (MemorySegment) VALUE_INTEGER.invokeExact((SegmentAllocator) Arena.ofAuto(), v);
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }
@@ -455,7 +454,7 @@ public final class LibSql {
 
     public static MemorySegment real(double v) {
         try {
-            return (MemorySegment) VALUE_REAL.invokeExact(v);
+            return (MemorySegment) VALUE_REAL.invokeExact((SegmentAllocator) Arena.ofAuto(), v);
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }
@@ -463,9 +462,9 @@ public final class LibSql {
 
     public static MemorySegment text(Arena arena, String v) {
         try {
-            var bytes = v.getBytes(StandardCharsets.UTF_8);
-            var seg = arena.allocateFrom(JAVA_BYTE, bytes);
-            return (MemorySegment) VALUE_TEXT.invokeExact(seg, (long) bytes.length);
+            var seg = arena.allocateFrom(v); // null-terminated UTF-8
+            long len = seg.byteSize() - 1;   // exclude null terminator
+            return (MemorySegment) VALUE_TEXT.invokeExact((SegmentAllocator) arena, seg, len);
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }
@@ -474,7 +473,7 @@ public final class LibSql {
     public static MemorySegment blob(Arena arena, byte[] v) {
         try {
             var seg = arena.allocateFrom(JAVA_BYTE, v);
-            return (MemorySegment) VALUE_BLOB.invokeExact(seg, (long) v.length);
+            return (MemorySegment) VALUE_BLOB.invokeExact((SegmentAllocator) arena, seg, (long) v.length);
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }
@@ -482,7 +481,7 @@ public final class LibSql {
 
     public static MemorySegment nullValue() {
         try {
-            return (MemorySegment) VALUE_NULL.invokeExact();
+            return (MemorySegment) VALUE_NULL.invokeExact((SegmentAllocator) Arena.ofAuto());
         } catch (Throwable t) {
             throw new RuntimeException(t);
         }
@@ -492,7 +491,7 @@ public final class LibSql {
 
     public static MemorySegment rowsNext(MemorySegment rows) {
         try {
-            var result = (MemorySegment) ROWS_NEXT.invokeExact(rows);
+            var result = (MemorySegment) ROWS_NEXT.invokeExact((SegmentAllocator) Arena.ofAuto(), rows);
             // Don't check error — use rowEmpty() to detect end
             return result;
         } catch (Throwable t) {
@@ -518,7 +517,7 @@ public final class LibSql {
 
     public static String rowsColumnName(MemorySegment rows, int index) {
         try {
-            var slice = (MemorySegment) ROWS_COLUMN_NAME.invokeExact(rows, index);
+            var slice = (MemorySegment) ROWS_COLUMN_NAME.invokeExact((SegmentAllocator) Arena.ofAuto(), rows, index);
             return readSlice(slice);
         } catch (Throwable t) {
             throw new RuntimeException(t);
@@ -539,7 +538,7 @@ public final class LibSql {
      */
     public static MemorySegment rowValue(MemorySegment row, int index) {
         try {
-            var result = (MemorySegment) ROW_VALUE.invokeExact(row, index);
+            var result = (MemorySegment) ROW_VALUE.invokeExact((SegmentAllocator) Arena.ofAuto(), row, index);
             var errPtr = result.get(ADDRESS, RESULT_VALUE_LAYOUT.byteOffset(MemoryLayout.PathElement.groupElement("err")));
             if (!errPtr.equals(MemorySegment.NULL)) {
                 throw new LibSqlException(readErrorMessage(errPtr));

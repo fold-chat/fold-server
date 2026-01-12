@@ -4,6 +4,7 @@ server/.gradle/
 server/native/
 server/libsql-c/
 server/src/main/resources/META-INF/resources/
+server/data
 
 # Client
 client/node_modules/
