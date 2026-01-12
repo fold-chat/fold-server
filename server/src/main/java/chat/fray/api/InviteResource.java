@@ -18,7 +18,6 @@ import java.util.UUID;
 @Consumes(MediaType.APPLICATION_JSON)
 public class InviteResource {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
 
     @Inject InviteRepository inviteRepo;
@@ -79,9 +78,10 @@ public class InviteResource {
     }
 
     private static String generateCode(int length) {
+        var random = new SecureRandom();
         var sb = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
-            sb.append(CODE_CHARS.charAt(RANDOM.nextInt(CODE_CHARS.length())));
+            sb.append(CODE_CHARS.charAt(random.nextInt(CODE_CHARS.length())));
         }
         return sb.toString();
     }
