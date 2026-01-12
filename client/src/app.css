@@ -1,0 +1,122 @@
+:root {
+	--bg: #1a1a2e;
+	--bg-surface: #16213e;
+	--bg-input: #0f3460;
+	--text: #e0e0e0;
+	--text-muted: #888;
+	--accent: #e94560;
+	--accent-hover: #d63851;
+	--success: #4caf50;
+	--error: #e94560;
+	--border: #2a2a4a;
+	--radius: 8px;
+}
+
+* {
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+body {
+	font-family: system-ui, -apple-system, sans-serif;
+	background: var(--bg);
+	color: var(--text);
+	min-height: 100vh;
+}
+
+a {
+	color: var(--accent);
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+input, textarea {
+	background: var(--bg-input);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: 0.75rem 1rem;
+	color: var(--text);
+	font-size: 1rem;
+	width: 100%;
+	outline: none;
+	transition: border-color 0.2s;
+}
+
+input:focus, textarea:focus {
+	border-color: var(--accent);
+}
+
+button {
+	background: var(--accent);
+	color: white;
+	border: none;
+	border-radius: var(--radius);
+	padding: 0.75rem 1.5rem;
+	font-size: 1rem;
+	cursor: pointer;
+	transition: background 0.2s;
+}
+
+button:hover:not(:disabled) {
+	background: var(--accent-hover);
+}
+
+button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.auth-page {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	min-height: 100vh;
+	padding: 2rem;
+}
+
+.auth-card {
+	background: var(--bg-surface);
+	border-radius: 12px;
+	padding: 2rem;
+	width: 100%;
+	max-width: 400px;
+}
+
+.auth-card h1 {
+	font-size: 1.75rem;
+	margin-bottom: 0.5rem;
+}
+
+.auth-card p {
+	color: var(--text-muted);
+	margin-bottom: 1.5rem;
+}
+
+.form-group {
+	margin-bottom: 1rem;
+}
+
+.form-group label {
+	display: block;
+	margin-bottom: 0.25rem;
+	font-size: 0.875rem;
+	color: var(--text-muted);
+}
+
+.error-message {
+	color: var(--error);
+	font-size: 0.875rem;
+	margin-bottom: 1rem;
+}
+
+.link-row {
+	text-align: center;
+	margin-top: 1rem;
+	font-size: 0.875rem;
+	color: var(--text-muted);
+}

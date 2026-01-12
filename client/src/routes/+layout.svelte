@@ -1,7 +1,33 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
+	import '../app.css';
+	import { init, isInitialized, isSetupRequired, isAuthenticated } from '$lib/stores/auth.svelte.js';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { onMount } from 'svelte';
 
 	let { children } = $props();
+
+	const PUBLIC_ROUTES = ['/login', '/register', '/setup', '/invite'];
+
+	function isPublicRoute(path: string): boolean {
+		return PUBLIC_ROUTES.some((r) => path === r || path.startsWith(r + '/'));
+	}
+
+	onMount(async () => {
+		await init();
+
+		const path = page.url.pathname;
+
+		if (isSetupRequired() && path !== '/setup') {
+			goto('/setup');
+			return;
+		}
+
+		if (!isSetupRequired() && !isAuthenticated() && !isPublicRoute(path)) {
+			goto('/login');
+		}
+	});
 </script>
 
 <svelte:head>
@@ -9,4 +35,10 @@
 	<title>Fray</title>
 </svelte:head>
 
-{@render children()}
+{#if isInitialized()}
+	{@render children()}
+{:else}
+	<div class="auth-page">
+		<p style="color: var(--text-muted)">Loading...</p>
+	</div>
+{/if}
