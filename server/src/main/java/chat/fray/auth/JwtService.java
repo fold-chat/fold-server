@@ -4,6 +4,7 @@ import chat.fray.config.FrayAuthConfig;
 import chat.fray.db.DatabaseService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.quarkus.runtime.annotations.RegisterForReflection;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -19,6 +20,12 @@ import java.util.Date;
 import java.util.Optional;
 
 @ApplicationScoped
+@RegisterForReflection(classNames = {
+        "io.jsonwebtoken.impl.DefaultJwtBuilder",
+        "io.jsonwebtoken.impl.DefaultJwtParserBuilder",
+        "io.jsonwebtoken.jackson.io.JacksonSerializer",
+        "io.jsonwebtoken.jackson.io.JacksonDeserializer"
+})
 public class JwtService {
 
     private static final Logger LOG = Logger.getLogger(JwtService.class);
@@ -64,6 +71,7 @@ public class JwtService {
                     .getPayload();
             return Optional.of(claims);
         } catch (Exception e) {
+            LOG.warnf("JWT verify failed: %s — %s", e.getClass().getSimpleName(), e.getMessage());
             return Optional.empty();
         }
     }

@@ -69,8 +69,10 @@ public class FileResource {
 
         try {
             byte[] data = Files.readAllBytes(filePath.get());
+            String originalName = (String) meta.get("original_name");
             return Response.ok(data)
                     .type((String) meta.get("mime_type"))
+                    .header("Content-Disposition", "inline; filename=\"" + originalName + "\"")
                     .header("Cache-Control", "public, max-age=31536000, immutable")
                     .header("Content-Length", data.length)
                     .build();

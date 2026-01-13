@@ -2,6 +2,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import '../app.css';
 	import { init, isInitialized, isSetupRequired, isAuthenticated } from '$lib/stores/auth.svelte.js';
+	import { connect, disconnect } from '$lib/stores/ws.svelte.js';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -26,7 +27,11 @@
 
 		if (!isSetupRequired() && !isAuthenticated() && !isPublicRoute(path)) {
 			goto('/login');
+		} else if (isAuthenticated()) {
+			connect();
 		}
+
+		return () => disconnect();
 	});
 </script>
 

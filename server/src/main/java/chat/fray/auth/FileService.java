@@ -27,6 +27,19 @@ public class FileService {
     private static final Set<String> ALLOWED_IMAGE_TYPES = Set.of(
             "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"
     );
+    private static final Set<String> ALLOWED_FILE_TYPES = Set.of(
+            // Images
+            "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+            // Documents
+            "application/pdf", "text/plain", "text/csv", "text/markdown",
+            "application/json", "application/xml",
+            // Archives
+            "application/zip", "application/gzip", "application/x-tar",
+            // Audio
+            "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm",
+            // Video
+            "video/mp4", "video/webm", "video/ogg"
+    );
 
     @Inject
     FrayFileConfig config;
@@ -52,7 +65,7 @@ public class FileService {
      * @throws IllegalArgumentException if MIME type not allowed or size exceeds limit
      */
     public Map<String, String> upload(String originalName, String mimeType, long sizeBytes, InputStream data, String uploaderId) {
-        if (!ALLOWED_IMAGE_TYPES.contains(mimeType)) {
+        if (!ALLOWED_FILE_TYPES.contains(mimeType)) {
             throw new IllegalArgumentException("File type not allowed: " + mimeType);
         }
         if (sizeBytes > config.maxUploadSize()) {
@@ -83,9 +96,15 @@ public class FileService {
                 Files.move(tmpFile, targetPath, StandardCopyOption.ATOMIC_MOVE);
             }
 
-            // Persist metadata
-            String id = UUID.randomUUID().toString();
-            fileRepo.create(id, originalName, storedName, mimeType, actualSize, uploaderId);
+            // Reuse existing row if content-addressed file already tracked, else insert
+            var existing = fileRepo.findByStoredName(storedName);
+            String id;
+            if (existing.isPresent()) {
+                id = (String) existing.get().get("id");
+            } else {
+                id = UUID.randomUUID().toString();
+                fileRepo.create(id, originalName, storedName, mimeType, actualSize, uploaderId);
+            }
 
             return Map.of(
                     "id", id,
@@ -125,6 +144,16 @@ public class FileService {
         }
     }
 
+    /** Link a file to a message */
+    public void linkToMessage(String fileId, String messageId) {
+        fileRepo.linkToMessage(fileId, messageId);
+    }
+
+    /** Get all files attached to a message */
+    public java.util.List<Map<String, Object>> getAttachments(String messageId) {
+        return fileRepo.findByMessageId(messageId);
+    }
+
     private static String extensionFromMime(String mimeType) {
         return switch (mimeType) {
             case "image/png" -> ".png";
@@ -132,6 +161,19 @@ public class FileService {
             case "image/gif" -> ".gif";
             case "image/webp" -> ".webp";
             case "image/svg+xml" -> ".svg";
+            case "application/pdf" -> ".pdf";
+            case "text/plain" -> ".txt";
+            case "text/csv" -> ".csv";
+            case "text/markdown" -> ".md";
+            case "application/json" -> ".json";
+            case "application/xml" -> ".xml";
+            case "application/zip" -> ".zip";
+            case "application/gzip" -> ".gz";
+            case "video/mp4" -> ".mp4";
+            case "video/webm" -> ".webm";
+            case "audio/mpeg" -> ".mp3";
+            case "audio/ogg" -> ".ogg";
+            case "audio/wav" -> ".wav";
             default -> "";
         };
     }

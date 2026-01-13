@@ -1,0 +1,484 @@
+<script lang="ts">
+	import type { Message } from '$lib/api/messages.js';
+	import { renderMarkdown, formatTimestamp } from '$lib/utils/markdown.js';
+	import { tick } from 'svelte';
+
+	let {
+		messages,
+		loading = false,
+		canLoadMore = false,
+		currentUserId,
+		editingId = null,
+		editContent = '',
+		typingUsers = [],
+		onLoadMore,
+		onStartEdit,
+		onCancelEdit,
+		onSaveEdit,
+		onDelete
+	}: {
+		messages: Message[];
+		loading?: boolean;
+		canLoadMore?: boolean;
+		currentUserId: string;
+		editingId?: string | null;
+		editContent?: string;
+		typingUsers?: string[];
+		onLoadMore?: () => void;
+		onStartEdit?: (id: string, content: string) => void;
+		onCancelEdit?: () => void;
+		onSaveEdit?: (id: string, content: string) => void;
+		onDelete?: (id: string) => void;
+	} = $props();
+
+	let scrollContainer = $state<HTMLDivElement | null>(null);
+	let editInput = $state<HTMLTextAreaElement | null>(null);
+	let shouldAutoScroll = $state(true);
+	let localEditContent = $state('');
+
+	// Track when editingId changes to sync local content
+	$effect(() => {
+		if (editingId) {
+			localEditContent = editContent;
+			tick().then(() => editInput?.focus());
+		}
+	});
+
+	// Auto-scroll on new messages
+	$effect(() => {
+		if (messages.length > 0 && shouldAutoScroll && scrollContainer) {
+			tick().then(() => {
+				if (scrollContainer) {
+					scrollContainer.scrollTop = scrollContainer.scrollHeight;
+				}
+			});
+		}
+	});
+
+	function handleScroll() {
+		if (!scrollContainer) return;
+		const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+
+		// Auto-scroll if near bottom
+		shouldAutoScroll = scrollHeight - scrollTop - clientHeight < 100;
+
+		// Load more at top
+		if (scrollTop < 50 && canLoadMore && !loading) {
+			onLoadMore?.();
+		}
+	}
+
+	function isNewGroup(msg: Message, prev: Message | undefined): boolean {
+		if (!prev) return true;
+		if (msg.author_id !== prev.author_id) return true;
+		// Group messages within 5 minutes
+		const diff = new Date(msg.created_at + 'Z').getTime() - new Date(prev.created_at + 'Z').getTime();
+		return diff > 300_000;
+	}
+
+	function handleEditKeydown(e: KeyboardEvent) {
+		if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			if (editingId && localEditContent.trim()) {
+				onSaveEdit?.(editingId, localEditContent);
+			}
+		}
+		if (e.key === 'Escape') {
+			onCancelEdit?.();
+		}
+	}
+
+	let lightboxUrl = $state<string | null>(null);
+	let lightboxName = $state('');
+
+	function openLightbox(url: string, name: string) {
+		lightboxUrl = url;
+		lightboxName = name;
+	}
+
+	function closeLightbox() {
+		lightboxUrl = null;
+	}
+
+	function handleLightboxKey(e: KeyboardEvent) {
+		if (e.key === 'Escape') closeLightbox();
+	}
+
+	function isImage(mime: string): boolean {
+		return mime.startsWith('image/');
+	}
+
+	function formatFileSize(bytes: number): string {
+		if (bytes < 1024) return bytes + ' B';
+		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+		return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+	}
+
+	function typingText(users: string[]): string {
+		if (users.length === 0) return '';
+		if (users.length === 1) return `${users[0]} is typing...`;
+		if (users.length === 2) return `${users[0]} and ${users[1]} are typing...`;
+		return `${users[0]} and ${users.length - 1} others are typing...`;
+	}
+</script>
+
+<div class="message-list-container">
+	<div class="message-list" bind:this={scrollContainer} onscroll={handleScroll}>
+		{#if loading && messages.length === 0}
+			<div class="loading">Loading messages...</div>
+		{/if}
+
+		{#if canLoadMore && messages.length > 0}
+			<div class="load-more">
+				{#if loading}
+					<span>Loading...</span>
+				{/if}
+			</div>
+		{/if}
+
+		{#each messages as msg, i}
+			{@const newGroup = isNewGroup(msg, messages[i - 1])}
+			<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id}>
+				{#if newGroup}
+					<div class="message-header">
+						<span class="author">{msg.author_display_name || msg.author_username || 'Unknown'}</span>
+						<span class="timestamp">{formatTimestamp(msg.created_at)}</span>
+					</div>
+				{/if}
+				<div class="message-body">
+					{#if editingId === msg.id}
+						<textarea
+							class="edit-input"
+							bind:this={editInput}
+							bind:value={localEditContent}
+							onkeydown={handleEditKeydown}
+							rows="2"
+						></textarea>
+						<div class="edit-actions">
+							<button class="btn-sm" onclick={() => onCancelEdit?.()}>Cancel</button>
+							<button class="btn-sm btn-primary" onclick={() => editingId && onSaveEdit?.(editingId, localEditContent)}>Save</button>
+						</div>
+					{:else}
+						<div class="content">{@html renderMarkdown(msg.content)}</div>
+						{#if msg.attachments && msg.attachments.length > 0}
+							<div class="attachments">
+								{#each msg.attachments as att}
+									{#if isImage(att.mime_type)}
+										<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+										<img
+											src={att.url}
+											alt={att.original_name}
+											class="attachment-image"
+											onclick={() => openLightbox(att.url, att.original_name)}
+											onkeydown={(e) => e.key === 'Enter' && openLightbox(att.url, att.original_name)}
+										/>
+									{:else}
+										<a href={att.url} class="attachment-file" download={att.original_name}>
+											<span class="file-icon">📄</span>
+											<span class="file-name">{att.original_name}</span>
+											<span class="file-size">{formatFileSize(att.size_bytes)}</span>
+										</a>
+									{/if}
+								{/each}
+							</div>
+						{/if}
+						{#if msg.edited_at}
+							<span class="edited">(edited)</span>
+						{/if}
+					{/if}
+				</div>
+				{#if msg.author_id === currentUserId && editingId !== msg.id}
+					<div class="message-actions">
+						<button class="action-btn" onclick={() => onStartEdit?.(msg.id, msg.content)} title="Edit">✏️</button>
+						<button class="action-btn" onclick={() => onDelete?.(msg.id)} title="Delete">🗑️</button>
+					</div>
+				{/if}
+			</div>
+		{/each}
+	</div>
+
+	{#if typingUsers.length > 0}
+		<div class="typing-indicator">{typingText(typingUsers)}</div>
+	{/if}
+</div>
+
+{#if lightboxUrl}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="lightbox" onclick={closeLightbox} onkeydown={handleLightboxKey}>
+		<button class="lightbox-close" onclick={closeLightbox}>✕</button>
+		<img src={lightboxUrl} alt={lightboxName} class="lightbox-img" />
+	</div>
+{/if}
+
+<style>
+	.message-list-container {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+
+	.message-list {
+		flex: 1;
+		overflow-y: auto;
+		padding: 1rem;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.loading {
+		text-align: center;
+		color: var(--text-muted);
+		padding: 2rem;
+	}
+
+	.load-more {
+		text-align: center;
+		padding: 0.5rem;
+		color: var(--text-muted);
+		font-size: 0.8rem;
+	}
+
+	.message {
+		padding: 0.25rem 0.5rem;
+		border-radius: 4px;
+		position: relative;
+	}
+
+	.message:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.02));
+	}
+
+	.message:not(.grouped) {
+		margin-top: 1rem;
+	}
+
+	.message.grouped {
+		margin-top: 0;
+	}
+
+	.message.editing {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+	}
+
+	.message-header {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		margin-bottom: 0.15rem;
+	}
+
+	.author {
+		font-weight: 600;
+		font-size: 0.9rem;
+	}
+
+	.timestamp {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+	}
+
+	.message-body {
+		font-size: 0.9rem;
+		line-height: 1.4;
+	}
+
+	.message-body :global(p) {
+		margin: 0 0 0.25rem;
+	}
+
+	.message-body :global(p:last-child) {
+		margin-bottom: 0;
+	}
+
+	.message-body :global(code) {
+		background: var(--bg-surface);
+		padding: 0.1rem 0.3rem;
+		border-radius: 3px;
+		font-size: 0.85em;
+	}
+
+	.message-body :global(pre) {
+		background: var(--bg-surface);
+		padding: 0.75rem;
+		border-radius: 6px;
+		overflow-x: auto;
+		margin: 0.25rem 0;
+	}
+
+	.message-body :global(pre code) {
+		background: none;
+		padding: 0;
+	}
+
+	.message-body :global(blockquote) {
+		border-left: 3px solid var(--border);
+		margin: 0.25rem 0;
+		padding-left: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.message-body :global(a) {
+		color: var(--accent, #5865f2);
+	}
+
+	.edited {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+	}
+
+	.edit-input {
+		width: 100%;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		color: var(--text);
+		border-radius: 4px;
+		padding: 0.5rem;
+		font-size: 0.9rem;
+		font-family: inherit;
+		resize: vertical;
+	}
+
+	.edit-actions {
+		display: flex;
+		gap: 0.5rem;
+		margin-top: 0.25rem;
+	}
+
+	.btn-sm {
+		padding: 0.2rem 0.5rem;
+		font-size: 0.75rem;
+		border: 1px solid var(--border);
+		background: none;
+		color: var(--text-muted);
+		border-radius: 3px;
+		cursor: pointer;
+	}
+
+	.btn-sm.btn-primary {
+		background: var(--accent, #5865f2);
+		color: white;
+		border-color: var(--accent, #5865f2);
+	}
+
+	.message-actions {
+		position: absolute;
+		top: 0;
+		right: 0.5rem;
+		display: none;
+		gap: 0.25rem;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		padding: 0.15rem;
+	}
+
+	.message:hover .message-actions {
+		display: flex;
+	}
+
+	.action-btn {
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 0.15rem 0.3rem;
+		font-size: 0.75rem;
+		border-radius: 3px;
+	}
+
+	.action-btn:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+	}
+
+	.typing-indicator {
+		padding: 0.25rem 1rem;
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		min-height: 1.5rem;
+	}
+
+	.attachments {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		margin-top: 0.25rem;
+	}
+
+	.attachment-image {
+		max-width: 400px;
+		max-height: 300px;
+		border-radius: 6px;
+		cursor: pointer;
+		object-fit: contain;
+	}
+
+	.attachment-image:hover {
+		opacity: 0.9;
+	}
+
+	.attachment-file {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 0.5rem 0.75rem;
+		text-decoration: none;
+		color: var(--text);
+		max-width: 300px;
+	}
+
+	.attachment-file:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+	}
+
+	.file-icon {
+		font-size: 1.25rem;
+	}
+
+	.file-name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: 0.85rem;
+	}
+
+	.file-size {
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		white-space: nowrap;
+	}
+
+	.lightbox {
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(0, 0, 0, 0.85);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+	}
+
+	.lightbox-img {
+		max-width: 90vw;
+		max-height: 90vh;
+		object-fit: contain;
+		border-radius: 4px;
+	}
+
+	.lightbox-close {
+		position: absolute;
+		top: 1rem;
+		right: 1rem;
+		background: none;
+		border: none;
+		color: white;
+		font-size: 1.5rem;
+		cursor: pointer;
+		padding: 0.5rem;
+	}
+</style>
