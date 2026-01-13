@@ -23,6 +23,12 @@ import java.util.Optional;
 @RegisterForReflection(classNames = {
         "io.jsonwebtoken.impl.DefaultJwtBuilder",
         "io.jsonwebtoken.impl.DefaultJwtParserBuilder",
+        "io.jsonwebtoken.impl.DefaultJwtHeaderBuilder",
+        "io.jsonwebtoken.impl.DefaultClaimsBuilder",
+        "io.jsonwebtoken.impl.security.StandardSecureDigestAlgorithms",
+        "io.jsonwebtoken.impl.security.StandardEncryptionAlgorithms",
+        "io.jsonwebtoken.impl.security.StandardKeyAlgorithms",
+        "io.jsonwebtoken.impl.io.StandardCompressionAlgorithms",
         "io.jsonwebtoken.jackson.io.JacksonSerializer",
         "io.jsonwebtoken.jackson.io.JacksonDeserializer"
 })
