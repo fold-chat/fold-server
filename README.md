@@ -2,14 +2,26 @@
 
 Open-source, self-hostable community tool for small, privacy-conscious communities.
 
-## Features
+## Implementation Status
 
-- **Real-time messaging** — WebSocket-based chat with typing indicators and presence
-- **Voice & video** — LiveKit integration for calls
-- **Channels & roles** — Organize conversations with fine-grained permissions
-- **Message search** — Full-text search with SQLite FTS5
-- **Self-hosted** — Single community per instance, no federation
-- **Privacy-first** — Own your data, control your platform
+### Implemented
+- **Auth** — JWT + cookie-based sessions, Argon2id passwords, lockout protection
+- **Messaging** — CRUD with UUIDv7 time-sorted IDs, real-time updates
+- **Channels & Categories** — Organize conversations
+- **File Uploads** — Content-addressed storage
+- **Invites** — Join via invite codes
+- **User Profiles** — Profile settings
+- **Rate Limiting** — Token-bucket based, configurable
+- **WebSocket** — Real-time events, heartbeat, typing indicators, auto-reconnect
+- **First-run Setup** — Initial server configuration
+- **Role Seeding** — Owner/admin/moderator/member roles
+- **Read State Tracking** — Per-channel read status
+
+### Planned
+- **Voice & video** — LiveKit integration
+- **Permissions** — Channel-level role overrides
+- **Message search** — Full-text search with FTS5
+- **Presence** — Online/offline status
 
 ## Tech Stack
 
