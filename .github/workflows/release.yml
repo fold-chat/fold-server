@@ -293,7 +293,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
+          pattern: native-*
           path: artifacts/
+      - uses: actions/download-artifact@v4
+        with:
+          name: fray-jar
+          path: artifacts/fray-jar/
       - name: Prepare release assets
         run: |
           mkdir -p release
