@@ -15,8 +15,8 @@
 		return PUBLIC_ROUTES.some((r) => path === r || path.startsWith(r + '/'));
 	}
 
-	onMount(async () => {
-		await init();
+	onMount(() => {
+		init();
 
 		const path = page.url.pathname;
 

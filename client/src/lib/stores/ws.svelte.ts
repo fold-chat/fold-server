@@ -82,7 +82,7 @@ export function send(op: string, data?: Record<string, unknown>) {
 function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number }) {
 	switch (msg.op) {
 		case 'HELLO':
-			handleHello(msg.d as HelloPayload);
+			if (msg.d) handleHello(msg.d as unknown as HelloPayload);
 			break;
 		case 'HEARTBEAT_ACK':
 			break;

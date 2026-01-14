@@ -9,7 +9,7 @@
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
 
-	let channelId = $derived(page.params.id);
+	let channelId = $derived(page.params.id!);
 	let editingId = $state<string | null>(null);
 	let editContent = $state('');
 	let typingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
