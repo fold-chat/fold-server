@@ -3,6 +3,8 @@ package chat.fray.ws;
 import chat.fray.auth.JwtService;
 import chat.fray.db.*;
 import chat.fray.event.*;
+import chat.fray.security.PermissionService;
+import chat.fray.service.RoleService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.websockets.next.*;
 import jakarta.inject.Inject;
@@ -24,6 +26,9 @@ public class FrayWebSocket {
     @Inject CategoryRepository categoryRepo;
     @Inject UserRepository userRepo;
     @Inject ReadStateRepository readStateRepo;
+    @Inject RoleRepository roleRepo;
+    @Inject PermissionService permissionService;
+    @Inject RoleService roleService;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -135,17 +140,36 @@ public class FrayWebSocket {
     private String buildHello(String userId) {
         try {
             var user = userRepo.findById(userId).orElse(Map.of());
-            var channels = channelRepo.listAll();
+            var allChannels = channelRepo.listAll();
             var categories = categoryRepo.listAll();
             var members = userRepo.listMembers();
             var readStates = readStateRepo.findAllForUser(userId);
+
+            // Filter channels by VIEW_CHANNEL permission
+            var allChannelIds = allChannels.stream()
+                    .map(c -> (String) c.get("id"))
+                    .collect(java.util.stream.Collectors.toSet());
+            var viewableIds = permissionService.filterViewableChannels(userId, allChannelIds);
+            var channels = allChannels.stream()
+                    .filter(c -> viewableIds.contains(c.get("id")))
+                    .toList();
+
+            // Serialize roles with permission names
+            var roles = roleRepo.findAll().stream()
+                    .map(roleService::serializeRole)
+                    .toList();
+
+            // Compute user permissions
+            var userPermissions = permissionService.computeUserPermissions(userId, viewableIds);
 
             var hello = new LinkedHashMap<String, Object>();
             hello.put("user", sanitizeUser(user));
             hello.put("channels", channels);
             hello.put("categories", categories);
             hello.put("members", members);
+            hello.put("roles", roles);
             hello.put("read_states", readStates);
+            hello.put("user_permissions", userPermissions);
             hello.put("heartbeat_interval_ms", 30000);
             hello.put("session_id", UUID.randomUUID().toString());
 

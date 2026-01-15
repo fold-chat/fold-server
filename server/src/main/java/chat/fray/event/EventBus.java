@@ -1,5 +1,7 @@
 package chat.fray.event;
 
+import chat.fray.security.Permission;
+import chat.fray.security.PermissionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.websockets.next.WebSocketConnection;
 import io.vertx.core.Vertx;
@@ -17,6 +19,7 @@ public class EventBus {
     private static final Logger LOG = Logger.getLogger(EventBus.class);
 
     @Inject SessionRegistry registry;
+    @Inject PermissionService permissionService;
     @Inject Vertx vertx;
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -55,7 +58,15 @@ public class EventBus {
     private Collection<WebSocketConnection> resolveTargets(Scope scope) {
         return switch (scope) {
             case Scope.Server s -> registry.allConnections();
-            case Scope.Channel c -> registry.allConnections(); // TODO: filter by channel access in M4
+            case Scope.Channel c -> {
+                var all = registry.allConnections();
+                yield all.stream()
+                        .filter(conn -> {
+                            var userId = registry.getUserId(conn);
+                            return userId != null && permissionService.hasPermission(userId, c.channelId(), Permission.VIEW_CHANNEL);
+                        })
+                        .toList();
+            }
             case Scope.User u -> registry.getConnections(u.userId());
             case Scope.Users u -> {
                 var conns = new java.util.ArrayList<WebSocketConnection>();

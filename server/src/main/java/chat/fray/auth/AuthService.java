@@ -2,6 +2,7 @@ package chat.fray.auth;
 
 import chat.fray.config.FrayAuthConfig;
 import chat.fray.db.InviteRepository;
+import chat.fray.db.RoleRepository;
 import chat.fray.db.SessionRepository;
 import chat.fray.db.UserRepository;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -33,6 +34,7 @@ public class AuthService {
     @Inject UserRepository userRepo;
     @Inject SessionRepository sessionRepo;
     @Inject InviteRepository inviteRepo;
+    @Inject RoleRepository roleRepo;
 
     // --- Registration ---
 
@@ -77,7 +79,9 @@ public class AuthService {
         String userId = UUID.randomUUID().toString();
         String hash = passwordService.hash(req.password());
         userRepo.create(userId, req.username(), req.username(), hash);
-        userRepo.assignRole(userId, "member");
+        var defaultRole = roleRepo.findDefaultRole();
+        String defaultRoleId = defaultRole.map(r -> (String) r.get("id")).orElse("member");
+        userRepo.assignRole(userId, defaultRoleId);
 
         // Increment invite use count
         if (usedInvite) {

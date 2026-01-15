@@ -2,6 +2,8 @@ package chat.fray.api;
 
 import chat.fray.auth.FraySecurityContext;
 import chat.fray.db.InviteRepository;
+import chat.fray.security.Permission;
+import chat.fray.security.PermissionService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -21,11 +23,13 @@ public class InviteResource {
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
 
     @Inject InviteRepository inviteRepo;
+    @Inject PermissionService permissionService;
     @Context ContainerRequestContext requestContext;
 
     @POST
     public Response create(CreateInviteRequest req) {
         var sc = sc();
+        permissionService.requireServerPermission(sc.getUserId(), Permission.CREATE_INVITES);
         String id = UUID.randomUUID().toString();
         String code = generateCode(8);
 
@@ -36,6 +40,7 @@ public class InviteResource {
 
     @GET
     public Response list() {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.CREATE_INVITES);
         return Response.ok(inviteRepo.listActive()).build();
     }
 
@@ -59,6 +64,7 @@ public class InviteResource {
     @DELETE
     @Path("/{code}")
     public Response revoke(@PathParam("code") String code) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_INVITES);
         var invite = inviteRepo.findByCode(code);
         if (invite.isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found")).build();

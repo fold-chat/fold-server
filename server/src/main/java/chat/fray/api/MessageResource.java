@@ -7,6 +7,8 @@ import chat.fray.auth.RateLimitPolicy;
 import chat.fray.auth.RateLimitService;
 import chat.fray.db.MessageRepository;
 import chat.fray.event.*;
+import chat.fray.security.Permission;
+import chat.fray.security.PermissionService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -25,6 +27,7 @@ public class MessageResource {
     @Inject MessageRepository messageRepo;
     @Inject FileService fileService;
     @Inject RateLimitService rateLimitService;
+    @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
@@ -41,8 +44,11 @@ public class MessageResource {
         }
         var msg = msgOpt.get();
 
-        if (!sc.getUserId().equals(msg.get("author_id"))) {
-            return Response.status(403).entity(Map.of("error", "forbidden", "message", "Can only edit own messages")).build();
+        boolean isAuthor = sc.getUserId().equals(msg.get("author_id"));
+        if (isAuthor) {
+            permissionService.requirePermission(sc.getUserId(), (String) msg.get("channel_id"), Permission.MANAGE_OWN_MESSAGES);
+        } else {
+            permissionService.requirePermission(sc.getUserId(), (String) msg.get("channel_id"), Permission.MANAGE_MESSAGES);
         }
         if (req.content() == null || req.content().isBlank()) {
             return Response.status(400).entity(Map.of("error", "invalid_content", "message", "Content required")).build();
@@ -72,8 +78,11 @@ public class MessageResource {
         }
 
         var msgToDelete = msgOpt.get();
-        if (!sc.getUserId().equals(msgToDelete.get("author_id"))) {
-            return Response.status(403).entity(Map.of("error", "forbidden", "message", "Can only delete own messages")).build();
+        boolean isAuthor = sc.getUserId().equals(msgToDelete.get("author_id"));
+        if (isAuthor) {
+            permissionService.requirePermission(sc.getUserId(), (String) msgToDelete.get("channel_id"), Permission.MANAGE_OWN_MESSAGES);
+        } else {
+            permissionService.requirePermission(sc.getUserId(), (String) msgToDelete.get("channel_id"), Permission.MANAGE_MESSAGES);
         }
 
         String channelId = (String) msgToDelete.get("channel_id");

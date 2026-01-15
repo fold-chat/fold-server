@@ -2,8 +2,9 @@ CREATE TABLE IF NOT EXISTS role (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
     permissions INTEGER NOT NULL DEFAULT 0,
-    position INTEGER NOT NULL DEFAULT 0,
+    position INTEGER NOT NULL UNIQUE,
     color TEXT,
+    is_default INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -18,11 +19,13 @@ CREATE INDEX IF NOT EXISTS idx_user_role_user_id ON user_role(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_role_role_id ON user_role(role_id);
 
 -- Seed default roles
--- Permissions bitmask: 1=VIEW, 2=SEND_MESSAGE, 4=MANAGE_MESSAGES, 8=MANAGE_CHANNELS,
---   16=MANAGE_ROLES, 32=MANAGE_SERVER, 64=KICK, 128=BAN, 256=INVITE, 512=UPLOAD_FILES
--- Owner: all (1023), Admin: all except MANAGE_SERVER (991), Moderator: view+send+manage_messages+kick+ban+invite+upload (455), Member: view+send+invite+upload (771)
-INSERT OR IGNORE INTO role (id, name, permissions, position) VALUES
-    ('owner', 'Owner', 1023, 100),
-    ('admin', 'Admin', 991, 80),
-    ('moderator', 'Moderator', 455, 60),
-    ('member', 'Member', 771, 0);
+-- Permissions are 64-bit bitmasks. See docs/permissions.md for full bit layout.
+-- Owner: bypasses all checks (special role, not bitmask-dependent)
+-- Admin: ADMINISTRATOR(bit31) + all channel/server/voice perms
+-- Moderator: channel perms + KICK + BAN + CREATE_INVITES
+-- Member: VIEW_CHANNEL(0) + SEND_MESSAGES(1) + MANAGE_OWN_MESSAGES(2) + UPLOAD_FILES(4) + ADD_REACTIONS(5) + CREATE_INVITES(21) + CHANGE_NICKNAME(23)
+INSERT OR IGNORE INTO role (id, name, permissions, position, color, is_default) VALUES
+    ('owner', 'Owner', 0, 1, '#e74c3c', 0),
+    ('admin', 'Admin', 272763914111, 2, '#3498db', 0),
+    ('moderator', 'Moderator', 3671935, 3, '#2ecc71', 0),
+    ('member', 'Member', 10485815, 4, NULL, 1);

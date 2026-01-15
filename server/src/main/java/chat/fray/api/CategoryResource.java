@@ -3,6 +3,8 @@ package chat.fray.api;
 import chat.fray.auth.FraySecurityContext;
 import chat.fray.db.CategoryRepository;
 import chat.fray.event.*;
+import chat.fray.security.Permission;
+import chat.fray.security.PermissionService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -19,6 +21,7 @@ import java.util.UUID;
 public class CategoryResource {
 
     @Inject CategoryRepository categoryRepo;
+    @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
@@ -29,6 +32,7 @@ public class CategoryResource {
 
     @POST
     public Response create(CreateCategoryRequest req) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
         if (req.name() == null || req.name().isBlank()) {
             return Response.status(400).entity(Map.of("error", "invalid_name", "message", "Name required")).build();
         }
@@ -45,6 +49,7 @@ public class CategoryResource {
     @PATCH
     @Path("/{id}")
     public Response update(@PathParam("id") String id, UpdateCategoryRequest req) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
         var existing = categoryRepo.findById(id);
         if (existing.isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found")).build();
@@ -63,6 +68,7 @@ public class CategoryResource {
     @DELETE
     @Path("/{id}")
     public Response delete(@PathParam("id") String id) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
         if (categoryRepo.findById(id).isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found")).build();
         }
@@ -73,4 +79,8 @@ public class CategoryResource {
 
     public record CreateCategoryRequest(String name, Integer position) {}
     public record UpdateCategoryRequest(String name, Integer position) {}
+
+    private FraySecurityContext sc() {
+        return (FraySecurityContext) requestContext.getSecurityContext();
+    }
 }

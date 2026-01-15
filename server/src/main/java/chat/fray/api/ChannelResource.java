@@ -9,6 +9,8 @@ import chat.fray.db.ChannelRepository;
 import chat.fray.db.MessageRepository;
 import chat.fray.db.ReadStateRepository;
 import chat.fray.event.*;
+import chat.fray.security.Permission;
+import chat.fray.security.PermissionService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -34,6 +36,7 @@ public class ChannelResource {
     @Inject ReadStateRepository readStateRepo;
     @Inject FileService fileService;
     @Inject RateLimitService rateLimitService;
+    @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
@@ -44,6 +47,7 @@ public class ChannelResource {
 
     @POST
     public Response create(CreateChannelRequest req) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
         if (req.name() == null || req.name().isBlank()) {
             return Response.status(400).entity(Map.of("error", "invalid_name", "message", "Name required")).build();
         }
@@ -64,6 +68,7 @@ public class ChannelResource {
     @PATCH
     @Path("/{id}")
     public Response update(@PathParam("id") String id, UpdateChannelRequest req) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
         var existing = channelRepo.findById(id);
         if (existing.isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found")).build();
@@ -86,6 +91,7 @@ public class ChannelResource {
     @DELETE
     @Path("/{id}")
     public Response delete(@PathParam("id") String id) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
         if (channelRepo.findById(id).isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found")).build();
         }
@@ -104,6 +110,7 @@ public class ChannelResource {
             @QueryParam("after") String after,
             @QueryParam("limit") @DefaultValue("50") int limit
     ) {
+        permissionService.requirePermission(sc().getUserId(), channelId, Permission.VIEW_CHANNEL);
         if (channelRepo.findById(channelId).isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
         }
@@ -119,6 +126,7 @@ public class ChannelResource {
     @Path("/{channelId}/messages")
     public Response sendMessage(@PathParam("channelId") String channelId, SendMessageRequest req) {
         var sc = sc();
+        permissionService.requirePermission(sc.getUserId(), channelId, Permission.SEND_MESSAGES);
         var rl = checkRate("message_send", sc.getUserId(), RateLimitPolicy.MESSAGE_SEND);
         if (rl != null) return rl;
 

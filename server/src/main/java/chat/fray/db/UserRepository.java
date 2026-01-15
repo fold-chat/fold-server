@@ -92,12 +92,12 @@ public class UserRepository {
         );
     }
 
-    /** List all members with their roles */
+    /** List all members with their roles as JSON array of role objects */
     public List<Map<String, Object>> listMembers() {
         return db.query("""
                 SELECT u.id, u.username, u.display_name, u.avatar_url, u.status_preference,
                        u.status_text, u.bio, u.created_at, u.last_seen_at,
-                       GROUP_CONCAT(r.name) AS roles
+                       JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles
                 FROM user u
                 LEFT JOIN user_role ur ON u.id = ur.user_id
                 LEFT JOIN role r ON ur.role_id = r.id
