@@ -304,17 +304,17 @@ jobs:
           mkdir -p release
           cp artifacts/fray-jar/fray-runner.jar release/fray.jar
           # Linux amd64
-          cp artifacts/native-linux-amd64/server/build/fray-runner release/fray-linux-amd64
-          cp artifacts/native-linux-amd64/server/native/linux-amd64/liblibsql.so release/liblibsql-linux-amd64.so
+          cp artifacts/native-linux-amd64/build/fray-runner release/fray-linux-amd64
+          cp artifacts/native-linux-amd64/native/linux-amd64/liblibsql.so release/liblibsql-linux-amd64.so
           # Linux arm64
-          cp artifacts/native-linux-arm64/server/build/fray-runner release/fray-linux-arm64
-          cp artifacts/native-linux-arm64/server/native/linux-aarch64/liblibsql.so release/liblibsql-linux-arm64.so
+          cp artifacts/native-linux-arm64/build/fray-runner release/fray-linux-arm64
+          cp artifacts/native-linux-arm64/native/linux-aarch64/liblibsql.so release/liblibsql-linux-arm64.so
           # macOS arm64
-          cp artifacts/native-macos-arm64/server/build/fray-runner release/fray-darwin-arm64
-          cp artifacts/native-macos-arm64/server/native/darwin-aarch64/liblibsql.dylib release/liblibsql-darwin-arm64.dylib
+          cp artifacts/native-macos-arm64/build/fray-runner release/fray-darwin-arm64
+          cp artifacts/native-macos-arm64/native/darwin-aarch64/liblibsql.dylib release/liblibsql-darwin-arm64.dylib
           # Windows amd64
-          cp artifacts/native-windows-amd64/server/build/fray-runner.exe release/fray-windows-amd64.exe
-          cp artifacts/native-windows-amd64/server/native/windows-amd64/libsql.dll release/libsql-windows-amd64.dll
+          cp artifacts/native-windows-amd64/build/fray-runner.exe release/fray-windows-amd64.exe
+          cp artifacts/native-windows-amd64/native/windows-amd64/libsql.dll release/libsql-windows-amd64.dll
       - uses: softprops/action-gh-release@v2
         with:
           files: release/*
