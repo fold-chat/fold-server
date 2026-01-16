@@ -2,9 +2,14 @@
 	import { getChannelsByCategory, getUnreadCount } from '$lib/stores/channels.svelte.js';
 	import { getActiveChannelId } from '$lib/stores/messages.svelte.js';
 	import { getConnectionState } from '$lib/stores/ws.svelte.js';
+	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { PermissionName } from '$lib/permissions.js';
 	import { goto } from '$app/navigation';
 
 	let { onCreateChannel, onCreateCategory }: { onCreateChannel?: () => void; onCreateCategory?: () => void } = $props();
+
+	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
+	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
 
 	function selectChannel(id: string) {
 		goto(`/channels/${id}`);
@@ -48,11 +53,15 @@
 	</nav>
 
 	<div class="sidebar-footer">
-		{#if onCreateChannel}
+		{#if onCreateChannel && canManageChannels}
 			<button class="sidebar-action" onclick={onCreateChannel}>+ Channel</button>
 		{/if}
-		{#if onCreateCategory}
+		{#if onCreateCategory && canManageChannels}
 			<button class="sidebar-action" onclick={onCreateCategory}>+ Category</button>
+		{/if}
+		{#if canManageRoles}
+			<button class="sidebar-action" onclick={() => goto('/settings/roles')}>Roles</button>
+			<button class="sidebar-action" onclick={() => goto('/settings/members')}>Members</button>
 		{/if}
 	</div>
 </aside>

@@ -5,11 +5,15 @@
 	import { getMessages, setMessages, prependMessages, setLoading, setHasMore, hasMore, isLoading, setActiveChannelId, getTypingUsers } from '$lib/stores/messages.svelte.js';
 	import { markChannelRead } from '$lib/stores/channels.svelte.js';
 	import { send } from '$lib/stores/ws.svelte.js';
-	import { getUser } from '$lib/stores/auth.svelte.js';
+	import { getUser, hasChannelPermission, hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { PermissionName } from '$lib/permissions.js';
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
 
 	let channelId = $derived(page.params.id!);
+	let canSend = $derived(hasChannelPermission(channelId, PermissionName.SEND_MESSAGES));
+	let canManageMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES));
+	let canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	let editingId = $state<string | null>(null);
 	let editContent = $state('');
 	let typingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
@@ -132,6 +136,11 @@
 </script>
 
 <div class="channel-view">
+	<div class="channel-header">
+		{#if canManageChannels}
+			<a href="/channels/{channelId}/settings" class="channel-settings">Permissions</a>
+		{/if}
+	</div>
 	<MessageList
 		messages={getMessages(channelId)}
 		loading={isLoading(channelId)}
@@ -140,13 +149,14 @@
 		{editingId}
 		{editContent}
 		typingUsers={getTypingUsers(channelId)}
+		{canManageMessages}
 		onLoadMore={loadOlder}
 		onStartEdit={startEdit}
 		onCancelEdit={cancelEdit}
 		onSaveEdit={handleEdit}
 		onDelete={handleDelete}
 	/>
-	<MessageCompose onSend={handleSend} onTyping={handleTyping} />
+	<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} />
 </div>
 
 <style>
@@ -156,5 +166,22 @@
 		flex-direction: column;
 		height: 100vh;
 		min-width: 0;
+	}
+
+	.channel-header {
+		display: flex;
+		justify-content: flex-end;
+		padding: 0.4rem 1rem;
+		border-bottom: 1px solid var(--border);
+		min-height: 0;
+	}
+
+	.channel-settings {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.channel-settings:hover {
+		color: var(--text);
 	}
 </style>

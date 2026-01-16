@@ -13,6 +13,12 @@ export interface User {
 	roles?: string[];
 }
 
+export interface RoleBadge {
+	id: string;
+	name: string;
+	color: string | null;
+}
+
 export interface Member {
 	id: string;
 	username: string;
@@ -23,7 +29,7 @@ export interface Member {
 	bio: string | null;
 	created_at: string;
 	last_seen_at: string | null;
-	roles: string;
+	roles: RoleBadge[];
 }
 
 export function getMe() {

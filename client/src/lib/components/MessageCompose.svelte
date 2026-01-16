@@ -10,7 +10,7 @@
 		preview?: string;
 	}
 
-	let { onSend, onTyping }: { onSend: (content: string, attachmentIds?: string[]) => void; onTyping?: () => void } = $props();
+	let { onSend, onTyping, disabled = false }: { onSend: (content: string, attachmentIds?: string[]) => void; onTyping?: () => void; disabled?: boolean } = $props();
 
 	let content = $state('');
 	let textarea = $state<HTMLTextAreaElement | null>(null);
@@ -153,10 +153,11 @@
 			bind:value={content}
 			onkeydown={handleKeydown}
 			oninput={handleInput}
-			placeholder="Send a message..."
+			placeholder={disabled ? 'You do not have permission to send messages' : 'Send a message...'}
 			rows="1"
+			{disabled}
 		></textarea>
-		<button class="send-btn" onclick={submit} disabled={!canSend}>Send</button>
+		<button class="send-btn" onclick={submit} disabled={!canSend || disabled}>Send</button>
 	</div>
 </div>
 

@@ -11,6 +11,7 @@
 		editingId = null,
 		editContent = '',
 		typingUsers = [],
+		canManageMessages = false,
 		onLoadMore,
 		onStartEdit,
 		onCancelEdit,
@@ -24,6 +25,7 @@
 		editingId?: string | null;
 		editContent?: string;
 		typingUsers?: string[];
+		canManageMessages?: boolean;
 		onLoadMore?: () => void;
 		onStartEdit?: (id: string, content: string) => void;
 		onCancelEdit?: () => void;
@@ -187,12 +189,12 @@
 						{/if}
 					{/if}
 				</div>
-				{#if msg.author_id === currentUserId && editingId !== msg.id}
-					<div class="message-actions">
-						<button class="action-btn" onclick={() => onStartEdit?.(msg.id, msg.content)} title="Edit">✏️</button>
-						<button class="action-btn" onclick={() => onDelete?.(msg.id)} title="Delete">🗑️</button>
-					</div>
-				{/if}
+			{#if (msg.author_id === currentUserId || canManageMessages) && editingId !== msg.id}
+				<div class="message-actions">
+					<button class="action-btn" onclick={() => onStartEdit?.(msg.id, msg.content)} title="Edit">✏️</button>
+					<button class="action-btn" onclick={() => onDelete?.(msg.id)} title="Delete">🗑️</button>
+				</div>
+			{/if}
 			</div>
 		{/each}
 	</div>

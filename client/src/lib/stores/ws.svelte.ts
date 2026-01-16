@@ -1,7 +1,10 @@
 import type { Channel, Category } from '$lib/api/channels.js';
 import type { Member } from '$lib/api/users.js';
+import type { Role } from '$lib/api/roles.js';
 import { setChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates } from './channels.svelte.js';
 import { handleMessageEvent, handleTypingEvent } from './messages.svelte.js';
+import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
+import { setPermissions } from './auth.svelte.js';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
 
@@ -113,6 +116,22 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 		case 'TYPING_STOP':
 			handleTypingEvent(msg.op, msg.d);
 			break;
+		case 'ROLE_CREATE':
+			if (msg.d) addRole(msg.d as unknown as Role);
+			break;
+		case 'ROLE_UPDATE':
+			if (msg.d) updateStoreRole(msg.d as unknown as Role);
+			break;
+		case 'ROLE_DELETE':
+			if (msg.d?.id) removeStoreRole(msg.d.id as string);
+			break;
+		case 'MEMBER_ROLE_ASSIGNED':
+		case 'MEMBER_ROLE_REMOVED':
+		case 'CHANNEL_PERMISSIONS_UPDATE':
+			// These events may affect current user's permissions.
+			// For now, the permission state is set on HELLO.
+			// A full refresh would be needed for real-time permission updates.
+			break;
 	}
 }
 
@@ -121,7 +140,9 @@ interface HelloPayload {
 	channels: Channel[];
 	categories: Category[];
 	members: Member[];
+	roles: Role[];
 	read_states: Array<{ channel_id: string; last_read_message_id: string | null }>;
+	user_permissions: { server: string[]; channels: Record<string, string[]> };
 	heartbeat_interval_ms: number;
 	session_id: string;
 }
@@ -131,6 +152,13 @@ function handleHello(data: HelloPayload) {
 	setChannels(data.channels ?? []);
 	setCategories(data.categories ?? []);
 	setReadStates(data.read_states ?? []);
+	if (data.roles) setRoles(data.roles);
+	if (data.user_permissions) {
+		setPermissions(
+			data.user_permissions.server ?? [],
+			data.user_permissions.channels ?? {}
+		);
+	}
 	startHeartbeat(data.heartbeat_interval_ms || 30000);
 }
 
