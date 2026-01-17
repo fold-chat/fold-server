@@ -27,6 +27,7 @@ dependencies {
     compileOnly("org.graalvm.sdk:nativeimage:24.2.0")
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")
+    testImplementation("org.mockito:mockito-core:5.14.2")
 }
 
 group = "chat.fray"
