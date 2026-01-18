@@ -1,7 +1,7 @@
 import type { Channel, Category } from '$lib/api/channels.js';
 import type { Member } from '$lib/api/users.js';
 import type { Role } from '$lib/api/roles.js';
-import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates } from './channels.svelte.js';
+import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates, setUnreadCounts } from './channels.svelte.js';
 import { handleMessageEvent, handleTypingEvent } from './messages.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
 import { getUser, setPermissions } from './auth.svelte.js';
@@ -147,6 +147,7 @@ interface HelloPayload {
 	members: Member[];
 	roles: Role[];
 	read_states: Array<{ channel_id: string; last_read_message_id: string | null }>;
+	unread_counts: Array<{ channel_id: string; unread_count: number }>;
 	user_permissions: { server: string[]; channels: Record<string, string[]> };
 	heartbeat_interval_ms: number;
 	session_id: string;
@@ -175,6 +176,7 @@ function handleHello(data: HelloPayload) {
 	setChannels(data.channels ?? []);
 	setCategories(data.categories ?? []);
 	setReadStates(data.read_states ?? []);
+	setUnreadCounts(data.unread_counts ?? []);
 	if (data.roles) setRoles(data.roles);
 	if (data.user_permissions) {
 		setPermissions(

@@ -144,6 +144,7 @@ public class FrayWebSocket {
             var categories = categoryRepo.listAll();
             var members = userRepo.listMembers();
             var readStates = readStateRepo.findAllForUser(userId);
+            var unreadCounts = readStateRepo.unreadCounts(userId);
 
             // Filter channels by VIEW_CHANNEL permission
             var allChannelIds = allChannels.stream()
@@ -162,6 +163,11 @@ public class FrayWebSocket {
             // Compute user permissions
             var userPermissions = permissionService.computeUserPermissions(userId, viewableIds);
 
+            // Filter unread counts to viewable channels only
+            var filteredUnreadCounts = unreadCounts.stream()
+                    .filter(uc -> viewableIds.contains(uc.get("channel_id")))
+                    .toList();
+
             var hello = new LinkedHashMap<String, Object>();
             hello.put("user", sanitizeUser(user));
             hello.put("channels", channels);
@@ -169,6 +175,7 @@ public class FrayWebSocket {
             hello.put("members", members);
             hello.put("roles", roles);
             hello.put("read_states", readStates);
+            hello.put("unread_counts", filteredUnreadCounts);
             hello.put("user_permissions", userPermissions);
             hello.put("heartbeat_interval_ms", 30000);
             hello.put("session_id", UUID.randomUUID().toString());

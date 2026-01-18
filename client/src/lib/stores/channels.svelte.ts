@@ -33,6 +33,10 @@ export function setReadStates(states: Array<{ channel_id: string; last_read_mess
 	readStates = new Map(states.map((s) => [s.channel_id, s.last_read_message_id]));
 }
 
+export function setUnreadCounts(counts: Array<{ channel_id: string; unread_count: number }>) {
+	unreadCounts = new Map(counts.map((c) => [c.channel_id, c.unread_count]));
+}
+
 export function markChannelRead(channelId: string, messageId: string) {
 	readStates = new Map(readStates);
 	readStates.set(channelId, messageId);

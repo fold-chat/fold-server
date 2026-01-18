@@ -14,7 +14,9 @@
 		updateChannel as updateChannelApi,
 		updateCategory as updateCategoryApi,
 		deleteChannel as deleteChannelApi,
-		deleteCategory as deleteCategoryApi
+		deleteCategory as deleteCategoryApi,
+		createChannel as createChannelApi,
+		createCategory as createCategoryApi
 	} from '$lib/api/channels.js';
 	import { updateChannel as updateChannelStore, updateCategory as updateCategoryStore } from '$lib/stores/channels.svelte.js';
 	import type { Category, Channel } from '$lib/api/channels.js';
@@ -25,10 +27,25 @@
 	import { goto } from '$app/navigation';
 	import ConfirmDialog from './ConfirmDialog.svelte';
 
-	let { onCreateChannel, onCreateCategory }: { onCreateChannel?: () => void; onCreateCategory?: () => void } = $props();
-
 	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
+
+	// --- Create handlers ---
+	async function handleCreateChannel() {
+		try {
+			const ch = await createChannelApi({ name: 'new channel' });
+			editingChannelId = ch.id;
+			editingName = ch.name;
+		} catch { /* ignore */ }
+	}
+
+	async function handleCreateCategory() {
+		try {
+			const cat = await createCategoryApi({ name: 'new category' });
+			editingCategoryId = cat.id;
+			editingCategoryName = cat.name;
+		} catch { /* ignore */ }
+	}
 
 	// --- Inline rename state ---
 	let editingChannelId = $state<string | null>(null);
@@ -400,7 +417,7 @@
 						<span class="channel-name">{channel.name}</span>
 					{/if}
 					{#if unread > 0}
-						<span class="unread-badge">{unread}</span>
+						<span class="unread-badge">{unread > 99 ? '99+' : unread}</span>
 					{/if}
 				{#if canManageChannels && editingChannelId !== channel.id}
 						<span class="rename-btn" role="button" tabindex="0" onclick={(e) => startRename(e, channel)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') startRename(e, channel); }} title="Rename">✎</span>
@@ -413,11 +430,9 @@
 	</nav>
 
 	<div class="sidebar-footer">
-		{#if onCreateChannel && canManageChannels}
-			<button class="sidebar-action" onclick={onCreateChannel}>+ Channel</button>
-		{/if}
-		{#if onCreateCategory && canManageChannels}
-			<button class="sidebar-action" onclick={onCreateCategory}>+ Category</button>
+		{#if canManageChannels}
+			<button class="sidebar-action" onclick={handleCreateChannel}>+ Channel</button>
+			<button class="sidebar-action" onclick={handleCreateCategory}>+ Category</button>
 		{/if}
 		{#if canManageRoles}
 			<button class="sidebar-action" onclick={() => goto('/settings/roles')}>Roles</button>
