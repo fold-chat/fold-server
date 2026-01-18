@@ -46,4 +46,14 @@ public class CategoryRepository {
         var rows = db.query("SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM category");
         return ((Long) rows.getFirst().get("next_pos")).intValue();
     }
+
+    public void batchUpdatePositions(List<IdPosition> items) {
+        db.transactionVoid(tx -> {
+            for (var item : items) {
+                tx.execute("UPDATE category SET position = ? WHERE id = ?", item.position(), item.id());
+            }
+        });
+    }
+
+    public record IdPosition(String id, int position) {}
 }

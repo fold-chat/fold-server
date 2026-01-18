@@ -102,7 +102,12 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 			if (msg.d) updateChannel(msg.d as unknown as Channel);
 			break;
 		case 'CHANNEL_DELETE':
-			if (msg.d?.id) removeChannel(msg.d.id as string);
+			if (msg.d?.id) {
+				const deletedId = msg.d.id as string;
+				removeChannel(deletedId);
+				const match = window.location.pathname.match(/^\/channels\/([^/]+)/);
+				if (match && match[1] === deletedId) goto('/');
+			}
 			break;
 		case 'CATEGORY_CREATE':
 			if (msg.d) addCategory(msg.d as unknown as Category);

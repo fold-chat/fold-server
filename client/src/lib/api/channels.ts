@@ -50,3 +50,11 @@ export function updateCategory(id: string, data: { name?: string; position?: num
 export function deleteCategory(id: string) {
 	return api<void>(`/categories/${id}`, { method: 'DELETE' });
 }
+
+export function reorderCategories(items: { id: string; position: number }[]) {
+	return api<Category[]>('/categories/reorder', { method: 'PATCH', body: JSON.stringify(items) });
+}
+
+export function reorderChannels(items: { id: string; position: number; category_id: string | null }[]) {
+	return api<Channel[]>('/channels/reorder', { method: 'PATCH', body: JSON.stringify(items) });
+}

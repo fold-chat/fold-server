@@ -168,6 +168,28 @@ public class ChannelResource {
         return Response.noContent().build();
     }
 
+    @PATCH
+    @Path("/reorder")
+    public Response reorder(List<ReorderItem> items) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
+        if (items == null || items.isEmpty()) {
+            return Response.status(400).entity(Map.of("error", "invalid_body", "message", "Items required")).build();
+        }
+        for (var item : items) {
+            if (item.id() == null || channelRepo.findById(item.id()).isEmpty()) {
+                return Response.status(400).entity(Map.of("error", "invalid_id", "message", "Channel not found: " + item.id())).build();
+            }
+        }
+        channelRepo.batchUpdatePositions(
+                items.stream().map(i -> new chat.fray.db.ChannelRepository.IdPositionCategory(i.id(), i.position(), i.category_id())).toList()
+        );
+        for (var item : items) {
+            channelRepo.findById(item.id()).ifPresent(c ->
+                    eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, c, Scope.server())));
+        }
+        return Response.ok(channelRepo.listAll()).build();
+    }
+
     // --- DTOs ---
 
     public record CreateChannelRequest(String name, String type, String category_id, String topic, String description, Integer position) {}
@@ -178,6 +200,7 @@ public class ChannelResource {
     }
     public record SendMessageRequest(String content, List<String> attachment_ids) {}
     public record ReadStateRequest(String last_read_message_id) {}
+    public record ReorderItem(String id, int position, String category_id) {}
 
     // --- Helpers ---
 

@@ -40,6 +40,10 @@ public class ChannelRepository {
         db.execute("DELETE FROM channel WHERE id = ?", id);
     }
 
+    public List<Map<String, Object>> findByCategoryId(String categoryId) {
+        return db.query("SELECT * FROM channel WHERE category_id = ?", categoryId);
+    }
+
     public int nextPosition() {
         var rows = db.query("SELECT COALESCE(MAX(position), -1) + 1 AS next_pos FROM channel");
         return ((Long) rows.getFirst().get("next_pos")).intValue();
@@ -66,4 +70,15 @@ public class ChannelRepository {
         );
         return rows.isEmpty() ? Optional.empty() : Optional.of((String) rows.getFirst().get("id"));
     }
+
+    public void batchUpdatePositions(List<IdPositionCategory> items) {
+        db.transactionVoid(tx -> {
+            for (var item : items) {
+                tx.execute("UPDATE channel SET position = ?, category_id = ? WHERE id = ?",
+                        item.position(), item.categoryId(), item.id());
+            }
+        });
+    }
+
+    public record IdPositionCategory(String id, int position, String categoryId) {}
 }

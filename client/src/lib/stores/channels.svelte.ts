@@ -69,6 +69,23 @@ export function removeCategory(id: string) {
 	categories = categories.filter((c) => c.id !== id);
 }
 
+export function reorderCategoriesLocal(items: { id: string; position: number }[]) {
+	const posMap = new Map(items.map((i) => [i.id, i.position]));
+	categories = categories
+		.map((c) => (posMap.has(c.id) ? { ...c, position: posMap.get(c.id)! } : c))
+		.sort((a, b) => a.position - b.position);
+}
+
+export function reorderChannelsLocal(items: { id: string; position: number; category_id: string | null }[]) {
+	const updates = new Map(items.map((i) => [i.id, i]));
+	channels = channels
+		.map((c) => {
+			const u = updates.get(c.id);
+			return u ? { ...c, position: u.position, category_id: u.category_id } : c;
+		})
+		.sort((a, b) => a.position - b.position);
+}
+
 /** Get channels grouped by category (null category = uncategorized) */
 export function getChannelsByCategory(): { category: Category | null; channels: Channel[] }[] {
 	const uncategorized = channels.filter((c) => !c.category_id);

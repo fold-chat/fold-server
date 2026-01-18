@@ -2,6 +2,7 @@ package chat.fray.api;
 
 import chat.fray.auth.FraySecurityContext;
 import chat.fray.db.CategoryRepository;
+import chat.fray.db.ChannelRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
@@ -12,6 +13,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,6 +23,7 @@ import java.util.UUID;
 public class CategoryResource {
 
     @Inject CategoryRepository categoryRepo;
+    @Inject ChannelRepository channelRepo;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
@@ -72,13 +75,42 @@ public class CategoryResource {
         if (categoryRepo.findById(id).isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found")).build();
         }
+        // Delete all channels in this category first, then the category
+        var channels = channelRepo.findByCategoryId(id);
+        for (var ch : channels) {
+            channelRepo.delete((String) ch.get("id"));
+            eventBus.publish(Event.of(EventType.CHANNEL_DELETE, Map.of("id", ch.get("id")), Scope.server()));
+        }
         categoryRepo.delete(id);
         eventBus.publish(Event.of(EventType.CATEGORY_DELETE, Map.of("id", id), Scope.server()));
         return Response.noContent().build();
     }
 
+    @PATCH
+    @Path("/reorder")
+    public Response reorder(List<ReorderItem> items) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
+        if (items == null || items.isEmpty()) {
+            return Response.status(400).entity(Map.of("error", "invalid_body", "message", "Items required")).build();
+        }
+        for (var item : items) {
+            if (item.id() == null || categoryRepo.findById(item.id()).isEmpty()) {
+                return Response.status(400).entity(Map.of("error", "invalid_id", "message", "Category not found: " + item.id())).build();
+            }
+        }
+        categoryRepo.batchUpdatePositions(
+                items.stream().map(i -> new chat.fray.db.CategoryRepository.IdPosition(i.id(), i.position())).toList()
+        );
+        for (var item : items) {
+            categoryRepo.findById(item.id()).ifPresent(c ->
+                    eventBus.publish(Event.of(EventType.CATEGORY_UPDATE, c, Scope.server())));
+        }
+        return Response.ok(categoryRepo.listAll()).build();
+    }
+
     public record CreateCategoryRequest(String name, Integer position) {}
     public record UpdateCategoryRequest(String name, Integer position) {}
+    public record ReorderItem(String id, int position) {}
 
     private FraySecurityContext sc() {
         return (FraySecurityContext) requestContext.getSecurityContext();
