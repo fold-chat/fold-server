@@ -1,5 +1,6 @@
 package chat.fray.service;
 
+import chat.fray.db.ChannelRepository;
 import chat.fray.db.RoleRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
@@ -10,6 +11,7 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class RoleService {
@@ -17,6 +19,7 @@ public class RoleService {
     private static final String OWNER_ROLE_ID = "owner";
 
     @Inject RoleRepository roleRepo;
+    @Inject ChannelRepository channelRepo;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
 
@@ -98,9 +101,13 @@ public class RoleService {
         roleRepo.assignRole(userId, roleId);
         permissionService.invalidateUser(userId);
 
-        eventBus.publish(Event.of(EventType.MEMBER_ROLE_ASSIGNED,
-                Map.of("user_id", userId, "role_id", roleId, "role", serializeRole(role)),
-                Scope.server()));
+        var userState = computeUserState(userId);
+        var payload = new LinkedHashMap<String, Object>();
+        payload.put("user_id", userId);
+        payload.put("role_id", roleId);
+        payload.put("role", serializeRole(role));
+        payload.putAll(userState);
+        eventBus.publish(Event.of(EventType.MEMBER_ROLE_ASSIGNED, payload, Scope.server()));
     }
 
     public void removeRole(String actorId, String userId, String roleId) {
@@ -115,9 +122,12 @@ public class RoleService {
         roleRepo.removeRole(userId, roleId);
         permissionService.invalidateUser(userId);
 
-        eventBus.publish(Event.of(EventType.MEMBER_ROLE_REMOVED,
-                Map.of("user_id", userId, "role_id", roleId),
-                Scope.server()));
+        var userState = computeUserState(userId);
+        var payload = new LinkedHashMap<String, Object>();
+        payload.put("user_id", userId);
+        payload.put("role_id", roleId);
+        payload.putAll(userState);
+        eventBus.publish(Event.of(EventType.MEMBER_ROLE_REMOVED, payload, Scope.server()));
     }
 
     // --- Channel overrides ---
@@ -208,6 +218,22 @@ public class RoleService {
                     Response.status(409).entity(Map.of("error", "position_conflict", "message", "A role with this position already exists")).build()
             );
         }
+    }
+
+    /** Compute permissions + viewable channels for a user after a role change */
+    private Map<String, Object> computeUserState(String userId) {
+        var allChannels = channelRepo.listAll();
+        var allChannelIds = allChannels.stream()
+                .map(c -> (String) c.get("id"))
+                .collect(Collectors.toSet());
+        var viewableIds = permissionService.filterViewableChannels(userId, allChannelIds);
+        var viewableChannels = allChannels.stream()
+                .filter(c -> viewableIds.contains(c.get("id")))
+                .toList();
+        var result = new LinkedHashMap<String, Object>();
+        result.put("user_permissions", permissionService.computeUserPermissions(userId, viewableIds));
+        result.put("channels", viewableChannels);
+        return result;
     }
 
     private static WebApplicationException notFound(String message) {

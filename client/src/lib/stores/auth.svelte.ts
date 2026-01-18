@@ -77,7 +77,10 @@ export function hasServerPermission(perm: Permission): boolean {
 }
 
 export function hasChannelPermission(channelId: string, perm: Permission): boolean {
-	return permissions.channels.get(channelId)?.includes(perm) ?? false;
+	const channelPerms = permissions.channels.get(channelId);
+	if (channelPerms) return channelPerms.includes(perm);
+	// Channel not in map (e.g. newly created) — fall back to server permissions
+	return permissions.server.includes(perm);
 }
 
 export function reset() {

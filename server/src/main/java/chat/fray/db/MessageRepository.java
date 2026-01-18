@@ -33,6 +33,14 @@ public class MessageRepository {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
     }
 
+    public Optional<Map<String, Object>> findByIdWithAuthor(String id) {
+        var rows = db.query("""
+                SELECT m.*, u.username AS author_username, u.display_name AS author_display_name, u.avatar_url AS author_avatar_url
+                FROM message m JOIN user u ON m.author_id = u.id
+                WHERE m.id = ?""", id);
+        return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
+    }
+
     /**
      * Paginate messages in a channel. UUIDv7 IDs are lexicographically time-sorted.
      * @param before cursor — return messages older than this ID

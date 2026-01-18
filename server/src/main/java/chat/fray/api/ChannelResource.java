@@ -150,7 +150,7 @@ public class ChannelResource {
             }
         }
 
-        var created = messageRepo.findById(id).map(this::withAttachments);
+        var created = messageRepo.findByIdWithAuthor(id).map(this::withAttachments);
         created.ifPresent(m -> eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId))));
         return created
                 .map(m -> Response.status(201).entity(m).build())

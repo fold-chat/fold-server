@@ -58,7 +58,7 @@ public class MessageResource {
         }
 
         messageRepo.updateContent(id, req.content());
-        var updated = messageRepo.findById(id).map(this::withAttachments);
+        var updated = messageRepo.findByIdWithAuthor(id).map(this::withAttachments);
         updated.ifPresent(m -> eventBus.publish(Event.of(EventType.MESSAGE_UPDATE, m, Scope.channel((String) msg.get("channel_id")))));
         return updated
                 .map(m -> Response.ok(m).build())

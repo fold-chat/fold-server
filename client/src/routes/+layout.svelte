@@ -16,22 +16,21 @@
 	}
 
 	onMount(() => {
-		init();
+		init().then(() => {
+			const path = page.url.pathname;
+			if (isSetupRequired() && path !== '/setup') {
+				goto('/setup');
+			} else if (!isSetupRequired() && !isAuthenticated() && !isPublicRoute(path)) {
+				goto('/login');
+			}
+		});
+		return () => disconnect();
+	});
 
-		const path = page.url.pathname;
-
-		if (isSetupRequired() && path !== '/setup') {
-			goto('/setup');
-			return;
-		}
-
-		if (!isSetupRequired() && !isAuthenticated() && !isPublicRoute(path)) {
-			goto('/login');
-		} else if (isAuthenticated()) {
+	$effect(() => {
+		if (isInitialized() && isAuthenticated()) {
 			connect();
 		}
-
-		return () => disconnect();
 	});
 </script>
 

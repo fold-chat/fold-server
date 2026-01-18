@@ -1,10 +1,11 @@
 import type { Channel, Category } from '$lib/api/channels.js';
 import type { Member } from '$lib/api/users.js';
 import type { Role } from '$lib/api/roles.js';
-import { setChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates } from './channels.svelte.js';
+import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates } from './channels.svelte.js';
 import { handleMessageEvent, handleTypingEvent } from './messages.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
-import { setPermissions } from './auth.svelte.js';
+import { getUser, setPermissions } from './auth.svelte.js';
+import { goto } from '$app/navigation';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
 
@@ -127,10 +128,9 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 			break;
 		case 'MEMBER_ROLE_ASSIGNED':
 		case 'MEMBER_ROLE_REMOVED':
+			if (msg.d) handleMemberRoleUpdate(msg.d);
+			break;
 		case 'CHANNEL_PERMISSIONS_UPDATE':
-			// These events may affect current user's permissions.
-			// For now, the permission state is set on HELLO.
-			// A full refresh would be needed for real-time permission updates.
 			break;
 	}
 }
@@ -145,6 +145,24 @@ interface HelloPayload {
 	user_permissions: { server: string[]; channels: Record<string, string[]> };
 	heartbeat_interval_ms: number;
 	session_id: string;
+}
+
+function handleMemberRoleUpdate(data: Record<string, unknown>) {
+	const currentUser = getUser();
+	if (currentUser && data.user_id === currentUser.id) {
+		if (data.user_permissions) {
+			const perms = data.user_permissions as { server: string[]; channels: Record<string, string[]> };
+			setPermissions(perms.server ?? [], perms.channels ?? {});
+		}
+		if (data.channels) {
+			const newChannels = data.channels as Channel[];
+			const match = window.location.pathname.match(/^\/channels\/([^/]+)/);
+			if (match && !newChannels.some((c) => c.id === match[1])) {
+				goto('/');
+			}
+			setChannels(newChannels);
+		}
+	}
 }
 
 function handleHello(data: HelloPayload) {
