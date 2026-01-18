@@ -26,6 +26,7 @@ public class FrayWebSocket {
     @Inject CategoryRepository categoryRepo;
     @Inject UserRepository userRepo;
     @Inject ReadStateRepository readStateRepo;
+    @Inject ThreadRepository threadRepo;
     @Inject RoleRepository roleRepo;
     @Inject PermissionService permissionService;
     @Inject RoleService roleService;
@@ -168,6 +169,14 @@ public class FrayWebSocket {
                     .filter(uc -> viewableIds.contains(uc.get("channel_id")))
                     .toList();
 
+            // Build thread read states — capped at 10 per channel, only unread threads
+            var threadReadStates = new ArrayList<Map<String, Object>>();
+            for (var ch : channels) {
+                var chId = (String) ch.get("id");
+                var unreadThreads = readStateRepo.unreadThreadsForUserChannel(userId, chId, 10);
+                threadReadStates.addAll(unreadThreads);
+            }
+
             var hello = new LinkedHashMap<String, Object>();
             hello.put("user", sanitizeUser(user));
             hello.put("channels", channels);
@@ -176,6 +185,7 @@ public class FrayWebSocket {
             hello.put("roles", roles);
             hello.put("read_states", readStates);
             hello.put("unread_counts", filteredUnreadCounts);
+            hello.put("thread_read_states", threadReadStates);
             hello.put("user_permissions", userPermissions);
             hello.put("heartbeat_interval_ms", 30000);
             hello.put("session_id", UUID.randomUUID().toString());

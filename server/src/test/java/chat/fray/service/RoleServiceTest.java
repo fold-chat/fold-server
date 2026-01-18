@@ -1,5 +1,6 @@
 package chat.fray.service;
 
+import chat.fray.db.ChannelRepository;
 import chat.fray.db.RoleRepository;
 import chat.fray.event.EventBus;
 import chat.fray.event.EventType;
@@ -18,6 +19,7 @@ import static org.mockito.Mockito.*;
 class RoleServiceTest {
 
     private RoleRepository roleRepo;
+    private ChannelRepository channelRepo;
     private PermissionService permissionService;
     private EventBus eventBus;
     private RoleService roleService;
@@ -27,11 +29,15 @@ class RoleServiceTest {
     @BeforeEach
     void setup() throws Exception {
         roleRepo = mock(RoleRepository.class);
+        channelRepo = mock(ChannelRepository.class);
         permissionService = mock(PermissionService.class);
         eventBus = mock(EventBus.class);
 
+        when(channelRepo.listAll()).thenReturn(List.of());
+
         roleService = new RoleService();
         inject(roleService, "roleRepo", roleRepo);
+        inject(roleService, "channelRepo", channelRepo);
         inject(roleService, "permissionService", permissionService);
         inject(roleService, "eventBus", eventBus);
     }

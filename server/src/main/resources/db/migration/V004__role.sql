@@ -23,9 +23,9 @@ CREATE INDEX IF NOT EXISTS idx_user_role_role_id ON user_role(role_id);
 -- Owner: bypasses all checks (special role, not bitmask-dependent)
 -- Admin: ADMINISTRATOR(bit31) + all channel/server/voice perms
 -- Moderator: channel perms + KICK + BAN + CREATE_INVITES
--- Member: VIEW_CHANNEL(0) + SEND_MESSAGES(1) + MANAGE_OWN_MESSAGES(2) + UPLOAD_FILES(4) + ADD_REACTIONS(5) + CREATE_INVITES(21) + CHANGE_NICKNAME(23)
+-- Member: VIEW_CHANNEL(0) + SEND_MESSAGES(1) + MANAGE_OWN_MESSAGES(2) + UPLOAD_FILES(4) + ADD_REACTIONS(5) + CREATE_THREADS(8) + MANAGE_OWN_THREADS(9) + CREATE_INVITES(21) + CHANGE_NICKNAME(23)
 INSERT OR IGNORE INTO role (id, name, permissions, position, color, is_default) VALUES
     ('owner', 'Owner', 0, 1, '#e74c3c', 0),
-    ('admin', 'Admin', 272763914111, 2, '#3498db', 0),
+    ('admin', 'Admin', 272763916159, 2, '#3498db', 0),
     ('moderator', 'Moderator', 3671935, 3, '#2ecc71', 0),
-    ('member', 'Member', 10485815, 4, NULL, 1);
+    ('member', 'Member', 10486583, 4, NULL, 1);

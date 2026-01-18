@@ -108,6 +108,7 @@ public class ChannelResource {
             @PathParam("channelId") String channelId,
             @QueryParam("before") String before,
             @QueryParam("after") String after,
+            @QueryParam("around") String around,
             @QueryParam("limit") @DefaultValue("50") int limit
     ) {
         permissionService.requirePermission(sc().getUserId(), channelId, Permission.VIEW_CHANNEL);
@@ -116,6 +117,12 @@ public class ChannelResource {
         }
         if (limit < 1) limit = 1;
         if (limit > 200) limit = 200;
+
+        if (around != null) {
+            var messages = messageRepo.paginateAround(channelId, around, limit);
+            var enriched = messages.stream().map(this::withAttachments).toList();
+            return Response.ok(enriched).build();
+        }
 
         var messages = messageRepo.paginateWithAuthor(channelId, before, after, limit);
         var enriched = messages.stream().map(this::withAttachments).toList();

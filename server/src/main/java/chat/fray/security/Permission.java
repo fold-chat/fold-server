@@ -22,7 +22,8 @@ public enum Permission {
     CREATE_THREADS(8),
     MANAGE_OWN_THREADS(9),
     MANAGE_THREADS(10),
-    // bits 11-15 reserved
+    SEND_IN_LOCKED_THREADS(11),
+    // bits 12-15 reserved
 
     // Server permissions (bits 16-31)
     MANAGE_CHANNELS(16),
