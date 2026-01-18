@@ -1,5 +1,6 @@
 import type { Message } from '$lib/api/messages.js';
 import { incrementUnread } from './channels.svelte.js';
+import { handleThreadMessageEvent } from './threads.svelte.js';
 
 // channelId → messages (sorted oldest first)
 let messagesByChannel = $state<Map<string, Message[]>>(new Map());
@@ -112,6 +113,8 @@ export function clearTyping(channelId: string, userId: string) {
 
 export function handleMessageEvent(op: string, data: Record<string, unknown> | undefined) {
 	if (!data) return;
+	// Route thread messages to thread store
+	if (handleThreadMessageEvent(op, data)) return;
 	switch (op) {
 		case 'MESSAGE_CREATE': {
 			const msg = data as unknown as Message;

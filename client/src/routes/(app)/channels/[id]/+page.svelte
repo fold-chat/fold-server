@@ -2,22 +2,28 @@
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { getMessages as fetchMessages, sendMessage, editMessage, deleteMessage, updateReadState } from '$lib/api/messages.js';
+	import { createThread } from '$lib/api/threads.js';
+	import type { Thread } from '$lib/api/threads.js';
 	import { getMessages, setMessages, prependMessages, setLoading, setHasMore, hasMore, isLoading, setActiveChannelId, getTypingUsers } from '$lib/stores/messages.svelte.js';
 	import { markChannelRead } from '$lib/stores/channels.svelte.js';
+	import { getActiveThread, setActiveThread, findThreadByParentMessage, getChannelThreads } from '$lib/stores/threads.svelte.js';
 	import { send } from '$lib/stores/ws.svelte.js';
 	import { getUser, hasChannelPermission, hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
+	import ThreadPanel from '$lib/components/ThreadPanel.svelte';
 
 	let channelId = $derived(page.params.id!);
 	let canSend = $derived(hasChannelPermission(channelId, PermissionName.SEND_MESSAGES));
 	let canManageMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES));
 	let canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
+	let canCreateThreads = $derived(hasChannelPermission(channelId, PermissionName.CREATE_THREADS));
 	let editingId = $state<string | null>(null);
 	let editContent = $state('');
 	let typingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 	let stopTypingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+	let activeThread = $derived(getActiveThread());
 
 	$effect(() => {
 		const chId = channelId;
@@ -125,6 +131,26 @@
 		editContent = '';
 	}
 
+	async function handleStartThread(messageId: string) {
+		// Prompt for first message content — for now use a simple prompt
+		const content = prompt('Start a thread — enter your first reply:');
+		if (!content?.trim()) return;
+		try {
+			const thread = await createThread(channelId, { parent_message_id: messageId, content: content.trim() });
+			setActiveThread(thread);
+		} catch {
+			// handle error
+		}
+	}
+
+	function handleOpenThread(thread: Thread) {
+		setActiveThread(thread);
+	}
+
+	function threadLookup(messageId: string): Thread | undefined {
+		return findThreadByParentMessage(messageId);
+	}
+
 	function markRead(chId: string) {
 		const msgs = getMessages(chId);
 		if (msgs.length > 0) {
@@ -136,35 +162,51 @@
 </script>
 
 <div class="channel-view">
-	<div class="channel-header">
-		{#if canManageChannels}
-			<a href="/channels/{channelId}/settings" class="channel-settings">Permissions</a>
-		{/if}
+	<div class="channel-main">
+		<div class="channel-header">
+			{#if canManageChannels}
+				<a href="/channels/{channelId}/settings" class="channel-settings">Permissions</a>
+			{/if}
+		</div>
+		<MessageList
+			messages={getMessages(channelId)}
+			loading={isLoading(channelId)}
+			canLoadMore={hasMore(channelId)}
+			currentUserId={getUser()?.id ?? ''}
+			{editingId}
+			{editContent}
+			typingUsers={getTypingUsers(channelId)}
+			{canManageMessages}
+			{canCreateThreads}
+			{threadLookup}
+			onLoadMore={loadOlder}
+			onStartEdit={startEdit}
+			onCancelEdit={cancelEdit}
+			onSaveEdit={handleEdit}
+			onDelete={handleDelete}
+			onStartThread={handleStartThread}
+			onOpenThread={handleOpenThread}
+		/>
+		<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} />
 	</div>
-	<MessageList
-		messages={getMessages(channelId)}
-		loading={isLoading(channelId)}
-		canLoadMore={hasMore(channelId)}
-		currentUserId={getUser()?.id ?? ''}
-		{editingId}
-		{editContent}
-		typingUsers={getTypingUsers(channelId)}
-		{canManageMessages}
-		onLoadMore={loadOlder}
-		onStartEdit={startEdit}
-		onCancelEdit={cancelEdit}
-		onSaveEdit={handleEdit}
-		onDelete={handleDelete}
-	/>
-	<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} />
+	{#if activeThread}
+		<ThreadPanel />
+	{/if}
 </div>
 
 <style>
 	.channel-view {
 		flex: 1;
 		display: flex;
-		flex-direction: column;
+		flex-direction: row;
 		height: 100vh;
+		min-width: 0;
+	}
+
+	.channel-main {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
 		min-width: 0;
 	}
 

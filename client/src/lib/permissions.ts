@@ -11,6 +11,7 @@ export const PermissionName = {
 	CREATE_THREADS: 'CREATE_THREADS',
 	MANAGE_OWN_THREADS: 'MANAGE_OWN_THREADS',
 	MANAGE_THREADS: 'MANAGE_THREADS',
+	SEND_IN_LOCKED_THREADS: 'SEND_IN_LOCKED_THREADS',
 	// Server (bits 16-31)
 	MANAGE_CHANNELS: 'MANAGE_CHANNELS',
 	MANAGE_ROLES: 'MANAGE_ROLES',
@@ -83,7 +84,8 @@ export const PERMISSION_GROUPS = {
 			label: 'Manage Own Threads',
 			desc: 'Lock/archive/delete own threads'
 		},
-		{ name: PermissionName.MANAGE_THREADS, label: 'Manage Threads', desc: 'Lock/archive/delete any thread' }
+		{ name: PermissionName.MANAGE_THREADS, label: 'Manage Threads', desc: 'Lock/archive/delete any thread' },
+		{ name: PermissionName.SEND_IN_LOCKED_THREADS, label: 'Send in Locked Threads', desc: 'Post replies in locked threads' }
 	],
 	Server: [
 		{

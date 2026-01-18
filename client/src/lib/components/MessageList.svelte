@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Message } from '$lib/api/messages.js';
+	import type { Thread } from '$lib/api/threads.js';
 	import { renderMarkdown, formatTimestamp } from '$lib/utils/markdown.js';
 	import { tick } from 'svelte';
 
@@ -12,11 +13,15 @@
 		editContent = '',
 		typingUsers = [],
 		canManageMessages = false,
+		canCreateThreads = false,
+		threadLookup = undefined,
 		onLoadMore,
 		onStartEdit,
 		onCancelEdit,
 		onSaveEdit,
-		onDelete
+		onDelete,
+		onStartThread,
+		onOpenThread
 	}: {
 		messages: Message[];
 		loading?: boolean;
@@ -26,11 +31,15 @@
 		editContent?: string;
 		typingUsers?: string[];
 		canManageMessages?: boolean;
+		canCreateThreads?: boolean;
+		threadLookup?: (messageId: string) => Thread | undefined;
 		onLoadMore?: () => void;
 		onStartEdit?: (id: string, content: string) => void;
 		onCancelEdit?: () => void;
 		onSaveEdit?: (id: string, content: string) => void;
 		onDelete?: (id: string) => void;
+		onStartThread?: (messageId: string) => void;
+		onOpenThread?: (thread: Thread) => void;
 	} = $props();
 
 	let scrollContainer = $state<HTMLDivElement | null>(null);
@@ -138,8 +147,9 @@
 			</div>
 		{/if}
 
-		{#each messages as msg, i}
+	{#each messages as msg, i}
 			{@const newGroup = isNewGroup(msg, messages[i - 1])}
+			{@const msgThread = threadLookup?.(msg.id)}
 			<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id}>
 				{#if newGroup}
 					<div class="message-header">
@@ -189,10 +199,22 @@
 						{/if}
 					{/if}
 				</div>
-			{#if (msg.author_id === currentUserId || canManageMessages) && editingId !== msg.id}
+		{#if msgThread}
+				<button class="thread-indicator" onclick={() => onOpenThread?.(msgThread)}>
+					<span class="thread-reply-count">{msgThread.reply_count ?? 0} {(msgThread.reply_count ?? 0) === 1 ? 'reply' : 'replies'}</span>
+					<span class="thread-activity">{formatTimestamp(msgThread.last_activity_at)}</span>
+					{#if (msgThread.locked ?? 0) !== 0}<span class="thread-lock">🔒</span>{/if}
+				</button>
+			{/if}
+		{#if editingId !== msg.id}
 				<div class="message-actions">
-					<button class="action-btn" onclick={() => onStartEdit?.(msg.id, msg.content)} title="Edit">✏️</button>
-					<button class="action-btn" onclick={() => onDelete?.(msg.id)} title="Delete">🗑️</button>
+					{#if canCreateThreads && !msgThread && !msg.thread_id}
+						<button class="action-btn" onclick={() => onStartThread?.(msg.id)} title="Start Thread">💬</button>
+					{/if}
+					{#if msg.author_id === currentUserId || canManageMessages}
+						<button class="action-btn" onclick={() => onStartEdit?.(msg.id, msg.content)} title="Edit">✏️</button>
+						<button class="action-btn" onclick={() => onDelete?.(msg.id)} title="Delete">🗑️</button>
+					{/if}
 				</div>
 			{/if}
 			</div>
@@ -390,6 +412,36 @@
 
 	.action-btn:hover {
 		background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+	}
+
+	.thread-indicator {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.25rem 0.5rem;
+		margin-top: 0.25rem;
+		background: none;
+		border: none;
+		color: var(--accent, #5865f2);
+		font-size: 0.75rem;
+		cursor: pointer;
+		border-radius: 4px;
+	}
+
+	.thread-indicator:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+	}
+
+	.thread-reply-count {
+		font-weight: 600;
+	}
+
+	.thread-activity {
+		color: var(--text-muted);
+	}
+
+	.thread-lock {
+		font-size: 0.65rem;
 	}
 
 	.typing-indicator {
