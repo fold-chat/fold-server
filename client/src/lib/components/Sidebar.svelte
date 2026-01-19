@@ -398,10 +398,10 @@
 					ondrop={onItemDrop}
 					onclick={() => { if (editingChannelId !== channel.id) selectChannel(channel.id); }}
 				>
-					{#if canManageChannels}
-						<span class="drag-handle" aria-hidden="true">⠿</span>
-					{/if}
-					<span class="channel-hash">#</span>
+				{#if canManageChannels}
+					<span class="drag-handle" aria-hidden="true">⠿</span>
+				{/if}
+					<span class="channel-hash">{channel.type === 'THREAD_CHANNEL' ? '💬' : '#'}</span>
 					{#if editingChannelId === channel.id}
 						<!-- svelte-ignore a11y_autofocus -->
 						<input

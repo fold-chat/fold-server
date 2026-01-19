@@ -9,6 +9,10 @@ export function getChannels(): Channel[] {
 	return channels;
 }
 
+export function getChannelById(id: string): Channel | undefined {
+	return channels.find((c) => c.id === id);
+}
+
 export function getCategories(): Category[] {
 	return categories;
 }

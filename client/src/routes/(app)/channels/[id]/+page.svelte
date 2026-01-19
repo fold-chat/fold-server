@@ -5,7 +5,7 @@
 	import { createThread } from '$lib/api/threads.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { getMessages, setMessages, prependMessages, setLoading, setHasMore, hasMore, isLoading, setActiveChannelId, getTypingUsers } from '$lib/stores/messages.svelte.js';
-	import { markChannelRead } from '$lib/stores/channels.svelte.js';
+	import { markChannelRead, getChannelById } from '$lib/stores/channels.svelte.js';
 	import { getActiveThread, setActiveThread, findThreadByParentMessage, getChannelThreads } from '$lib/stores/threads.svelte.js';
 	import { send } from '$lib/stores/ws.svelte.js';
 	import { getUser, hasChannelPermission, hasServerPermission } from '$lib/stores/auth.svelte.js';
@@ -13,8 +13,11 @@
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
 	import ThreadPanel from '$lib/components/ThreadPanel.svelte';
+	import ForumView from '$lib/components/ForumView.svelte';
 
 	let channelId = $derived(page.params.id!);
+	let channel = $derived(getChannelById(channelId));
+	let isForumChannel = $derived(channel?.type === 'THREAD_CHANNEL');
 	let canSend = $derived(hasChannelPermission(channelId, PermissionName.SEND_MESSAGES));
 	let canManageMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES));
 	let canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
@@ -161,38 +164,42 @@
 	}
 </script>
 
-<div class="channel-view">
-	<div class="channel-main">
-		<div class="channel-header">
-			{#if canManageChannels}
-				<a href="/channels/{channelId}/settings" class="channel-settings">Permissions</a>
-			{/if}
+{#if isForumChannel}
+	<ForumView {channelId} channelName={channel?.name ?? ''} />
+{:else}
+	<div class="channel-view">
+		<div class="channel-main">
+			<div class="channel-header">
+				{#if canManageChannels}
+					<a href="/channels/{channelId}/settings" class="channel-settings">Permissions</a>
+				{/if}
+			</div>
+			<MessageList
+				messages={getMessages(channelId)}
+				loading={isLoading(channelId)}
+				canLoadMore={hasMore(channelId)}
+				currentUserId={getUser()?.id ?? ''}
+				{editingId}
+				{editContent}
+				typingUsers={getTypingUsers(channelId)}
+				{canManageMessages}
+				{canCreateThreads}
+				{threadLookup}
+				onLoadMore={loadOlder}
+				onStartEdit={startEdit}
+				onCancelEdit={cancelEdit}
+				onSaveEdit={handleEdit}
+				onDelete={handleDelete}
+				onStartThread={handleStartThread}
+				onOpenThread={handleOpenThread}
+			/>
+			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} />
 		</div>
-		<MessageList
-			messages={getMessages(channelId)}
-			loading={isLoading(channelId)}
-			canLoadMore={hasMore(channelId)}
-			currentUserId={getUser()?.id ?? ''}
-			{editingId}
-			{editContent}
-			typingUsers={getTypingUsers(channelId)}
-			{canManageMessages}
-			{canCreateThreads}
-			{threadLookup}
-			onLoadMore={loadOlder}
-			onStartEdit={startEdit}
-			onCancelEdit={cancelEdit}
-			onSaveEdit={handleEdit}
-			onDelete={handleDelete}
-			onStartThread={handleStartThread}
-			onOpenThread={handleOpenThread}
-		/>
-		<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} />
+		{#if activeThread}
+			<ThreadPanel />
+		{/if}
 	</div>
-	{#if activeThread}
-		<ThreadPanel />
-	{/if}
-</div>
+{/if}
 
 <style>
 	.channel-view {
