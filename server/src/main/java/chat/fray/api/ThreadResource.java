@@ -5,8 +5,6 @@ import chat.fray.auth.FraySecurityContext;
 import chat.fray.auth.RateLimitFilter;
 import chat.fray.auth.RateLimitPolicy;
 import chat.fray.auth.RateLimitService;
-import chat.fray.db.ChannelRepository;
-import chat.fray.db.DatabaseService;
 import chat.fray.db.MessageRepository;
 import chat.fray.db.ReadStateRepository;
 import chat.fray.db.ThreadRepository;
@@ -31,99 +29,12 @@ public class ThreadResource {
 
     @Inject ThreadRepository threadRepo;
     @Inject MessageRepository messageRepo;
-    @Inject ChannelRepository channelRepo;
     @Inject ReadStateRepository readStateRepo;
     @Inject FileService fileService;
-    @Inject DatabaseService databaseService;
     @Inject RateLimitService rateLimitService;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
-
-    // --- Channel-scoped thread endpoints ---
-
-    @POST
-    @Path("/channels/{channelId}/threads")
-    public Response createThread(@PathParam("channelId") String channelId, CreateThreadRequest req) {
-        var sc = sc();
-        permissionService.requirePermission(sc.getUserId(), channelId, Permission.CREATE_THREADS);
-        var rl = checkRate("thread_create", sc.getUserId(), RateLimitPolicy.THREAD_CREATE);
-        if (rl != null) return rl;
-
-        if (channelRepo.findById(channelId).isEmpty()) {
-            return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
-        }
-
-        if (req.content() == null || req.content().isBlank()) {
-            return Response.status(400).entity(Map.of("error", "invalid_content", "message", "Content required")).build();
-        }
-        if (req.content().length() > 5000) {
-            return Response.status(400).entity(Map.of("error", "content_too_long", "message", "Max 5000 characters")).build();
-        }
-
-        // Chat threads require parent_message_id; thread channel posts require title
-        if (req.parent_message_id() == null && (req.title() == null || req.title().isBlank())) {
-            return Response.status(400).entity(Map.of("error", "invalid_request", "message", "Either parent_message_id or title is required")).build();
-        }
-
-        // Validate parent message exists and belongs to channel
-        if (req.parent_message_id() != null) {
-            var parentMsg = messageRepo.findById(req.parent_message_id());
-            if (parentMsg.isEmpty()) {
-                return Response.status(404).entity(Map.of("error", "not_found", "message", "Parent message not found")).build();
-            }
-            if (!channelId.equals(parentMsg.get().get("channel_id"))) {
-                return Response.status(400).entity(Map.of("error", "invalid_request", "message", "Parent message not in this channel")).build();
-            }
-            // Check if thread already exists on this message
-            if (threadRepo.findByParentMessageId(req.parent_message_id()).isPresent()) {
-                return Response.status(409).entity(Map.of("error", "thread_exists", "message", "Thread already exists on this message")).build();
-            }
-        }
-
-        String threadId = ThreadRepository.newId();
-        String messageId = MessageRepository.newId();
-
-        // Create thread + first message atomically
-        databaseService.transactionVoid(tx -> {
-            threadRepo.create(tx, threadId, channelId, req.parent_message_id(), req.title(), sc.getUserId());
-            messageRepo.create(tx, messageId, channelId, sc.getUserId(), req.content(), threadId);
-        });
-
-        // Link attachments
-        if (req.attachment_ids() != null) {
-            for (String fileId : req.attachment_ids()) {
-                fileService.linkToMessage(fileId, messageId);
-            }
-        }
-
-        var thread = threadRepo.findByIdWithMeta(threadId);
-        var firstMessage = messageRepo.findByIdWithAuthor(messageId).map(this::withAttachments);
-
-        if (thread.isPresent()) {
-            var payload = new HashMap<>(thread.get());
-            firstMessage.ifPresent(m -> payload.put("first_message", m));
-            eventBus.publish(Event.of(EventType.THREAD_CREATE, payload, Scope.channel(channelId)));
-            return Response.status(201).entity(payload).build();
-        }
-        return Response.status(500).build();
-    }
-
-    @GET
-    @Path("/channels/{channelId}/threads")
-    public Response listThreads(
-            @PathParam("channelId") String channelId,
-            @QueryParam("before") String before,
-            @QueryParam("limit") @DefaultValue("25") int limit
-    ) {
-        permissionService.requirePermission(sc().getUserId(), channelId, Permission.VIEW_CHANNEL);
-        if (channelRepo.findById(channelId).isEmpty()) {
-            return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
-        }
-        if (limit < 1) limit = 1;
-        if (limit > 100) limit = 100;
-        return Response.ok(threadRepo.findByChannelId(channelId, before, limit)).build();
-    }
 
     // --- Thread-scoped endpoints ---
 
@@ -275,7 +186,6 @@ public class ThreadResource {
 
     // --- DTOs ---
 
-    public record CreateThreadRequest(String parent_message_id, String title, String content, List<String> attachment_ids) {}
     public record ReplyRequest(String content, List<String> attachment_ids) {}
     public record UpdateThreadRequest(String title, Integer locked) {}
     public record ThreadReadStateRequest(String last_read_message_id) {}

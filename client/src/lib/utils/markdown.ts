@@ -21,7 +21,7 @@ export function renderMarkdown(content: string): string {
 }
 
 export function formatTimestamp(dateStr: string): string {
-	const date = new Date(dateStr + 'Z'); // Assume UTC
+	const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
 	const now = new Date();
 	const diff = now.getTime() - date.getTime();
 	const dayMs = 86400000;

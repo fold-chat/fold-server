@@ -4,6 +4,13 @@ import type { Message } from '$lib/api/messages.js';
 // Active thread panel
 let activeThread = $state<Thread | null>(null);
 
+// Pending thread (panel open, not yet created on server)
+export interface PendingThread {
+	parent_message_id: string;
+	channel_id: string;
+}
+let pendingThread = $state<PendingThread | null>(null);
+
 // threadId → messages (oldest first)
 let messagesByThread = $state<Map<string, Message[]>>(new Map());
 let loadingThreads = $state<Set<string>>(new Set());
@@ -26,10 +33,21 @@ export function getActiveThread(): Thread | null {
 
 export function setActiveThread(thread: Thread | null) {
 	activeThread = thread;
+	pendingThread = null;
+}
+
+export function getPendingThread(): PendingThread | null {
+	return pendingThread;
+}
+
+export function setPendingThread(pending: PendingThread | null) {
+	pendingThread = pending;
+	if (pending) activeThread = null;
 }
 
 export function closeThreadPanel() {
 	activeThread = null;
+	pendingThread = null;
 }
 
 // --- Thread messages ---

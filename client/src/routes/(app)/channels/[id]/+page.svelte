@@ -2,11 +2,11 @@
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import { getMessages as fetchMessages, sendMessage, editMessage, deleteMessage, updateReadState } from '$lib/api/messages.js';
-	import { createThread } from '$lib/api/threads.js';
+import { getThreads } from '$lib/api/threads.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { getMessages, setMessages, prependMessages, setLoading, setHasMore, hasMore, isLoading, setActiveChannelId, getTypingUsers } from '$lib/stores/messages.svelte.js';
 	import { markChannelRead, getChannelById } from '$lib/stores/channels.svelte.js';
-	import { getActiveThread, setActiveThread, findThreadByParentMessage, getChannelThreads } from '$lib/stores/threads.svelte.js';
+	import { getActiveThread, setActiveThread, findThreadByParentMessage, getChannelThreads, setChannelThreads, getPendingThread, setPendingThread } from '$lib/stores/threads.svelte.js';
 	import { send } from '$lib/stores/ws.svelte.js';
 	import { getUser, hasChannelPermission, hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
@@ -27,15 +27,29 @@
 	let typingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 	let stopTypingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 	let activeThread = $derived(getActiveThread());
+	let pendingThread = $derived(getPendingThread());
 
 	$effect(() => {
 		const chId = channelId;
 		if (chId) {
 			setActiveChannelId(chId);
-			untrack(() => loadMessages(chId));
+			untrack(() => {
+				loadMessages(chId);
+				loadChannelThreads(chId);
+			});
 		}
 		return () => setActiveChannelId(null);
 	});
+
+	async function loadChannelThreads(chId: string) {
+		if (getChannelThreads(chId).length > 0) return;
+		try {
+			const threads = await getThreads(chId, { limit: 100 });
+			setChannelThreads(chId, threads);
+		} catch {
+			// non-critical — thread indicators just won't show
+		}
+	}
 
 	async function loadMessages(chId: string) {
 		if (getMessages(chId).length > 0) {
@@ -134,16 +148,8 @@
 		editContent = '';
 	}
 
-	async function handleStartThread(messageId: string) {
-		// Prompt for first message content — for now use a simple prompt
-		const content = prompt('Start a thread — enter your first reply:');
-		if (!content?.trim()) return;
-		try {
-			const thread = await createThread(channelId, { parent_message_id: messageId, content: content.trim() });
-			setActiveThread(thread);
-		} catch {
-			// handle error
-		}
+	function handleStartThread(messageId: string) {
+		setPendingThread({ parent_message_id: messageId, channel_id: channelId });
 	}
 
 	function handleOpenThread(thread: Thread) {
@@ -195,9 +201,9 @@
 			/>
 			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} />
 		</div>
-		{#if activeThread}
-			<ThreadPanel />
-		{/if}
+	{#if activeThread || pendingThread}
+		<ThreadPanel />
+	{/if}
 	</div>
 {/if}
 

@@ -54,6 +54,10 @@ export async function uploadFile(file: File): Promise<{ id: string; url: string 
 	return res.json();
 }
 
+export function getMessage(id: string) {
+	return api<Message>(`/messages/${id}`);
+}
+
 export function editMessage(id: string, content: string) {
 	return api<Message>(`/messages/${id}`, {
 		method: 'PATCH',

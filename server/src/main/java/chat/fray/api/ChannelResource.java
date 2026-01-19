@@ -6,8 +6,10 @@ import chat.fray.auth.RateLimitFilter;
 import chat.fray.auth.RateLimitPolicy;
 import chat.fray.auth.RateLimitService;
 import chat.fray.db.ChannelRepository;
+import chat.fray.db.DatabaseService;
 import chat.fray.db.MessageRepository;
 import chat.fray.db.ReadStateRepository;
+import chat.fray.db.ThreadRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
@@ -34,6 +36,8 @@ public class ChannelResource {
     @Inject ChannelRepository channelRepo;
     @Inject MessageRepository messageRepo;
     @Inject ReadStateRepository readStateRepo;
+    @Inject ThreadRepository threadRepo;
+    @Inject DatabaseService databaseService;
     @Inject FileService fileService;
     @Inject RateLimitService rateLimitService;
     @Inject PermissionService permissionService;
@@ -175,6 +179,86 @@ public class ChannelResource {
         return Response.noContent().build();
     }
 
+    // --- Threads (channel-scoped) ---
+
+    @POST
+    @Path("/{channelId}/threads")
+    public Response createThread(@PathParam("channelId") String channelId, CreateThreadRequest threadReq) {
+        var sc = sc();
+        permissionService.requirePermission(sc.getUserId(), channelId, Permission.CREATE_THREADS);
+        var rl = checkRate("thread_create", sc.getUserId(), RateLimitPolicy.THREAD_CREATE);
+        if (rl != null) return rl;
+
+        if (channelRepo.findById(channelId).isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
+        }
+
+        if (threadReq.content() == null || threadReq.content().isBlank()) {
+            return Response.status(400).entity(Map.of("error", "invalid_content", "message", "Content required")).build();
+        }
+        if (threadReq.content().length() > 5000) {
+            return Response.status(400).entity(Map.of("error", "content_too_long", "message", "Max 5000 characters")).build();
+        }
+
+        if (threadReq.parent_message_id() == null && (threadReq.title() == null || threadReq.title().isBlank())) {
+            return Response.status(400).entity(Map.of("error", "invalid_request", "message", "Either parent_message_id or title is required")).build();
+        }
+
+        if (threadReq.parent_message_id() != null) {
+            var parentMsg = messageRepo.findById(threadReq.parent_message_id());
+            if (parentMsg.isEmpty()) {
+                return Response.status(404).entity(Map.of("error", "not_found", "message", "Parent message not found")).build();
+            }
+            if (!channelId.equals(parentMsg.get().get("channel_id"))) {
+                return Response.status(400).entity(Map.of("error", "invalid_request", "message", "Parent message not in this channel")).build();
+            }
+            if (threadRepo.findByParentMessageId(threadReq.parent_message_id()).isPresent()) {
+                return Response.status(409).entity(Map.of("error", "thread_exists", "message", "Thread already exists on this message")).build();
+            }
+        }
+
+        String threadId = ThreadRepository.newId();
+        String messageId = MessageRepository.newId();
+
+        databaseService.transactionVoid(tx -> {
+            threadRepo.create(tx, threadId, channelId, threadReq.parent_message_id(), threadReq.title(), sc.getUserId());
+            messageRepo.create(tx, messageId, channelId, sc.getUserId(), threadReq.content(), threadId);
+        });
+
+        if (threadReq.attachment_ids() != null) {
+            for (String fileId : threadReq.attachment_ids()) {
+                fileService.linkToMessage(fileId, messageId);
+            }
+        }
+
+        var thread = threadRepo.findByIdWithMeta(threadId);
+        var firstMessage = messageRepo.findByIdWithAuthor(messageId).map(this::withAttachments);
+
+        if (thread.isPresent()) {
+            var payload = new HashMap<>(thread.get());
+            firstMessage.ifPresent(m -> payload.put("first_message", m));
+            eventBus.publish(Event.of(EventType.THREAD_CREATE, payload, Scope.channel(channelId)));
+            return Response.status(201).entity(payload).build();
+        }
+        return Response.status(500).build();
+    }
+
+    @GET
+    @Path("/{channelId}/threads")
+    public Response listThreads(
+            @PathParam("channelId") String channelId,
+            @QueryParam("before") String before,
+            @QueryParam("limit") @DefaultValue("25") int limit
+    ) {
+        permissionService.requirePermission(sc().getUserId(), channelId, Permission.VIEW_CHANNEL);
+        if (channelRepo.findById(channelId).isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
+        }
+        if (limit < 1) limit = 1;
+        if (limit > 100) limit = 100;
+        return Response.ok(threadRepo.findByChannelId(channelId, before, limit)).build();
+    }
+
     @PATCH
     @Path("/reorder")
     public Response reorder(List<ReorderItem> items) {
@@ -208,6 +292,7 @@ public class ChannelResource {
     public record SendMessageRequest(String content, List<String> attachment_ids) {}
     public record ReadStateRequest(String last_read_message_id) {}
     public record ReorderItem(String id, int position, String category_id) {}
+    public record CreateThreadRequest(String parent_message_id, String title, String content, List<String> attachment_ids) {}
 
     // --- Helpers ---
 

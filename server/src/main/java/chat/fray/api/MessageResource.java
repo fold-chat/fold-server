@@ -31,6 +31,18 @@ public class MessageResource {
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
+    @GET
+    @Path("/{id}")
+    public Response get(@PathParam("id") String id) {
+        var msgOpt = messageRepo.findByIdWithAuthor(id);
+        if (msgOpt.isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+        var msg = msgOpt.get();
+        permissionService.requirePermission(sc().getUserId(), (String) msg.get("channel_id"), Permission.VIEW_CHANNEL);
+        return Response.ok(withAttachments(msg)).build();
+    }
+
     @PATCH
     @Path("/{id}")
     public Response edit(@PathParam("id") String id, EditMessageRequest req) {
