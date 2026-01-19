@@ -11,11 +11,9 @@
 	import {
 		reorderCategories,
 		reorderChannels,
-		updateChannel as updateChannelApi,
 		updateCategory as updateCategoryApi,
 		deleteChannel as deleteChannelApi,
 		deleteCategory as deleteCategoryApi,
-		createChannel as createChannelApi,
 		createCategory as createCategoryApi
 	} from '$lib/api/channels.js';
 	import { updateChannel as updateChannelStore, updateCategory as updateCategoryStore } from '$lib/stores/channels.svelte.js';
@@ -25,18 +23,36 @@
 	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { goto } from '$app/navigation';
-	import ConfirmDialog from './ConfirmDialog.svelte';
+import ConfirmDialog from './ConfirmDialog.svelte';
+	import CreateChannelDialog from './CreateChannelDialog.svelte';
 
 	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
 
-	// --- Create handlers ---
-	async function handleCreateChannel() {
-		try {
-			const ch = await createChannelApi({ name: 'new channel' });
-			editingChannelId = ch.id;
-			editingName = ch.name;
-		} catch { /* ignore */ }
+	// --- Channel dialog state (create + edit) ---
+	let channelDialogOpen = $state(false);
+	let editingChannel = $state<Channel | null>(null);
+
+	function handleCreateChannel() {
+		editingChannel = null;
+		channelDialogOpen = true;
+	}
+
+	function startEditChannel(e: Event, channel: Channel) {
+		e.stopPropagation();
+		e.preventDefault();
+		editingChannel = channel;
+		channelDialogOpen = true;
+	}
+
+	function onChannelSaved(ch: Channel) {
+		channelDialogOpen = false;
+		if (editingChannel) {
+			updateChannelStore(ch);
+		} else {
+			goto(`/channels/${ch.id}`);
+		}
+		editingChannel = null;
 	}
 
 	async function handleCreateCategory() {
@@ -47,35 +63,6 @@
 		} catch { /* ignore */ }
 	}
 
-	// --- Inline rename state ---
-	let editingChannelId = $state<string | null>(null);
-	let editingName = $state('');
-
-	function startRename(e: Event, channel: Channel) {
-		e.stopPropagation();
-		e.preventDefault();
-		editingChannelId = channel.id;
-		editingName = channel.name;
-	}
-
-	function commitRename(channel: Channel) {
-		const trimmed = editingName.trim();
-		editingChannelId = null;
-		if (!trimmed || trimmed === channel.name) return;
-		updateChannelStore({ ...channel, name: trimmed });
-		updateChannelApi(channel.id, { name: trimmed, category_id: channel.category_id }).catch(() => {
-			updateChannelStore(channel); // revert on failure
-		});
-	}
-
-	function onRenameKeydown(e: KeyboardEvent, channel: Channel) {
-		if (e.key === 'Enter') {
-			e.preventDefault();
-			commitRename(channel);
-		} else if (e.key === 'Escape') {
-			editingChannelId = null;
-		}
-	}
 
 	// --- Category rename state ---
 	let editingCategoryId = $state<string | null>(null);
@@ -396,31 +383,18 @@
 					ondragend={onDragEnd}
 					ondragover={(e: DragEvent) => onChannelDragOver(e, channel)}
 					ondrop={onItemDrop}
-					onclick={() => { if (editingChannelId !== channel.id) selectChannel(channel.id); }}
+				onclick={() => selectChannel(channel.id)}
 				>
 				{#if canManageChannels}
 					<span class="drag-handle" aria-hidden="true">⠿</span>
 				{/if}
 					<span class="channel-hash">{channel.type === 'THREAD_CHANNEL' ? '💬' : '#'}</span>
-					{#if editingChannelId === channel.id}
-						<!-- svelte-ignore a11y_autofocus -->
-						<input
-							class="rename-input"
-							type="text"
-							bind:value={editingName}
-							autofocus
-							onblur={() => commitRename(channel)}
-							onkeydown={(e: KeyboardEvent) => onRenameKeydown(e, channel)}
-							onclick={(e: MouseEvent) => e.stopPropagation()}
-						/>
-					{:else}
-						<span class="channel-name">{channel.name}</span>
-					{/if}
+					<span class="channel-name">{channel.name}</span>
 					{#if unread > 0}
 						<span class="unread-badge">{unread > 99 ? '99+' : unread}</span>
 					{/if}
-				{#if canManageChannels && editingChannelId !== channel.id}
-						<span class="rename-btn" role="button" tabindex="0" onclick={(e) => startRename(e, channel)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') startRename(e, channel); }} title="Rename">✎</span>
+				{#if canManageChannels}
+						<span class="rename-btn" role="button" tabindex="0" onclick={(e) => startEditChannel(e, channel)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') startEditChannel(e, channel); }} title="Edit">✎</span>
 						<span class="delete-btn" role="button" tabindex="0" onclick={(e) => requestDeleteChannel(e, channel)} onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') requestDeleteChannel(e, channel); }} title="Delete">🗑</span>
 					{/if}
 				</button>
@@ -440,6 +414,13 @@
 		{/if}
 	</div>
 </aside>
+
+<CreateChannelDialog
+	open={channelDialogOpen}
+	channel={editingChannel}
+	onsave={onChannelSaved}
+	oncancel={() => { channelDialogOpen = false; editingChannel = null; }}
+/>
 
 <ConfirmDialog
 	open={confirmOpen}

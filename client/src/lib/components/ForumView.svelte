@@ -9,7 +9,7 @@
 	import { formatTimestamp } from '$lib/utils/markdown.js';
 	import MessageCompose from './MessageCompose.svelte';
 
-	let { channelId, channelName }: { channelId: string; channelName: string } = $props();
+	let { channelId, channelName, channelTopic = null, channelDescription = null }: { channelId: string; channelName: string; channelTopic?: string | null; channelDescription?: string | null } = $props();
 
 	let threads = $derived(getChannelThreads(channelId));
 	let canCreate = $derived(hasChannelPermission(channelId, PermissionName.CREATE_THREADS));
@@ -88,7 +88,13 @@
 
 <div class="forum-view">
 	<div class="forum-header">
-		<h2 class="forum-title"># {channelName}</h2>
+		<div class="forum-header-info">
+			<h2 class="forum-title"># {channelName}</h2>
+			{#if channelTopic}
+				<span class="header-divider"></span>
+				<span class="forum-topic">{channelTopic}</span>
+			{/if}
+		</div>
 		<div class="forum-header-actions">
 			{#if canManageChannels}
 				<a href="/channels/{channelId}/settings" class="header-link">Permissions</a>
@@ -100,6 +106,9 @@
 			{/if}
 		</div>
 	</div>
+	{#if channelDescription}
+		<div class="forum-description">{channelDescription}</div>
+	{/if}
 
 	{#if showNewPost}
 		<div class="new-post-form">
@@ -166,10 +175,43 @@
 		border-bottom: 1px solid var(--border);
 	}
 
+	.forum-header-info {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-width: 0;
+		overflow: hidden;
+	}
+
 	.forum-title {
 		font-size: 1rem;
 		font-weight: 600;
 		margin: 0;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.header-divider {
+		width: 1px;
+		height: 1rem;
+		background: var(--border);
+		flex-shrink: 0;
+	}
+
+	.forum-topic {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.forum-description {
+		padding: 0.35rem 1rem;
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		border-bottom: 1px solid var(--border);
+		line-height: 1.4;
 	}
 
 	.forum-header-actions {

@@ -171,15 +171,25 @@ import { getThreads } from '$lib/api/threads.js';
 </script>
 
 {#if isForumChannel}
-	<ForumView {channelId} channelName={channel?.name ?? ''} />
+	<ForumView {channelId} channelName={channel?.name ?? ''} channelTopic={channel?.topic ?? null} channelDescription={channel?.description ?? null} />
 {:else}
 	<div class="channel-view">
 		<div class="channel-main">
-			<div class="channel-header">
+		<div class="channel-header">
+				<div class="channel-header-info">
+					<span class="channel-title"># {channel?.name ?? ''}</span>
+					{#if channel?.topic}
+						<span class="header-divider"></span>
+						<span class="channel-topic">{channel.topic}</span>
+					{/if}
+				</div>
 				{#if canManageChannels}
 					<a href="/channels/{channelId}/settings" class="channel-settings">Permissions</a>
 				{/if}
 			</div>
+			{#if channel?.description}
+				<div class="channel-description">{channel.description}</div>
+			{/if}
 			<MessageList
 				messages={getMessages(channelId)}
 				loading={isLoading(channelId)}
@@ -225,15 +235,56 @@ import { getThreads } from '$lib/api/threads.js';
 
 	.channel-header {
 		display: flex;
-		justify-content: flex-end;
-		padding: 0.4rem 1rem;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.5rem 1rem;
 		border-bottom: 1px solid var(--border);
 		min-height: 0;
+		gap: 0.75rem;
+	}
+
+	.channel-header-info {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	.channel-title {
+		font-weight: 600;
+		font-size: 0.9rem;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.header-divider {
+		width: 1px;
+		height: 1rem;
+		background: var(--border);
+		flex-shrink: 0;
+	}
+
+	.channel-topic {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.channel-description {
+		padding: 0.35rem 1rem;
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		border-bottom: 1px solid var(--border);
+		line-height: 1.4;
 	}
 
 	.channel-settings {
 		font-size: 0.75rem;
 		color: var(--text-muted);
+		white-space: nowrap;
 	}
 
 	.channel-settings:hover {
