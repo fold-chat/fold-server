@@ -19,10 +19,12 @@
 
 	let channelId = $derived(page.params.id!);
 	let threadId = $derived(page.params.threadId!);
+	let highlightParam = $derived(page.url.searchParams.get('highlight'));
 	let channel = $derived(getChannelById(channelId));
 
 	let thread = $state<Awaited<ReturnType<typeof getThread>> | null>(null);
 	let loadError = $state(false);
+	let highlightMessageId = $state<string | null>(null);
 
 	let messages = $derived(getThreadMessages(threadId));
 	let loading = $derived(isThreadLoading(threadId));
@@ -46,13 +48,15 @@
 
 	$effect(() => {
 		const tId = threadId;
+		const hl = highlightParam;
 		if (tId) {
-			untrack(() => loadThread(tId));
+			untrack(() => loadThread(tId, hl));
 		}
 	});
 
-	async function loadThread(tId: string) {
+	async function loadThread(tId: string, highlight: string | null) {
 		loadError = false;
+		highlightMessageId = highlight;
 		try {
 			thread = await getThread(tId);
 			setActiveThread(thread);
@@ -60,7 +64,7 @@
 			loadError = true;
 			return;
 		}
-		if (getThreadMessages(tId).length > 0) {
+		if (getThreadMessages(tId).length > 0 && !highlight) {
 			doMarkRead(tId);
 			return;
 		}
@@ -179,6 +183,7 @@
 			{editContent}
 			{typingUsers}
 			{canManageMessages}
+			{highlightMessageId}
 			onLoadMore={loadOlder}
 			onStartEdit={startEdit}
 			onCancelEdit={cancelEdit}

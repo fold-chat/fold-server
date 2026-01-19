@@ -14,6 +14,7 @@
 		typingUsers = [],
 		canManageMessages = false,
 		canCreateThreads = false,
+		highlightMessageId = null,
 		threadLookup = undefined,
 		onLoadMore,
 		onStartEdit,
@@ -32,6 +33,7 @@
 		typingUsers?: string[];
 		canManageMessages?: boolean;
 		canCreateThreads?: boolean;
+		highlightMessageId?: string | null;
 		threadLookup?: (messageId: string) => Thread | undefined;
 		onLoadMore?: () => void;
 		onStartEdit?: (id: string, content: string) => void;
@@ -46,6 +48,7 @@
 	let editInput = $state<HTMLTextAreaElement | null>(null);
 	let shouldAutoScroll = $state(true);
 	let localEditContent = $state('');
+	let scrolledToHighlight = $state<string | null>(null);
 
 	// Track when editingId changes to sync local content
 	$effect(() => {
@@ -55,9 +58,22 @@
 		}
 	});
 
+	// Scroll to highlighted message when it appears
+	$effect(() => {
+		if (highlightMessageId && messages.length > 0 && scrollContainer && scrolledToHighlight !== highlightMessageId) {
+			tick().then(() => {
+				const el = scrollContainer?.querySelector(`[data-message-id="${highlightMessageId}"]`);
+				if (el) {
+					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					scrolledToHighlight = highlightMessageId;
+				}
+			});
+		}
+	});
+
 	// Auto-scroll on new messages
 	$effect(() => {
-		if (messages.length > 0 && shouldAutoScroll && scrollContainer) {
+		if (messages.length > 0 && shouldAutoScroll && !highlightMessageId && scrollContainer) {
 			tick().then(() => {
 				if (scrollContainer) {
 					scrollContainer.scrollTop = scrollContainer.scrollHeight;
@@ -150,7 +166,7 @@
 	{#each messages as msg, i}
 			{@const newGroup = isNewGroup(msg, messages[i - 1])}
 			{@const msgThread = threadLookup?.(msg.id)}
-			<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id}>
+		<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id} class:highlighted={highlightMessageId === msg.id} data-message-id={msg.id}>
 				{#if newGroup}
 					<div class="message-header">
 						<span class="author">{msg.author_display_name || msg.author_username || 'Unknown'}</span>
@@ -283,6 +299,19 @@
 
 	.message.editing {
 		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+	}
+
+	.message.highlighted {
+		animation: highlight-fade 3s ease-out;
+	}
+
+	@keyframes highlight-fade {
+		0%, 30% {
+			background: rgba(233, 69, 96, 0.2);
+		}
+		100% {
+			background: transparent;
+		}
 	}
 
 	.message-header {

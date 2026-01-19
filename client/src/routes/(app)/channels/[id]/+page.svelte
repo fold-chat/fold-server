@@ -16,6 +16,7 @@ import { getThreads } from '$lib/api/threads.js';
 	import ForumView from '$lib/components/ForumView.svelte';
 
 	let channelId = $derived(page.params.id!);
+	let aroundMessageId = $derived(page.url.searchParams.get('around'));
 	let channel = $derived(getChannelById(channelId));
 	let isForumChannel = $derived(channel?.type === 'THREAD_CHANNEL');
 	let canSend = $derived(hasChannelPermission(channelId, PermissionName.SEND_MESSAGES));
@@ -28,13 +29,19 @@ import { getThreads } from '$lib/api/threads.js';
 	let stopTypingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 	let activeThread = $derived(getActiveThread());
 	let pendingThread = $derived(getPendingThread());
+	let highlightMessageId = $state<string | null>(null);
 
 	$effect(() => {
 		const chId = channelId;
+		const around = aroundMessageId;
 		if (chId) {
 			setActiveChannelId(chId);
 			untrack(() => {
-				loadMessages(chId);
+				if (around) {
+					loadMessagesAround(chId, around);
+				} else {
+					loadMessages(chId);
+				}
 				loadChannelThreads(chId);
 			});
 		}
@@ -52,6 +59,7 @@ import { getThreads } from '$lib/api/threads.js';
 	}
 
 	async function loadMessages(chId: string) {
+		highlightMessageId = null;
 		if (getMessages(chId).length > 0) {
 			markRead(chId);
 			return;
@@ -61,6 +69,21 @@ import { getThreads } from '$lib/api/threads.js';
 			const msgs = await fetchMessages(chId, { limit: 50 });
 			setMessages(chId, msgs);
 			setHasMore(chId, msgs.length >= 50);
+			markRead(chId);
+		} catch {
+			// handle error
+		} finally {
+			setLoading(chId, false);
+		}
+	}
+
+	async function loadMessagesAround(chId: string, messageId: string) {
+		setLoading(chId, true);
+		try {
+			const msgs = await fetchMessages(chId, { around: messageId, limit: 25 });
+			setMessages(chId, msgs);
+			setHasMore(chId, true);
+			highlightMessageId = messageId;
 			markRead(chId);
 		} catch {
 			// handle error
@@ -200,6 +223,7 @@ import { getThreads } from '$lib/api/threads.js';
 				typingUsers={getTypingUsers(channelId)}
 				{canManageMessages}
 				{canCreateThreads}
+				{highlightMessageId}
 				{threadLookup}
 				onLoadMore={loadOlder}
 				onStartEdit={startEdit}

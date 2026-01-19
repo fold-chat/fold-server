@@ -2,8 +2,10 @@
 	import { logout } from '$lib/api/auth.js';
 	import { reset } from '$lib/stores/auth.svelte.js';
 	import { disconnect } from '$lib/stores/ws.svelte.js';
+	import { toggleSearch } from '$lib/stores/search.svelte.js';
 	import { goto } from '$app/navigation';
 	import Sidebar from '$lib/components/Sidebar.svelte';
+	import SearchModal from '$lib/components/SearchModal.svelte';
 
 	let { children } = $props();
 
@@ -17,7 +19,16 @@
 		reset();
 		goto('/login');
 	}
+
+	function onKeydown(e: KeyboardEvent) {
+		if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+			e.preventDefault();
+			toggleSearch();
+		}
+	}
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <div class="app-shell">
 	<Sidebar />
@@ -25,6 +36,8 @@
 		{@render children()}
 	</main>
 </div>
+
+<SearchModal />
 
 <style>
 	.app-shell {

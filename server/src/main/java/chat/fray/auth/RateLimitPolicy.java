@@ -17,6 +17,7 @@ public record RateLimitPolicy(int maxTokens, Duration window) {
     public static final RateLimitPolicy CHANNEL_EDIT = new RateLimitPolicy(5, Duration.ofMinutes(1));
     public static final RateLimitPolicy CHANNEL_DELETE = new RateLimitPolicy(5, Duration.ofMinutes(1));
     public static final RateLimitPolicy THREAD_CREATE = new RateLimitPolicy(5, Duration.ofMinutes(1));
+    public static final RateLimitPolicy SEARCH = new RateLimitPolicy(10, Duration.ofMinutes(1));
 
     /** Parse from string format "count/windowSeconds", e.g. "5/60" */
     public static RateLimitPolicy parse(String spec) {

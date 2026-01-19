@@ -15,4 +15,5 @@ public interface FrayRateLimitConfig {
     Optional<String> refresh();
     Optional<String> profileUpdate();
     Optional<String> passwordChange();
+    Optional<String> search();
 }

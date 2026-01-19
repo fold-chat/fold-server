@@ -24,10 +24,11 @@ export interface FileAttachment {
 	url: string;
 }
 
-export function getMessages(channelId: string, opts?: { before?: string; after?: string; limit?: number }) {
+export function getMessages(channelId: string, opts?: { before?: string; after?: string; around?: string; limit?: number }) {
 	const params = new URLSearchParams();
 	if (opts?.before) params.set('before', opts.before);
 	if (opts?.after) params.set('after', opts.after);
+	if (opts?.around) params.set('around', opts.around);
 	if (opts?.limit) params.set('limit', String(opts.limit));
 	const qs = params.toString();
 	return api<Message[]>(`/channels/${channelId}/messages${qs ? '?' + qs : ''}`);
