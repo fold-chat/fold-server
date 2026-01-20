@@ -58,6 +58,11 @@ public class RoleRepository {
         return (Long) rows.getFirst().get("cnt");
     }
 
+    public List<String> findUserIdsWithRole(String roleId) {
+        var rows = db.query("SELECT user_id FROM user_role WHERE role_id = ?", roleId);
+        return rows.stream().map(r -> (String) r.get("user_id")).toList();
+    }
+
     // --- User role assignment ---
 
     public List<String> findUserRoleIds(String userId) {

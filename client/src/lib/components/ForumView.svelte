@@ -4,7 +4,7 @@
 	import { getThreads, createThread } from '$lib/api/threads.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { getChannelThreads, setChannelThreads, addChannelThread } from '$lib/stores/threads.svelte.js';
-	import { hasChannelPermission, hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { hasChannelPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { formatTimestamp } from '$lib/utils/markdown.js';
 	import MessageCompose from './MessageCompose.svelte';
@@ -13,7 +13,6 @@
 
 	let threads = $derived(getChannelThreads(channelId));
 	let canCreate = $derived(hasChannelPermission(channelId, PermissionName.CREATE_THREADS));
-	let canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 
 	let loading = $state(false);
 	let hasMore = $state(true);
@@ -96,9 +95,6 @@
 			{/if}
 		</div>
 		<div class="forum-header-actions">
-			{#if canManageChannels}
-				<a href="/channels/{channelId}/settings" class="header-link">Permissions</a>
-			{/if}
 			{#if canCreate}
 				<button class="new-post-btn" onclick={() => { showNewPost = !showNewPost; }}>
 					{showNewPost ? 'Cancel' : '+ New Post'}
@@ -218,15 +214,6 @@
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
-	}
-
-	.header-link {
-		font-size: 0.75rem;
-		color: var(--text-muted);
-	}
-
-	.header-link:hover {
-		color: var(--text);
 	}
 
 	.new-post-btn {

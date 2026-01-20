@@ -1,5 +1,6 @@
 package chat.fray.service;
 
+import chat.fray.db.CategoryRepository;
 import chat.fray.db.ChannelRepository;
 import chat.fray.db.RoleRepository;
 import chat.fray.event.*;
@@ -20,8 +21,10 @@ public class RoleService {
 
     @Inject RoleRepository roleRepo;
     @Inject ChannelRepository channelRepo;
+    @Inject CategoryRepository categoryRepo;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
+    @Inject SessionRegistry sessionRegistry;
 
     // --- Role CRUD ---
 
@@ -143,9 +146,7 @@ public class RoleService {
 
         var override = roleRepo.findRoleOverride(channelId, roleId).orElseThrow();
         var serialized = serializeOverride(override);
-        eventBus.publish(Event.of(EventType.CHANNEL_PERMISSIONS_UPDATE,
-                Map.of("channel_id", channelId, "override", serialized),
-                Scope.server()));
+        broadcastPermissionChange(roleId);
         return serialized;
     }
 
@@ -155,9 +156,21 @@ public class RoleService {
         roleRepo.deleteOverride(channelId, roleId);
         permissionService.invalidateChannel(channelId);
 
-        eventBus.publish(Event.of(EventType.CHANNEL_PERMISSIONS_UPDATE,
-                Map.of("channel_id", channelId, "role_id", roleId, "deleted", true),
-                Scope.server()));
+        broadcastPermissionChange(roleId);
+    }
+
+    /** Recompute and send updated channels/permissions to all online users with the given role */
+    private void broadcastPermissionChange(String roleId) {
+        var onlineUserIds = sessionRegistry.onlineUserIds();
+        var affectedUserIds = roleRepo.findUserIdsWithRole(roleId);
+        for (var userId : affectedUserIds) {
+            if (!onlineUserIds.contains(userId)) continue;
+            var userState = computeUserState(userId);
+            var payload = new LinkedHashMap<String, Object>();
+            payload.put("user_id", userId);
+            payload.putAll(userState);
+            eventBus.publish(Event.of(EventType.CHANNEL_PERMISSIONS_UPDATE, payload, Scope.user(userId)));
+        }
     }
 
     // --- Default role ---
@@ -220,7 +233,7 @@ public class RoleService {
         }
     }
 
-    /** Compute permissions + viewable channels for a user after a role change */
+    /** Compute permissions + viewable channels + visible categories for a user */
     private Map<String, Object> computeUserState(String userId) {
         var allChannels = channelRepo.listAll();
         var allChannelIds = allChannels.stream()
@@ -230,9 +243,25 @@ public class RoleService {
         var viewableChannels = allChannels.stream()
                 .filter(c -> viewableIds.contains(c.get("id")))
                 .toList();
+
+        // Users with MANAGE_CHANNELS see all categories; others only see populated ones
+        List<Map<String, Object>> categories;
+        if (permissionService.hasServerPermission(userId, Permission.MANAGE_CHANNELS)) {
+            categories = categoryRepo.listAll();
+        } else {
+            var usedCategoryIds = viewableChannels.stream()
+                    .map(c -> (String) c.get("category_id"))
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toSet());
+            categories = categoryRepo.listAll().stream()
+                    .filter(cat -> usedCategoryIds.contains(cat.get("id")))
+                    .toList();
+        }
+
         var result = new LinkedHashMap<String, Object>();
         result.put("user_permissions", permissionService.computeUserPermissions(userId, viewableIds));
         result.put("channels", viewableChannels);
+        result.put("categories", categories);
         return result;
     }
 

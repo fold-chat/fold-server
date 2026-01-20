@@ -156,6 +156,20 @@ public class FrayWebSocket {
                     .filter(c -> viewableIds.contains(c.get("id")))
                     .toList();
 
+            // Users with MANAGE_CHANNELS see all categories; others only see populated ones
+            List<Map<String, Object>> filteredCategories;
+            if (permissionService.hasServerPermission(userId, chat.fray.security.Permission.MANAGE_CHANNELS)) {
+                filteredCategories = categories;
+            } else {
+                var usedCategoryIds = channels.stream()
+                        .map(c -> (String) c.get("category_id"))
+                        .filter(Objects::nonNull)
+                        .collect(java.util.stream.Collectors.toSet());
+                filteredCategories = categories.stream()
+                        .filter(cat -> usedCategoryIds.contains(cat.get("id")))
+                        .toList();
+            }
+
             // Serialize roles with permission names
             var roles = roleRepo.findAll().stream()
                     .map(roleService::serializeRole)
@@ -180,7 +194,7 @@ public class FrayWebSocket {
             var hello = new LinkedHashMap<String, Object>();
             hello.put("user", sanitizeUser(user));
             hello.put("channels", channels);
-            hello.put("categories", categories);
+            hello.put("categories", filteredCategories);
             hello.put("members", members);
             hello.put("roles", roles);
             hello.put("read_states", readStates);

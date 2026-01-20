@@ -5,14 +5,17 @@ import chat.fray.auth.FraySecurityContext;
 import chat.fray.auth.RateLimitFilter;
 import chat.fray.auth.RateLimitPolicy;
 import chat.fray.auth.RateLimitService;
+import chat.fray.db.CategoryRepository;
 import chat.fray.db.ChannelRepository;
 import chat.fray.db.DatabaseService;
 import chat.fray.db.MessageRepository;
 import chat.fray.db.ReadStateRepository;
+import chat.fray.db.RoleRepository;
 import chat.fray.db.ThreadRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
+import chat.fray.service.RoleService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -34,6 +37,7 @@ public class ChannelResource {
     private static final Set<String> VALID_TYPES = Set.of("TEXT", "THREAD_CHANNEL", "VOICE");
 
     @Inject ChannelRepository channelRepo;
+    @Inject CategoryRepository categoryRepo;
     @Inject MessageRepository messageRepo;
     @Inject ReadStateRepository readStateRepo;
     @Inject ThreadRepository threadRepo;
@@ -41,6 +45,8 @@ public class ChannelResource {
     @Inject FileService fileService;
     @Inject RateLimitService rateLimitService;
     @Inject PermissionService permissionService;
+    @Inject RoleService roleService;
+    @Inject RoleRepository roleRepo;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
@@ -63,7 +69,7 @@ public class ChannelResource {
         int position = req.position() != null ? req.position() : channelRepo.nextPosition();
         channelRepo.create(id, req.name().trim(), type, req.category_id(), req.topic(), req.description(), position);
         var created = channelRepo.findById(id);
-        created.ifPresent(c -> eventBus.publish(Event.of(EventType.CHANNEL_CREATE, c, Scope.server())));
+        created.ifPresent(c -> eventBus.publish(Event.of(EventType.CHANNEL_CREATE, withCategory(c), Scope.server())));
         return created
                 .map(c -> Response.status(201).entity(c).build())
                 .orElse(Response.status(500).build());
@@ -86,7 +92,7 @@ public class ChannelResource {
         int position = req.position() != null ? req.position() : ((Long) ch.get("position")).intValue();
         channelRepo.update(id, name, topic, description, categoryId, position);
         var updated = channelRepo.findById(id);
-        updated.ifPresent(c -> eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, c, Scope.server())));
+        updated.ifPresent(c -> eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, withCategory(c), Scope.server())));
         return updated
                 .map(c -> Response.ok(c).build())
                 .orElse(Response.status(500).build());
@@ -276,17 +282,67 @@ public class ChannelResource {
         );
         for (var item : items) {
             channelRepo.findById(item.id()).ifPresent(c ->
-                    eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, c, Scope.server())));
+                    eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, withCategory(c), Scope.server())));
         }
         return Response.ok(channelRepo.listAll()).build();
+    }
+
+    // --- Channel permission overrides ---
+
+    @GET
+    @Path("/{channelId}/permissions")
+    public Response listChannelOverrides(@PathParam("channelId") String channelId) {
+        var overrides = roleRepo.findChannelOverrides(channelId).stream()
+                .map(roleService::serializeOverride)
+                .toList();
+        return Response.ok(overrides).build();
+    }
+
+    @PUT
+    @Path("/{channelId}/permissions/{roleId}")
+    public Response upsertChannelOverride(
+            @PathParam("channelId") String channelId,
+            @PathParam("roleId") String roleId,
+            OverrideRequest req
+    ) {
+        long allow = req.allow() != null ? Permission.fromNames(req.allow()) : 0L;
+        long deny = req.deny() != null ? Permission.fromNames(req.deny()) : 0L;
+        var override = roleService.upsertOverride(sc().getUserId(), channelId, roleId, allow, deny);
+        return Response.ok(override).build();
+    }
+
+    @DELETE
+    @Path("/{channelId}/permissions/{roleId}")
+    public Response deleteChannelOverride(
+            @PathParam("channelId") String channelId,
+            @PathParam("roleId") String roleId
+    ) {
+        roleService.deleteOverride(sc().getUserId(), channelId, roleId);
+        return Response.noContent().build();
     }
 
     // --- DTOs ---
 
     public record CreateChannelRequest(String name, String type, String category_id, String topic, String description, Integer position) {}
-    public record UpdateChannelRequest(String name, String topic, String description, String category_id, Integer position) {
-        public boolean category_id_set() {
-            return true;
+    public record OverrideRequest(List<String> allow, List<String> deny) {}
+    public static class UpdateChannelRequest {
+        public String name;
+        public String topic;
+        public String description;
+        public String category_id;
+        public Integer position;
+        private boolean category_id_set = false;
+
+        public String name() { return name; }
+        public String topic() { return topic; }
+        public String description() { return description; }
+        public String category_id() { return category_id; }
+        public Integer position() { return position; }
+        public boolean category_id_set() { return category_id_set; }
+
+        public void setCategory_id(String v) {
+            this.category_id = v;
+            this.category_id_set = true;
         }
     }
     public record SendMessageRequest(String content, List<String> attachment_ids) {}
@@ -310,6 +366,17 @@ public class ChannelResource {
                     .build();
         }
         return null;
+    }
+
+    /** Embed the category object in a channel map (for events) */
+    private Map<String, Object> withCategory(Map<String, Object> channel) {
+        var catId = (String) channel.get("category_id");
+        if (catId == null) return channel;
+        var cat = categoryRepo.findById(catId);
+        if (cat.isEmpty()) return channel;
+        var result = new HashMap<>(channel);
+        result.put("category", cat.get());
+        return result;
     }
 
     private Map<String, Object> withAttachments(Map<String, Object> msg) {

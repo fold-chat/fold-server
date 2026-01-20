@@ -54,30 +54,36 @@ public class PermissionService {
         });
     }
 
-    // --- Effective permissions (with channel overrides) ---
+    // --- Effective permissions (per-role resolution, then OR) ---
 
     public long computeEffectivePermissions(String userId, String channelId) {
         if (isOwner(userId)) return Permission.ALL;
 
         String cacheKey = userId + ":" + channelId;
         return effectivePermCache.computeIfAbsent(cacheKey, key -> {
-            long base = computeBasePermissions(userId);
-
-            // ADMINISTRATOR bypasses channel overrides
-            if (Permission.has(base, Permission.ADMINISTRATOR)) return Permission.ALL;
-
-            // Apply channel overrides
             var roleIds = roleRepo.findUserRoleIds(userId);
-            var overrides = roleRepo.findOverridesForRoles(channelId, roleIds);
-            if (overrides.isEmpty()) return base;
 
-            long accAllow = 0;
-            long accDeny = 0;
-            for (var override : overrides) {
-                accAllow |= (Long) override.get("allow");
-                accDeny |= (Long) override.get("deny");
+            // Per-role resolution: apply each role's override to its own base, then OR together.
+            // This gives "highest privilege wins" — a deny on one role can't block a grant from another.
+            long effective = 0;
+            for (var roleId : roleIds) {
+                var role = roleRepo.findById(roleId);
+                if (role.isEmpty()) continue;
+                long rolePerms = (Long) role.get().get("permissions");
+
+                // ADMINISTRATOR bypasses channel overrides
+                if (Permission.has(rolePerms, Permission.ADMINISTRATOR)) return Permission.ALL;
+
+                // Apply this role's channel override (if any)
+                var override = roleRepo.findRoleOverride(channelId, roleId);
+                if (override.isPresent()) {
+                    long allow = (Long) override.get().get("allow");
+                    long deny = (Long) override.get().get("deny");
+                    rolePerms = (rolePerms & ~deny) | allow;
+                }
+                effective |= rolePerms;
             }
-            return (base & ~accDeny) | accAllow;
+            return effective;
         });
     }
 

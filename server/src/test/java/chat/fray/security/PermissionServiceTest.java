@@ -114,8 +114,8 @@ class PermissionServiceTest {
     void channelOverride_denyRemovesBit() {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND)));
-        when(roleRepo.findOverridesForRoles("ch1", List.of("member")))
-                .thenReturn(List.of(Map.of("allow", 0L, "deny", Permission.SEND_MESSAGES.value)));
+        when(roleRepo.findRoleOverride("ch1", "member"))
+                .thenReturn(Optional.of(Map.of("allow", 0L, "deny", Permission.SEND_MESSAGES.value)));
 
         long effective = service.computeEffectivePermissions("user1", "ch1");
         assertTrue(Permission.has(effective, Permission.VIEW_CHANNEL));
@@ -126,8 +126,8 @@ class PermissionServiceTest {
     void channelOverride_allowAddsBit() {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_ONLY)));
-        when(roleRepo.findOverridesForRoles("ch1", List.of("member")))
-                .thenReturn(List.of(Map.of("allow", Permission.MANAGE_MESSAGES.value, "deny", 0L)));
+        when(roleRepo.findRoleOverride("ch1", "member"))
+                .thenReturn(Optional.of(Map.of("allow", Permission.MANAGE_MESSAGES.value, "deny", 0L)));
 
         long effective = service.computeEffectivePermissions("user1", "ch1");
         assertTrue(Permission.has(effective, Permission.VIEW_CHANNEL));
@@ -138,26 +138,23 @@ class PermissionServiceTest {
     void channelOverride_noOverrides_returnsBase() {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND)));
-        when(roleRepo.findOverridesForRoles("ch1", List.of("member"))).thenReturn(List.of());
+        when(roleRepo.findRoleOverride("ch1", "member")).thenReturn(Optional.empty());
 
         assertEquals(VIEW_SEND, service.computeEffectivePermissions("user1", "ch1"));
     }
 
     @Test
     void channelOverride_conflictingRoles_allowWins() {
-        // Resolution: (base & ~accumulated_deny) | accumulated_allow
-        // If one role allows and another denies the same perm, allow wins per algorithm
+        // Per-role resolution: each role's override applied to its own base, then OR together
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("role-a", "role-b"));
         when(roleRepo.findById("role-a")).thenReturn(Optional.of(Map.of("permissions", VIEW_ONLY)));
         when(roleRepo.findById("role-b")).thenReturn(Optional.of(Map.of("permissions", VIEW_ONLY)));
-        when(roleRepo.findOverridesForRoles("ch1", List.of("role-a", "role-b")))
-                .thenReturn(List.of(
-                        Map.of("allow", 0L, "deny", Permission.SEND_MESSAGES.value), // role-a denies
-                        Map.of("allow", Permission.SEND_MESSAGES.value, "deny", 0L)  // role-b allows
-                ));
+        when(roleRepo.findRoleOverride("ch1", "role-a"))
+                .thenReturn(Optional.of(Map.of("allow", 0L, "deny", Permission.SEND_MESSAGES.value)));
+        when(roleRepo.findRoleOverride("ch1", "role-b"))
+                .thenReturn(Optional.of(Map.of("allow", Permission.SEND_MESSAGES.value, "deny", 0L)));
 
         long effective = service.computeEffectivePermissions("user1", "ch1");
-        // Allow wins: accumulated_allow includes SEND_MESSAGES, so final has it
         assertTrue(Permission.has(effective, Permission.SEND_MESSAGES));
     }
 
@@ -166,8 +163,8 @@ class PermissionServiceTest {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions",
                 VIEW_SEND | Permission.MANAGE_MESSAGES.value)));
-        when(roleRepo.findOverridesForRoles("ch1", List.of("member")))
-                .thenReturn(List.of(Map.of("allow", 0L, "deny", Permission.MANAGE_MESSAGES.value)));
+        when(roleRepo.findRoleOverride("ch1", "member"))
+                .thenReturn(Optional.of(Map.of("allow", 0L, "deny", Permission.MANAGE_MESSAGES.value)));
 
         long effective = service.computeEffectivePermissions("user1", "ch1");
         assertTrue(Permission.has(effective, Permission.VIEW_CHANNEL));
@@ -181,7 +178,7 @@ class PermissionServiceTest {
     void requirePermission_throwsWhenDenied() {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_ONLY)));
-        when(roleRepo.findOverridesForRoles(eq("ch1"), any())).thenReturn(List.of());
+        when(roleRepo.findRoleOverride("ch1", "member")).thenReturn(Optional.empty());
 
         assertThrows(PermissionService.PermissionException.class,
                 () -> service.requirePermission("user1", "ch1", Permission.MANAGE_MESSAGES));
@@ -191,7 +188,7 @@ class PermissionServiceTest {
     void requirePermission_passesWhenGranted() {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND)));
-        when(roleRepo.findOverridesForRoles(eq("ch1"), any())).thenReturn(List.of());
+        when(roleRepo.findRoleOverride("ch1", "member")).thenReturn(Optional.empty());
 
         assertDoesNotThrow(() -> service.requirePermission("user1", "ch1", Permission.SEND_MESSAGES));
     }
@@ -218,7 +215,7 @@ class PermissionServiceTest {
     void manageOwnMessages_separateFromManageMessages() {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND | MANAGE_OWN)));
-        when(roleRepo.findOverridesForRoles(eq("ch1"), any())).thenReturn(List.of());
+        when(roleRepo.findRoleOverride("ch1", "member")).thenReturn(Optional.empty());
 
         assertTrue(service.hasPermission("user1", "ch1", Permission.MANAGE_OWN_MESSAGES));
         assertFalse(service.hasPermission("user1", "ch1", Permission.MANAGE_MESSAGES));
@@ -230,7 +227,7 @@ class PermissionServiceTest {
     void invalidateUser_clearsCachedPermissions() {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_ONLY)));
-        when(roleRepo.findOverridesForRoles(eq("ch1"), any())).thenReturn(List.of());
+        when(roleRepo.findRoleOverride("ch1", "member")).thenReturn(Optional.empty());
 
         // Prime the cache
         service.computeBasePermissions("user1");
@@ -249,14 +246,14 @@ class PermissionServiceTest {
     void invalidateChannel_clearsChannelCache() {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND)));
-        when(roleRepo.findOverridesForRoles("ch1", List.of("member")))
-                .thenReturn(List.of(Map.of("allow", 0L, "deny", Permission.SEND_MESSAGES.value)));
+        when(roleRepo.findRoleOverride("ch1", "member"))
+                .thenReturn(Optional.of(Map.of("allow", 0L, "deny", Permission.SEND_MESSAGES.value)));
 
         // Prime cache
         assertFalse(service.hasPermission("user1", "ch1", Permission.SEND_MESSAGES));
 
         // Remove override
-        when(roleRepo.findOverridesForRoles("ch1", List.of("member"))).thenReturn(List.of());
+        when(roleRepo.findRoleOverride("ch1", "member")).thenReturn(Optional.empty());
         service.invalidateChannel("ch1");
 
         // Should re-query
@@ -301,9 +298,9 @@ class PermissionServiceTest {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_ONLY)));
         // ch1: no override (base has VIEW_CHANNEL), ch2: deny VIEW_CHANNEL
-        when(roleRepo.findOverridesForRoles("ch1", List.of("member"))).thenReturn(List.of());
-        when(roleRepo.findOverridesForRoles("ch2", List.of("member")))
-                .thenReturn(List.of(Map.of("allow", 0L, "deny", Permission.VIEW_CHANNEL.value)));
+        when(roleRepo.findRoleOverride("ch1", "member")).thenReturn(Optional.empty());
+        when(roleRepo.findRoleOverride("ch2", "member"))
+                .thenReturn(Optional.of(Map.of("allow", 0L, "deny", Permission.VIEW_CHANNEL.value)));
 
         var result = service.filterViewableChannels("user1", Set.of("ch1", "ch2"));
         assertEquals(Set.of("ch1"), result);
@@ -316,7 +313,7 @@ class PermissionServiceTest {
         when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("member"));
         long basePerm = VIEW_SEND | Permission.CREATE_INVITES.value;
         when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", basePerm)));
-        when(roleRepo.findOverridesForRoles(eq("ch1"), any())).thenReturn(List.of());
+        when(roleRepo.findRoleOverride("ch1", "member")).thenReturn(Optional.empty());
 
         var result = service.computeUserPermissions("user1", Set.of("ch1"));
 
@@ -330,6 +327,23 @@ class PermissionServiceTest {
         var channelPerms = (Map<String, List<String>>) result.get("channels");
         assertTrue(channelPerms.containsKey("ch1"));
         assertTrue(channelPerms.get("ch1").contains("VIEW_CHANNEL"));
+    }
+
+    // --- Multi-role: highest privilege wins ---
+
+    @Test
+    void channelOverride_multiRole_highestPrivilegeWins() {
+        // Guest denied VIEW on channel, member has no override → member's base wins
+        when(roleRepo.findUserRoleIds("user1")).thenReturn(List.of("guest", "member"));
+        when(roleRepo.findById("guest")).thenReturn(Optional.of(Map.of("permissions", VIEW_ONLY)));
+        when(roleRepo.findById("member")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND)));
+        when(roleRepo.findRoleOverride("secret-ch", "guest"))
+                .thenReturn(Optional.of(Map.of("allow", 0L, "deny", Permission.VIEW_CHANNEL.value)));
+        when(roleRepo.findRoleOverride("secret-ch", "member")).thenReturn(Optional.empty());
+
+        long effective = service.computeEffectivePermissions("user1", "secret-ch");
+        assertTrue(Permission.has(effective, Permission.VIEW_CHANNEL));
+        assertTrue(Permission.has(effective, Permission.SEND_MESSAGES));
     }
 
     // --- PermissionException ---

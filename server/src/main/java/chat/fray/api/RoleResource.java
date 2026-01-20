@@ -76,45 +76,10 @@ public class RoleResource {
         return Response.noContent().build();
     }
 
-    // --- Channel permission overrides ---
-
-    @GET
-    @Path("/channels/{channelId}/permissions")
-    public Response listChannelOverrides(@PathParam("channelId") String channelId) {
-        var overrides = roleRepo.findChannelOverrides(channelId).stream()
-                .map(roleService::serializeOverride)
-                .toList();
-        return Response.ok(overrides).build();
-    }
-
-    @PUT
-    @Path("/channels/{channelId}/permissions/{roleId}")
-    public Response upsertChannelOverride(
-            @PathParam("channelId") String channelId,
-            @PathParam("roleId") String roleId,
-            OverrideRequest req
-    ) {
-        long allow = req.allow() != null ? Permission.fromNames(req.allow()) : 0L;
-        long deny = req.deny() != null ? Permission.fromNames(req.deny()) : 0L;
-        var override = roleService.upsertOverride(sc().getUserId(), channelId, roleId, allow, deny);
-        return Response.ok(override).build();
-    }
-
-    @DELETE
-    @Path("/channels/{channelId}/permissions/{roleId}")
-    public Response deleteChannelOverride(
-            @PathParam("channelId") String channelId,
-            @PathParam("roleId") String roleId
-    ) {
-        roleService.deleteOverride(sc().getUserId(), channelId, roleId);
-        return Response.noContent().build();
-    }
-
     // --- DTOs ---
 
     public record CreateRoleRequest(String name, List<String> permissions, int position, String color) {}
     public record UpdateRoleRequest(String name, List<String> permissions, Integer position, String color) {}
-    public record OverrideRequest(List<String> allow, List<String> deny) {}
 
     private FraySecurityContext sc() {
         return (FraySecurityContext) requestContext.getSecurityContext();

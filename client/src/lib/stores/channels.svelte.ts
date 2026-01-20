@@ -1,4 +1,6 @@
 import type { Channel, Category } from '$lib/api/channels.js';
+import { hasServerPermission } from '$lib/stores/auth.svelte.js';
+import { PermissionName } from '$lib/permissions.js';
 
 let channels = $state<Channel[]>([]);
 let categories = $state<Category[]>([]);
@@ -53,12 +55,24 @@ export function incrementUnread(channelId: string) {
 	unreadCounts.set(channelId, (unreadCounts.get(channelId) ?? 0) + 1);
 }
 
-export function addChannel(ch: Channel) {
+export function addChannel(ch: Channel & { category?: Category }) {
+	if (ch.category) {
+		ensureCategory(ch.category);
+	}
 	channels = [...channels, ch].sort((a, b) => a.position - b.position);
 }
 
-export function updateChannel(ch: Channel) {
+export function updateChannel(ch: Channel & { category?: Category }) {
+	if (ch.category) {
+		ensureCategory(ch.category);
+	}
 	channels = channels.map((c) => (c.id === ch.id ? ch : c)).sort((a, b) => a.position - b.position);
+}
+
+function ensureCategory(cat: Category) {
+	if (!categories.some((c) => c.id === cat.id)) {
+		categories = [...categories, cat].sort((a, b) => a.position - b.position);
+	}
 }
 
 export function removeChannel(id: string) {
@@ -103,10 +117,10 @@ export function getChannelsByCategory(): { category: Category | null; channels: 
 		grouped.push({ category: null, channels: uncategorized });
 	}
 
+	const showAll = hasServerPermission(PermissionName.MANAGE_CHANNELS);
 	for (const cat of categories) {
 		const catChannels = channels.filter((c) => c.category_id === cat.id);
-		if (catChannels.length > 0 || true) {
-			// Always show category even if empty
+		if (catChannels.length > 0 || showAll) {
 			grouped.push({ category: cat, channels: catChannels });
 		}
 	}

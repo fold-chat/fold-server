@@ -206,9 +206,6 @@ import { getThreads } from '$lib/api/threads.js';
 						<span class="channel-topic">{channel.topic}</span>
 					{/if}
 				</div>
-				{#if canManageChannels}
-					<a href="/channels/{channelId}/settings" class="channel-settings">Permissions</a>
-				{/if}
 			</div>
 			{#if channel?.description}
 				<div class="channel-description">{channel.description}</div>
@@ -305,13 +302,4 @@ import { getThreads } from '$lib/api/threads.js';
 		line-height: 1.4;
 	}
 
-	.channel-settings {
-		font-size: 0.75rem;
-		color: var(--text-muted);
-		white-space: nowrap;
-	}
-
-	.channel-settings:hover {
-		color: var(--text);
-	}
 </style>

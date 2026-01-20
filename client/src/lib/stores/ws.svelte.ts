@@ -143,6 +143,7 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 			if (msg.d) handleMemberRoleUpdate(msg.d);
 			break;
 		case 'CHANNEL_PERMISSIONS_UPDATE':
+			if (msg.d) handleChannelPermissionsUpdate(msg.d);
 			break;
 	}
 }
@@ -161,21 +162,35 @@ interface HelloPayload {
 	session_id: string;
 }
 
+function handleUserStateUpdate(data: Record<string, unknown>) {
+	if (data.user_permissions) {
+		const perms = data.user_permissions as { server: string[]; channels: Record<string, string[]> };
+		setPermissions(perms.server ?? [], perms.channels ?? {});
+	}
+	if (data.channels) {
+		const newChannels = data.channels as Channel[];
+		const match = window.location.pathname.match(/^\/channels\/([^/]+)/);
+		if (match && !newChannels.some((c) => c.id === match[1])) {
+			goto('/');
+		}
+		setChannels(newChannels);
+	}
+	if (data.categories) {
+		setCategories(data.categories as Category[]);
+	}
+}
+
 function handleMemberRoleUpdate(data: Record<string, unknown>) {
 	const currentUser = getUser();
 	if (currentUser && data.user_id === currentUser.id) {
-		if (data.user_permissions) {
-			const perms = data.user_permissions as { server: string[]; channels: Record<string, string[]> };
-			setPermissions(perms.server ?? [], perms.channels ?? {});
-		}
-		if (data.channels) {
-			const newChannels = data.channels as Channel[];
-			const match = window.location.pathname.match(/^\/channels\/([^/]+)/);
-			if (match && !newChannels.some((c) => c.id === match[1])) {
-				goto('/');
-			}
-			setChannels(newChannels);
-		}
+		handleUserStateUpdate(data);
+	}
+}
+
+function handleChannelPermissionsUpdate(data: Record<string, unknown>) {
+	const currentUser = getUser();
+	if (currentUser && data.user_id === currentUser.id) {
+		handleUserStateUpdate(data);
 	}
 }
 
