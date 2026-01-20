@@ -41,6 +41,7 @@
 				: false
 	);
 	let canManageMessages = $derived(channelId ? hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES) : false);
+	let canAddReactions = $derived(channelId ? hasChannelPermission(channelId, PermissionName.ADD_REACTIONS) : false);
 	let currentUserId = $derived(getUser()?.id ?? '');
 	let isVisible = $derived(thread !== null || pending !== null);
 
@@ -221,7 +222,8 @@
 				{editingId}
 				{editContent}
 				{typingUsers}
-				{canManageMessages}
+			{canManageMessages}
+				{canAddReactions}
 				onLoadMore={loadOlder}
 				onStartEdit={startEdit}
 				onCancelEdit={cancelEdit}

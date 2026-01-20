@@ -1,6 +1,7 @@
-import type { Message } from '$lib/api/messages.js';
+import type { Message, ReactionGroup } from '$lib/api/messages.js';
 import { incrementUnread } from './channels.svelte.js';
 import { handleThreadMessageEvent } from './threads.svelte.js';
+import { getUser } from './auth.svelte.js';
 
 // channelId → messages (sorted oldest first)
 let messagesByChannel = $state<Map<string, Message[]>>(new Map());
@@ -138,6 +139,65 @@ export function handleMessageEvent(op: string, data: Record<string, unknown> | u
 			break;
 		}
 	}
+}
+
+export function handleReactionEvent(op: string, data: Record<string, unknown> | undefined) {
+	if (!data) return;
+	const messageId = data.message_id as string;
+	const channelId = data.channel_id as string;
+	const userId = data.user_id as string;
+	const emoji = data.emoji as string;
+	if (!messageId || !channelId || !emoji) return;
+
+	const existing = messagesByChannel.get(channelId);
+	if (!existing) return;
+	const msgIdx = existing.findIndex((m) => m.id === messageId);
+	if (msgIdx === -1) return;
+
+	const msg = existing[msgIdx];
+	const reactions = [...(msg.reactions ?? [])];
+	const groupIdx = reactions.findIndex((r) => r.emoji === emoji);
+
+	if (op === 'REACTION_ADD') {
+		if (groupIdx >= 0) {
+			const group = reactions[groupIdx];
+			if (!group.users.includes(userId)) {
+				reactions[groupIdx] = {
+					...group,
+					count: group.count + 1,
+					users: [...group.users, userId],
+					me: group.me || isCurrentUser(userId)
+				};
+			}
+		} else {
+			reactions.push({ emoji, count: 1, users: [userId], me: isCurrentUser(userId) });
+		}
+	} else if (op === 'REACTION_REMOVE') {
+		if (groupIdx >= 0) {
+			const group = reactions[groupIdx];
+			const newUsers = group.users.filter((u) => u !== userId);
+			if (newUsers.length === 0) {
+				reactions.splice(groupIdx, 1);
+			} else {
+				reactions[groupIdx] = {
+					...group,
+					count: newUsers.length,
+					users: newUsers,
+					me: isCurrentUser(userId) ? false : group.me
+				};
+			}
+		}
+	}
+
+	const updated = [...existing];
+	updated[msgIdx] = { ...msg, reactions };
+	messagesByChannel = new Map(messagesByChannel);
+	messagesByChannel.set(channelId, updated);
+}
+
+function isCurrentUser(userId: string): boolean {
+	const user = getUser();
+	return user?.id === userId;
 }
 
 export function handleTypingEvent(op: string, data: Record<string, unknown> | undefined) {

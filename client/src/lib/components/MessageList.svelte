@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { Message } from '$lib/api/messages.js';
 	import type { Thread } from '$lib/api/threads.js';
+	import { addReaction, removeReaction } from '$lib/api/reactions.js';
 	import { renderMarkdown, formatTimestamp } from '$lib/utils/markdown.js';
+	import EmojiPicker from './EmojiPicker.svelte';
 	import { tick } from 'svelte';
 
 	let {
@@ -14,6 +16,7 @@
 		typingUsers = [],
 		canManageMessages = false,
 		canCreateThreads = false,
+		canAddReactions = false,
 		highlightMessageId = null,
 		threadLookup = undefined,
 		onLoadMore,
@@ -33,6 +36,7 @@
 		typingUsers?: string[];
 		canManageMessages?: boolean;
 		canCreateThreads?: boolean;
+		canAddReactions?: boolean;
 		highlightMessageId?: string | null;
 		threadLookup?: (messageId: string) => Thread | undefined;
 		onLoadMore?: () => void;
@@ -141,6 +145,24 @@
 		return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 	}
 
+	let emojiPickerMessageId = $state<string | null>(null);
+
+	function toggleReaction(messageId: string, emoji: string, hasReacted: boolean) {
+		if (hasReacted) {
+			removeReaction(messageId, emoji).catch(() => {});
+		} else {
+			addReaction(messageId, emoji).catch(() => {});
+		}
+	}
+
+	function openEmojiPicker(messageId: string) {
+		emojiPickerMessageId = emojiPickerMessageId === messageId ? null : messageId;
+	}
+
+	function handlePickerSelect(messageId: string, emoji: string) {
+		addReaction(messageId, emoji).catch(() => {});
+	}
+
 	function typingText(users: string[]): string {
 		if (users.length === 0) return '';
 		if (users.length === 1) return `${users[0]} is typing...`;
@@ -215,6 +237,31 @@
 						{/if}
 					{/if}
 				</div>
+				{#if msg.reactions && msg.reactions.length > 0}
+					<div class="reactions">
+						{#each msg.reactions as reaction}
+							<button
+								class="reaction-pill"
+								class:me={reaction.me}
+								onclick={() => toggleReaction(msg.id, reaction.emoji, reaction.me)}
+								title={reaction.users.join(', ')}
+							>
+								<span class="reaction-emoji">{reaction.emoji}</span>
+								<span class="reaction-count">{reaction.count}</span>
+							</button>
+						{/each}
+				{#if canAddReactions}
+							<div class="quick-react-wrapper">
+								<button class="reaction-pill add-reaction" onclick={() => openEmojiPicker(msg.id)} title="Add Reaction">+</button>
+								{#if emojiPickerMessageId === msg.id}
+									<div class="emoji-picker-anchor">
+										<EmojiPicker onSelect={(emoji) => handlePickerSelect(msg.id, emoji)} onClose={() => emojiPickerMessageId = null} />
+									</div>
+								{/if}
+							</div>
+						{/if}
+					</div>
+				{/if}
 		{#if msgThread}
 				<button class="thread-indicator" onclick={() => onOpenThread?.(msgThread)}>
 					<span class="thread-reply-count">{msgThread.reply_count ?? 0} {(msgThread.reply_count ?? 0) === 1 ? 'reply' : 'replies'}</span>
@@ -224,6 +271,9 @@
 			{/if}
 		{#if editingId !== msg.id}
 				<div class="message-actions">
+					{#if canAddReactions}
+						<button class="action-btn" onclick={() => openEmojiPicker(msg.id)} title="React">😀</button>
+					{/if}
 					{#if canCreateThreads && !msgThread && !msg.thread_id}
 						<button class="action-btn" onclick={() => onStartThread?.(msg.id)} title="Start Thread">💬</button>
 					{/if}
@@ -471,6 +521,66 @@
 
 	.thread-lock {
 		font-size: 0.65rem;
+	}
+
+	.reactions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem;
+		margin-top: 0.25rem;
+	}
+
+	.reaction-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		padding: 0.15rem 0.5rem;
+		border-radius: 999px;
+		border: 1px solid var(--border);
+		background: var(--bg-surface);
+		color: var(--text);
+		font-size: 0.8rem;
+		cursor: pointer;
+		line-height: 1.3;
+	}
+
+	.reaction-pill:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+	}
+
+	.reaction-pill.me {
+		border-color: var(--accent, #5865f2);
+		background: rgba(88, 101, 242, 0.15);
+	}
+
+	.reaction-emoji {
+		font-size: 0.9rem;
+	}
+
+	.reaction-count {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+	}
+
+	.reaction-pill.me .reaction-count {
+		color: var(--accent, #5865f2);
+	}
+
+	.reaction-pill.add-reaction {
+		color: var(--text-muted);
+		font-size: 0.85rem;
+		padding: 0.15rem 0.4rem;
+	}
+
+	.quick-react-wrapper {
+		position: relative;
+	}
+
+	.emoji-picker-anchor {
+		position: absolute;
+		bottom: calc(100% + 4px);
+		left: 0;
+		z-index: 10;
 	}
 
 	.typing-indicator {

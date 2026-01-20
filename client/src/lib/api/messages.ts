@@ -1,5 +1,12 @@
 import { api, apiRaw } from './client.js';
 
+export interface ReactionGroup {
+	emoji: string;
+	count: number;
+	users: string[];
+	me: boolean;
+}
+
 export interface Message {
 	id: string;
 	channel_id: string;
@@ -13,6 +20,7 @@ export interface Message {
 	author_display_name?: string;
 	author_avatar_url?: string;
 	attachments?: FileAttachment[];
+	reactions?: ReactionGroup[];
 }
 
 export interface FileAttachment {

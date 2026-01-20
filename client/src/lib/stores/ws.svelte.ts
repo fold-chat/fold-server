@@ -3,7 +3,7 @@ import type { Member } from '$lib/api/users.js';
 import type { Role } from '$lib/api/roles.js';
 import type { ThreadReadState } from '$lib/api/threads.js';
 import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates, setUnreadCounts } from './channels.svelte.js';
-import { handleMessageEvent, handleTypingEvent } from './messages.svelte.js';
+import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './messages.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
 import { getUser, setPermissions } from './auth.svelte.js';
@@ -144,6 +144,10 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 			break;
 		case 'CHANNEL_PERMISSIONS_UPDATE':
 			if (msg.d) handleChannelPermissionsUpdate(msg.d);
+			break;
+		case 'REACTION_ADD':
+		case 'REACTION_REMOVE':
+			handleReactionEvent(msg.op, msg.d);
 			break;
 	}
 }

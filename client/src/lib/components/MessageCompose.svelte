@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { uploadFile } from '$lib/api/messages.js';
+	import EmojiPicker from './EmojiPicker.svelte';
 
 	interface PendingFile {
 		file: File;
@@ -17,6 +18,7 @@
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let pendingFiles = $state<PendingFile[]>([]);
 	let dragging = $state(false);
+	let showEmojiPicker = $state(false);
 	let canSend = $derived(content.trim().length > 0 || pendingFiles.length > 0);
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -115,6 +117,23 @@
 		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
 		return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 	}
+
+	function insertEmoji(emoji: string) {
+		if (!textarea) {
+			content += emoji;
+			return;
+		}
+		const start = textarea.selectionStart ?? content.length;
+		const end = textarea.selectionEnd ?? content.length;
+		content = content.slice(0, start) + emoji + content.slice(end);
+		showEmojiPicker = false;
+		// restore cursor after emoji
+		const pos = start + emoji.length;
+		requestAnimationFrame(() => {
+			textarea?.focus();
+			textarea?.setSelectionRange(pos, pos);
+		});
+	}
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -147,6 +166,14 @@
 	<div class="compose-row">
 		<button class="attach-btn" onclick={() => fileInput?.click()} title="Attach file">📎</button>
 		<input type="file" bind:this={fileInput} onchange={handleFileSelect} multiple hidden />
+		<div class="emoji-btn-wrapper">
+			<button class="attach-btn" onclick={() => showEmojiPicker = !showEmojiPicker} title="Emoji">😀</button>
+			{#if showEmojiPicker}
+				<div class="emoji-picker-anchor">
+					<EmojiPicker onSelect={insertEmoji} onClose={() => showEmojiPicker = false} />
+				</div>
+			{/if}
+		</div>
 		<textarea
 			class="compose-input"
 			bind:this={textarea}
@@ -313,5 +340,16 @@
 	.remove-btn:hover {
 		color: var(--text);
 		background: var(--bg-hover, rgba(255, 255, 255, 0.1));
+	}
+
+	.emoji-btn-wrapper {
+		position: relative;
+	}
+
+	.emoji-picker-anchor {
+		position: absolute;
+		bottom: calc(100% + 4px);
+		left: 0;
+		z-index: 10;
 	}
 </style>

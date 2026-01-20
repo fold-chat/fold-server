@@ -39,6 +39,7 @@
 				: false
 	);
 	let canManageMessages = $derived(channelId ? hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES) : false);
+	let canAddReactions = $derived(channelId ? hasChannelPermission(channelId, PermissionName.ADD_REACTIONS) : false);
 	let currentUserId = $derived(getUser()?.id ?? '');
 
 	let editingId = $state<string | null>(null);
@@ -183,6 +184,7 @@
 			{editContent}
 			{typingUsers}
 			{canManageMessages}
+			{canAddReactions}
 			{highlightMessageId}
 			onLoadMore={loadOlder}
 			onStartEdit={startEdit}

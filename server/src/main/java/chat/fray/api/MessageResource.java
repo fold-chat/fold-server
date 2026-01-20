@@ -6,6 +6,7 @@ import chat.fray.auth.RateLimitFilter;
 import chat.fray.auth.RateLimitPolicy;
 import chat.fray.auth.RateLimitService;
 import chat.fray.db.MessageRepository;
+import chat.fray.db.ReactionRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
@@ -16,8 +17,12 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Path("/api/v0/messages")
 @Produces(MediaType.APPLICATION_JSON)
@@ -25,6 +30,7 @@ import java.util.Map;
 public class MessageResource {
 
     @Inject MessageRepository messageRepo;
+    @Inject ReactionRepository reactionRepo;
     @Inject FileService fileService;
     @Inject RateLimitService rateLimitService;
     @Inject PermissionService permissionService;
@@ -103,6 +109,65 @@ public class MessageResource {
         return Response.noContent().build();
     }
 
+    // --- Reactions ---
+
+    @PUT
+    @Path("/{messageId}/reactions/{emoji}")
+    public Response addReaction(@PathParam("messageId") String messageId, @PathParam("emoji") String emoji) {
+        var sc = sc();
+        var rl = checkRate("reaction_add", sc.getUserId(), RateLimitPolicy.REACTION_ADD);
+        if (rl != null) return rl;
+
+        var msgOpt = messageRepo.findById(messageId);
+        if (msgOpt.isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+        var msg = msgOpt.get();
+        String channelId = (String) msg.get("channel_id");
+        permissionService.requirePermission(sc.getUserId(), channelId, Permission.VIEW_CHANNEL);
+        permissionService.requirePermission(sc.getUserId(), channelId, Permission.ADD_REACTIONS);
+
+        if (reactionRepo.countUniqueEmojiForMessage(messageId) >= 25) {
+            // Only block if this would be a NEW emoji (user might already have reacted with an existing one)
+            var existing = reactionRepo.findByMessageId(messageId);
+            boolean emojiExists = existing.stream().anyMatch(r -> emoji.equals(r.get("emoji")));
+            if (!emojiExists) {
+                return Response.status(400).entity(Map.of("error", "max_reactions", "message", "Max 25 unique emoji per message")).build();
+            }
+        }
+
+        String id = UUID.randomUUID().toString();
+        reactionRepo.create(id, messageId, sc.getUserId(), emoji);
+
+        eventBus.publish(Event.of(EventType.REACTION_ADD,
+                Map.of("message_id", messageId, "channel_id", channelId,
+                        "user_id", sc.getUserId(), "emoji", emoji, "username", sc.getUsername()),
+                Scope.channel(channelId)));
+        return Response.noContent().build();
+    }
+
+    @DELETE
+    @Path("/{messageId}/reactions/{emoji}")
+    public Response removeReaction(@PathParam("messageId") String messageId, @PathParam("emoji") String emoji) {
+        var sc = sc();
+        var rl = checkRate("reaction_remove", sc.getUserId(), RateLimitPolicy.REACTION_REMOVE);
+        if (rl != null) return rl;
+
+        var msgOpt = messageRepo.findById(messageId);
+        if (msgOpt.isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+        String channelId = (String) msgOpt.get().get("channel_id");
+
+        reactionRepo.delete(messageId, sc.getUserId(), emoji);
+
+        eventBus.publish(Event.of(EventType.REACTION_REMOVE,
+                Map.of("message_id", messageId, "channel_id", channelId,
+                        "user_id", sc.getUserId(), "emoji", emoji),
+                Scope.channel(channelId)));
+        return Response.noContent().build();
+    }
+
     public record EditMessageRequest(String content) {}
 
     private FraySecurityContext sc() {
@@ -118,6 +183,50 @@ public class MessageResource {
         }).toList();
         var result = new HashMap<>(msg);
         result.put("attachments", enriched);
+        result.put("reactions", groupReactions((String) msg.get("id"), reactionRepo.findByMessageId((String) msg.get("id")), null));
+        return result;
+    }
+
+    /**
+     * Enrich a list of messages with attachments and grouped reactions (batch).
+     */
+    List<Map<String, Object>> withAttachmentsAndReactions(List<Map<String, Object>> messages, String currentUserId) {
+        var msgIds = messages.stream().map(m -> (String) m.get("id")).toList();
+        var reactionsByMsg = reactionRepo.findByMessageIds(msgIds);
+        return messages.stream().map(msg -> {
+            var result = new HashMap<>(msg);
+            // attachments
+            var attachments = fileService.getAttachments((String) msg.get("id"));
+            result.put("attachments", attachments.stream().map(a -> {
+                var m = new HashMap<>(a);
+                m.put("url", "/api/v0/files/" + a.get("stored_name"));
+                return (Map<String, Object>) m;
+            }).toList());
+            // reactions
+            var reactions = reactionsByMsg.getOrDefault((String) msg.get("id"), List.of());
+            result.put("reactions", groupReactions((String) msg.get("id"), reactions, currentUserId));
+            return (Map<String, Object>) result;
+        }).toList();
+    }
+
+    /**
+     * Group raw reaction rows into [{emoji, count, users: [userId...], me: bool}].
+     */
+    static List<Map<String, Object>> groupReactions(String messageId, List<Map<String, Object>> rows, String currentUserId) {
+        var byEmoji = new LinkedHashMap<String, List<String>>();
+        for (var row : rows) {
+            var emoji = (String) row.get("emoji");
+            byEmoji.computeIfAbsent(emoji, k -> new ArrayList<>()).add((String) row.get("user_id"));
+        }
+        var result = new ArrayList<Map<String, Object>>();
+        for (var entry : byEmoji.entrySet()) {
+            result.add(Map.of(
+                    "emoji", entry.getKey(),
+                    "count", entry.getValue().size(),
+                    "users", entry.getValue(),
+                    "me", currentUserId != null && entry.getValue().contains(currentUserId)
+            ));
+        }
         return result;
     }
 

@@ -23,6 +23,7 @@ import { getThreads } from '$lib/api/threads.js';
 	let canManageMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES));
 	let canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	let canCreateThreads = $derived(hasChannelPermission(channelId, PermissionName.CREATE_THREADS));
+	let canAddReactions = $derived(hasChannelPermission(channelId, PermissionName.ADD_REACTIONS));
 	let editingId = $state<string | null>(null);
 	let editContent = $state('');
 	let typingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
@@ -218,8 +219,9 @@ import { getThreads } from '$lib/api/threads.js';
 				{editingId}
 				{editContent}
 				typingUsers={getTypingUsers(channelId)}
-				{canManageMessages}
+			{canManageMessages}
 				{canCreateThreads}
+				{canAddReactions}
 				{highlightMessageId}
 				{threadLookup}
 				onLoadMore={loadOlder}
