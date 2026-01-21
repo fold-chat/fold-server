@@ -11,6 +11,7 @@ let user = $state<User | null>(null);
 let setupRequired = $state(false);
 let initialized = $state(false);
 let permissions = $state<UserPermissions>({ server: [], channels: new Map() });
+let mediaSearchEnabled = $state(false);
 
 export function getUser(): User | null {
 	return user;
@@ -83,9 +84,18 @@ export function hasChannelPermission(channelId: string, perm: Permission): boole
 	return permissions.server.includes(perm);
 }
 
+export function getMediaSearchEnabled(): boolean {
+	return mediaSearchEnabled;
+}
+
+export function setMediaSearchEnabled(v: boolean) {
+	mediaSearchEnabled = v;
+}
+
 export function reset() {
 	user = null;
 	initialized = false;
 	setupRequired = false;
 	permissions = { server: [], channels: new Map() };
+	mediaSearchEnabled = false;
 }

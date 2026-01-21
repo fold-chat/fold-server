@@ -20,6 +20,7 @@ public record RateLimitPolicy(int maxTokens, Duration window) {
     public static final RateLimitPolicy SEARCH = new RateLimitPolicy(10, Duration.ofMinutes(1));
     public static final RateLimitPolicy REACTION_ADD = new RateLimitPolicy(10, Duration.ofSeconds(10));
     public static final RateLimitPolicy REACTION_REMOVE = new RateLimitPolicy(10, Duration.ofSeconds(10));
+    public static final RateLimitPolicy MEDIA_SEARCH = new RateLimitPolicy(20, Duration.ofMinutes(1));
 
     /** Parse from string format "count/windowSeconds", e.g. "5/60" */
     public static RateLimitPolicy parse(String spec) {

@@ -40,6 +40,7 @@ public class RateLimitService {
             case "profile_update" -> config.profileUpdate();
             case "password_change" -> config.passwordChange();
             case "search" -> config.search();
+            case "media_search" -> config.mediaSearch();
             default -> java.util.Optional.<String>empty();
         };
         return override.filter(s -> !s.isBlank()).map(RateLimitPolicy::parse).orElse(defaultPolicy);

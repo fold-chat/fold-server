@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { uploadFile } from '$lib/api/messages.js';
 	import EmojiPicker from './EmojiPicker.svelte';
+	import GifPicker from './GifPicker.svelte';
+	import { getMediaSearchEnabled } from '$lib/stores/auth.svelte.js';
 
 	interface PendingFile {
 		file: File;
@@ -19,6 +21,7 @@
 	let pendingFiles = $state<PendingFile[]>([]);
 	let dragging = $state(false);
 	let showEmojiPicker = $state(false);
+	let showGifPicker = $state(false);
 	let canSend = $derived(content.trim().length > 0 || pendingFiles.length > 0);
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -118,6 +121,12 @@
 		return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 	}
 
+	function insertGif(url: string, title: string) {
+		const gifContent = `![GIF](${url})`;
+		onSend(gifContent);
+		showGifPicker = false;
+	}
+
 	function insertEmoji(emoji: string) {
 		if (!textarea) {
 			content += emoji;
@@ -174,6 +183,16 @@
 				</div>
 			{/if}
 		</div>
+		{#if getMediaSearchEnabled()}
+			<div class="gif-btn-wrapper">
+				<button class="attach-btn" onclick={() => showGifPicker = !showGifPicker} title="GIF">GIF</button>
+				{#if showGifPicker}
+					<div class="gif-picker-anchor">
+						<GifPicker onSelect={insertGif} onClose={() => showGifPicker = false} />
+					</div>
+				{/if}
+			</div>
+		{/if}
 		<textarea
 			class="compose-input"
 			bind:this={textarea}
@@ -347,6 +366,17 @@
 	}
 
 	.emoji-picker-anchor {
+		position: absolute;
+		bottom: calc(100% + 4px);
+		left: 0;
+		z-index: 10;
+	}
+
+	.gif-btn-wrapper {
+		position: relative;
+	}
+
+	.gif-picker-anchor {
 		position: absolute;
 		bottom: calc(100% + 4px);
 		left: 0;

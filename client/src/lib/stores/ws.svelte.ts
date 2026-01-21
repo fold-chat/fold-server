@@ -6,7 +6,7 @@ import { setChannels, getChannels, setCategories, addChannel, updateChannel, rem
 import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './messages.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
-import { getUser, setPermissions } from './auth.svelte.js';
+import { getUser, setPermissions, setMediaSearchEnabled } from './auth.svelte.js';
 import { goto } from '$app/navigation';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
@@ -164,6 +164,7 @@ interface HelloPayload {
 	user_permissions: { server: string[]; channels: Record<string, string[]> };
 	heartbeat_interval_ms: number;
 	session_id: string;
+	media_search?: boolean;
 }
 
 function handleUserStateUpdate(data: Record<string, unknown>) {
@@ -212,6 +213,7 @@ function handleHello(data: HelloPayload) {
 			data.user_permissions.channels ?? {}
 		);
 	}
+	setMediaSearchEnabled(data.media_search ?? false);
 	startHeartbeat(data.heartbeat_interval_ms || 30000);
 }
 

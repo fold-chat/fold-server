@@ -1,6 +1,7 @@
 package chat.fray.ws;
 
 import chat.fray.auth.JwtService;
+import chat.fray.config.FrayMediaConfig;
 import chat.fray.db.*;
 import chat.fray.event.*;
 import chat.fray.security.PermissionService;
@@ -30,6 +31,7 @@ public class FrayWebSocket {
     @Inject RoleRepository roleRepo;
     @Inject PermissionService permissionService;
     @Inject RoleService roleService;
+    @Inject FrayMediaConfig mediaConfig;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -203,6 +205,7 @@ public class FrayWebSocket {
             hello.put("user_permissions", userPermissions);
             hello.put("heartbeat_interval_ms", 30000);
             hello.put("session_id", UUID.randomUUID().toString());
+            hello.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
 
             return mapper.writeValueAsString(Map.of("op", "HELLO", "d", hello));
         } catch (Exception e) {

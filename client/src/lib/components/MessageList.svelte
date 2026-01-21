@@ -1,9 +1,10 @@
 <script lang="ts">
-	import type { Message } from '$lib/api/messages.js';
+import type { Message } from '$lib/api/messages.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { addReaction, removeReaction } from '$lib/api/reactions.js';
 	import { renderMarkdown, formatTimestamp } from '$lib/utils/markdown.js';
 	import EmojiPicker from './EmojiPicker.svelte';
+	import klipyLogo from '$lib/assets/klipy.svg';
 	import { tick } from 'svelte';
 
 	let {
@@ -188,6 +189,17 @@
 		pickerPos = null;
 	}
 
+	const GIF_MSG_RE = /^!\[GIF\]\((\/api\/v0\/media\/proxy\?url=.+)\)$/;
+
+	function isGifMessage(content: string): boolean {
+		return GIF_MSG_RE.test(content.trim());
+	}
+
+	function gifUrl(content: string): string {
+		const m = content.trim().match(GIF_MSG_RE);
+		return m ? m[1] : '';
+	}
+
 	function typingText(users: string[]): string {
 		if (users.length === 0) return '';
 		if (users.length === 1) return `${users[0]} is typing...`;
@@ -234,7 +246,14 @@
 							<button class="btn-sm btn-primary" onclick={() => editingId && onSaveEdit?.(editingId, localEditContent)}>Save</button>
 						</div>
 					{:else}
-						<div class="content">{@html renderMarkdown(msg.content)}</div>
+						{#if isGifMessage(msg.content)}
+							<div class="gif-message">
+								<img src={gifUrl(msg.content)} alt="GIF" class="gif-image" />
+								<img src={klipyLogo} alt="KLIPY" class="klipy-watermark" />
+							</div>
+						{:else}
+							<div class="content">{@html renderMarkdown(msg.content)}</div>
+						{/if}
 						{#if msg.attachments && msg.attachments.length > 0}
 							<div class="attachments">
 								{#each msg.attachments as att}
@@ -613,6 +632,30 @@
 		flex-direction: column;
 		gap: 0.5rem;
 		margin-top: 0.25rem;
+	}
+
+	.gif-message {
+		position: relative;
+		display: inline-block;
+		margin-top: 0.25rem;
+	}
+
+	.gif-image {
+		max-width: 400px;
+		max-height: 300px;
+		border-radius: 6px;
+		object-fit: contain;
+		display: block;
+	}
+
+	.klipy-watermark {
+		position: absolute;
+		bottom: 6px;
+		left: 6px;
+		height: 16px;
+		width: auto;
+		opacity: 0.7;
+		pointer-events: none;
 	}
 
 	.attachment-image {
