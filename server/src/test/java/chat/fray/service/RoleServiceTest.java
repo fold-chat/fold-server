@@ -1,8 +1,10 @@
 package chat.fray.service;
 
+import chat.fray.db.CategoryRepository;
 import chat.fray.db.ChannelRepository;
 import chat.fray.db.RoleRepository;
 import chat.fray.event.EventBus;
+import chat.fray.event.SessionRegistry;
 import chat.fray.event.EventType;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
@@ -20,8 +22,10 @@ class RoleServiceTest {
 
     private RoleRepository roleRepo;
     private ChannelRepository channelRepo;
+    private CategoryRepository categoryRepo;
     private PermissionService permissionService;
     private EventBus eventBus;
+    private SessionRegistry sessionRegistry;
     private RoleService roleService;
 
     private static final long VIEW_SEND = Permission.VIEW_CHANNEL.value | Permission.SEND_MESSAGES.value;
@@ -30,16 +34,22 @@ class RoleServiceTest {
     void setup() throws Exception {
         roleRepo = mock(RoleRepository.class);
         channelRepo = mock(ChannelRepository.class);
+        categoryRepo = mock(CategoryRepository.class);
         permissionService = mock(PermissionService.class);
         eventBus = mock(EventBus.class);
+        sessionRegistry = mock(SessionRegistry.class);
 
         when(channelRepo.listAll()).thenReturn(List.of());
+        when(categoryRepo.listAll()).thenReturn(List.of());
+        when(sessionRegistry.onlineUserIds()).thenReturn(Set.of());
 
         roleService = new RoleService();
         inject(roleService, "roleRepo", roleRepo);
         inject(roleService, "channelRepo", channelRepo);
+        inject(roleService, "categoryRepo", categoryRepo);
         inject(roleService, "permissionService", permissionService);
         inject(roleService, "eventBus", eventBus);
+        inject(roleService, "sessionRegistry", sessionRegistry);
     }
 
     private void inject(Object target, String fieldName, Object value) throws Exception {
