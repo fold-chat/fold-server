@@ -1,6 +1,6 @@
 import type { Message, ReactionGroup } from '$lib/api/messages.js';
 import { incrementUnread } from './channels.svelte.js';
-import { handleThreadMessageEvent } from './threads.svelte.js';
+import { handleThreadMessageEvent, handleThreadReactionEvent } from './threads.svelte.js';
 import { getUser } from './auth.svelte.js';
 
 // channelId → messages (sorted oldest first)
@@ -150,9 +150,12 @@ export function handleReactionEvent(op: string, data: Record<string, unknown> | 
 	if (!messageId || !channelId || !emoji) return;
 
 	const existing = messagesByChannel.get(channelId);
-	if (!existing) return;
+	if (!existing || existing.findIndex((m) => m.id === messageId) === -1) {
+		// Message not in channel store — try thread messages
+		handleThreadReactionEvent(op, messageId, userId, emoji);
+		return;
+	}
 	const msgIdx = existing.findIndex((m) => m.id === messageId);
-	if (msgIdx === -1) return;
 
 	const msg = existing[msgIdx];
 	const reactions = [...(msg.reactions ?? [])];

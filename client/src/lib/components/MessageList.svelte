@@ -146,6 +146,7 @@
 	}
 
 	let emojiPickerMessageId = $state<string | null>(null);
+	let pickerPos = $state<{ x: number; y: number } | null>(null);
 
 	function toggleReaction(messageId: string, emoji: string, hasReacted: boolean) {
 		if (hasReacted) {
@@ -155,12 +156,36 @@
 		}
 	}
 
-	function openEmojiPicker(messageId: string) {
-		emojiPickerMessageId = emojiPickerMessageId === messageId ? null : messageId;
+	const PICKER_W = 320;
+	const PICKER_H = 360;
+
+	function openEmojiPicker(messageId: string, e?: MouseEvent) {
+		if (emojiPickerMessageId === messageId) {
+			emojiPickerMessageId = null;
+			pickerPos = null;
+			return;
+		}
+		emojiPickerMessageId = messageId;
+		if (e) {
+			const btn = e.currentTarget as HTMLElement;
+			const rect = btn.getBoundingClientRect();
+			let x = rect.left;
+			let y = rect.bottom + 4;
+			// clamp to viewport
+			if (x + PICKER_W > window.innerWidth) x = window.innerWidth - PICKER_W - 8;
+			if (x < 8) x = 8;
+			if (y + PICKER_H > window.innerHeight) y = rect.top - PICKER_H - 4;
+			pickerPos = { x, y };
+		}
 	}
 
 	function handlePickerSelect(messageId: string, emoji: string) {
 		addReaction(messageId, emoji).catch(() => {});
+	}
+
+	function closePicker() {
+		emojiPickerMessageId = null;
+		pickerPos = null;
 	}
 
 	function typingText(users: string[]): string {
@@ -237,9 +262,9 @@
 						{/if}
 					{/if}
 				</div>
-				{#if msg.reactions && msg.reactions.length > 0}
+				{#if (msg.reactions && msg.reactions.length > 0) || emojiPickerMessageId === msg.id}
 					<div class="reactions">
-						{#each msg.reactions as reaction}
+						{#each msg.reactions ?? [] as reaction}
 							<button
 								class="reaction-pill"
 								class:me={reaction.me}
@@ -251,14 +276,7 @@
 							</button>
 						{/each}
 				{#if canAddReactions}
-							<div class="quick-react-wrapper">
-								<button class="reaction-pill add-reaction" onclick={() => openEmojiPicker(msg.id)} title="Add Reaction">+</button>
-								{#if emojiPickerMessageId === msg.id}
-									<div class="emoji-picker-anchor">
-										<EmojiPicker onSelect={(emoji) => handlePickerSelect(msg.id, emoji)} onClose={() => emojiPickerMessageId = null} />
-									</div>
-								{/if}
-							</div>
+							<button class="reaction-pill add-reaction" onclick={(e) => openEmojiPicker(msg.id, e)} title="Add Reaction">+</button>
 						{/if}
 					</div>
 				{/if}
@@ -272,7 +290,7 @@
 		{#if editingId !== msg.id}
 				<div class="message-actions">
 					{#if canAddReactions}
-						<button class="action-btn" onclick={() => openEmojiPicker(msg.id)} title="React">😀</button>
+						<button class="action-btn" onclick={(e) => openEmojiPicker(msg.id, e)} title="React">😀</button>
 					{/if}
 					{#if canCreateThreads && !msgThread && !msg.thread_id}
 						<button class="action-btn" onclick={() => onStartThread?.(msg.id)} title="Start Thread">💬</button>
@@ -291,6 +309,12 @@
 		<div class="typing-indicator">{typingText(typingUsers)}</div>
 	{/if}
 </div>
+
+{#if emojiPickerMessageId && pickerPos}
+	<div class="emoji-picker-fixed" style="left: {pickerPos.x}px; top: {pickerPos.y}px;">
+		<EmojiPicker onSelect={(emoji) => { handlePickerSelect(emojiPickerMessageId!, emoji); closePicker(); }} onClose={closePicker} />
+	</div>
+{/if}
 
 {#if lightboxUrl}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -572,15 +596,9 @@
 		padding: 0.15rem 0.4rem;
 	}
 
-	.quick-react-wrapper {
-		position: relative;
-	}
-
-	.emoji-picker-anchor {
-		position: absolute;
-		bottom: calc(100% + 4px);
-		left: 0;
-		z-index: 10;
+	.emoji-picker-fixed {
+		position: fixed;
+		z-index: 100;
 	}
 
 	.typing-indicator {

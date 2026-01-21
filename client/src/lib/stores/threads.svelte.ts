@@ -1,5 +1,6 @@
 import type { Thread, ThreadReadState } from '$lib/api/threads.js';
-import type { Message } from '$lib/api/messages.js';
+import type { Message, ReactionGroup } from '$lib/api/messages.js';
+import { getUser } from './auth.svelte.js';
 
 // Active thread panel
 let activeThread = $state<Thread | null>(null);
@@ -290,6 +291,46 @@ export function handleThreadMessageEvent(op: string, data: Record<string, unknow
 		}
 	}
 	return true;
+}
+
+export function handleThreadReactionEvent(op: string, messageId: string, userId: string, emoji: string) {
+	// Search all threads for this message
+	for (const [threadId, msgs] of messagesByThread) {
+		const msgIdx = msgs.findIndex((m) => m.id === messageId);
+		if (msgIdx === -1) continue;
+
+		const msg = msgs[msgIdx];
+		const reactions: ReactionGroup[] = [...(msg.reactions ?? [])];
+		const groupIdx = reactions.findIndex((r) => r.emoji === emoji);
+		const me = getUser()?.id === userId;
+
+		if (op === 'REACTION_ADD') {
+			if (groupIdx >= 0) {
+				const group = reactions[groupIdx];
+				if (!group.users.includes(userId)) {
+					reactions[groupIdx] = { ...group, count: group.count + 1, users: [...group.users, userId], me: group.me || me };
+				}
+			} else {
+				reactions.push({ emoji, count: 1, users: [userId], me });
+			}
+		} else if (op === 'REACTION_REMOVE') {
+			if (groupIdx >= 0) {
+				const group = reactions[groupIdx];
+				const newUsers = group.users.filter((u) => u !== userId);
+				if (newUsers.length === 0) {
+					reactions.splice(groupIdx, 1);
+				} else {
+					reactions[groupIdx] = { ...group, count: newUsers.length, users: newUsers, me: me ? false : group.me };
+				}
+			}
+		}
+
+		const updated = [...msgs];
+		updated[msgIdx] = { ...msg, reactions };
+		messagesByThread = new Map(messagesByThread);
+		messagesByThread.set(threadId, updated);
+		return;
+	}
 }
 
 function bumpThreadActivity(threadId: string, channelId: string) {

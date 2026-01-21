@@ -6,6 +6,7 @@ import chat.fray.auth.RateLimitFilter;
 import chat.fray.auth.RateLimitPolicy;
 import chat.fray.auth.RateLimitService;
 import chat.fray.db.MessageRepository;
+import chat.fray.db.ReactionRepository;
 import chat.fray.db.ReadStateRepository;
 import chat.fray.db.ThreadRepository;
 import chat.fray.event.*;
@@ -29,6 +30,7 @@ public class ThreadResource {
 
     @Inject ThreadRepository threadRepo;
     @Inject MessageRepository messageRepo;
+    @Inject ReactionRepository reactionRepo;
     @Inject ReadStateRepository readStateRepo;
     @Inject FileService fileService;
     @Inject RateLimitService rateLimitService;
@@ -65,7 +67,7 @@ public class ThreadResource {
         if (limit < 1) limit = 1;
         if (limit > 200) limit = 200;
         var messages = messageRepo.paginateThreadMessages(threadId, before, after, limit);
-        var enriched = messages.stream().map(this::withAttachments).toList();
+        var enriched = withAttachmentsAndReactions(messages, sc().getUserId());
         return Response.ok(enriched).build();
     }
 
@@ -217,6 +219,24 @@ public class ThreadResource {
         }).toList();
         var result = new HashMap<>(msg);
         result.put("attachments", enriched);
+        result.put("reactions", MessageResource.groupReactions((String) msg.get("id"), reactionRepo.findByMessageId((String) msg.get("id")), null));
         return result;
+    }
+
+    private List<Map<String, Object>> withAttachmentsAndReactions(List<Map<String, Object>> messages, String currentUserId) {
+        var msgIds = messages.stream().map(m -> (String) m.get("id")).toList();
+        var reactionsByMsg = reactionRepo.findByMessageIds(msgIds);
+        return messages.stream().map(msg -> {
+            var result = new HashMap<>(msg);
+            var attachments = fileService.getAttachments((String) msg.get("id"));
+            result.put("attachments", attachments.stream().map(a -> {
+                var m = new HashMap<>(a);
+                m.put("url", "/api/v0/files/" + a.get("stored_name"));
+                return (Map<String, Object>) m;
+            }).toList());
+            var reactions = reactionsByMsg.getOrDefault((String) msg.get("id"), List.of());
+            result.put("reactions", MessageResource.groupReactions((String) msg.get("id"), reactions, currentUserId));
+            return (Map<String, Object>) result;
+        }).toList();
     }
 }
