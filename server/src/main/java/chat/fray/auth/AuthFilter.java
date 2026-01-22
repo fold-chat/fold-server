@@ -1,5 +1,6 @@
 package chat.fray.auth;
 
+import chat.fray.db.UserRepository;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Priorities;
@@ -17,6 +18,9 @@ public class AuthFilter implements ContainerRequestFilter {
 
     @Inject
     JwtService jwtService;
+
+    @Inject
+    UserRepository userRepo;
 
     @Override
     public void filter(ContainerRequestContext ctx) {
@@ -42,7 +46,17 @@ public class AuthFilter implements ContainerRequestFilter {
         }
 
         var c = claims.get();
-        ctx.setSecurityContext(new FraySecurityContext(c.getSubject(), (String) c.get("usr")));
+        String userId = c.getSubject();
+
+        // Check if user is banned
+        if (userRepo.isBanned(userId)) {
+            ctx.abortWith(Response.status(403)
+                    .entity(java.util.Map.of("error", "banned", "message", "You have been banned"))
+                    .build());
+            return;
+        }
+
+        ctx.setSecurityContext(new FraySecurityContext(userId, (String) c.get("usr")));
     }
 
     private boolean isPublicPath(String path, String method) {

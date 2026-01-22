@@ -134,6 +134,11 @@ public class AuthService {
             userRepo.resetFailedLogin(userId);
         }
 
+        // Check if user is banned
+        if (user.get("banned_at") != null) {
+            throw new BannedException();
+        }
+
         // Create session
         String sessionId = UUID.randomUUID().toString();
         String refreshToken = generateRefreshToken();
@@ -289,6 +294,12 @@ public class AuthService {
         public LockedException(long retryAfterSeconds) {
             super("Account locked");
             this.retryAfterSeconds = retryAfterSeconds;
+        }
+    }
+
+    public static class BannedException extends RuntimeException {
+        public BannedException() {
+            super("Account banned");
         }
     }
 }

@@ -92,18 +92,44 @@ public class UserRepository {
         );
     }
 
+    public void ban(String userId, String bannedBy, String reason) {
+        db.execute(
+                "UPDATE user SET banned_at = datetime('now'), banned_by = ?, ban_reason = ? WHERE id = ?",
+                bannedBy, reason, userId
+        );
+    }
+
+    public void unban(String userId) {
+        db.execute(
+                "UPDATE user SET banned_at = NULL, banned_by = NULL, ban_reason = NULL WHERE id = ?",
+                userId
+        );
+    }
+
+    public boolean isBanned(String userId) {
+        var rows = db.query("SELECT 1 FROM user WHERE id = ? AND banned_at IS NOT NULL", userId);
+        return !rows.isEmpty();
+    }
+
+    public List<Map<String, Object>> findBanned() {
+        return db.query("SELECT * FROM user WHERE banned_at IS NOT NULL ORDER BY banned_at DESC");
+    }
+
     /** List all members with their roles as JSON array of role objects */
-    public List<Map<String, Object>> listMembers() {
+    public List<Map<String, Object>> listMembers(boolean includeBanned) {
+        String banFilter = includeBanned ? "" : "AND u.banned_at IS NULL";
         return db.query("""
                 SELECT u.id, u.username, u.display_name, u.avatar_url, u.status_preference,
                        u.status_text, u.bio, u.created_at, u.last_seen_at,
+                       u.banned_at, u.banned_by, u.ban_reason,
+                       (SELECT u2.username FROM user u2 WHERE u2.id = u.banned_by) AS banned_by_username,
                        JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles
                 FROM user u
                 LEFT JOIN user_role ur ON u.id = ur.user_id
                 LEFT JOIN role r ON ur.role_id = r.id
-                WHERE u.deleted_at IS NULL
+                WHERE u.deleted_at IS NULL %s
                 GROUP BY u.id
-                ORDER BY u.created_at
-                """);
+                ORDER BY u.banned_at IS NOT NULL, u.created_at
+                """.formatted(banFilter));
     }
 }

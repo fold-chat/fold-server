@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { getMembers, type Member } from '$lib/api/users.js';
+	import { getMembers, banMember, unbanMember, type Member } from '$lib/api/users.js';
 	import { assignRole, removeRole } from '$lib/api/roles.js';
 	import { getRolesList } from '$lib/stores/roles.svelte.js';
-	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { hasServerPermission, getUser } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
 	import { onMount } from 'svelte';
@@ -11,8 +11,12 @@
 	let loading = $state(true);
 	let error = $state('');
 	let editingMember = $state<string | null>(null);
+	let confirmAction = $state<{ type: 'ban' | 'unban'; member: Member } | null>(null);
+	let banReason = $state('');
 
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
+	const canBan = $derived(hasServerPermission(PermissionName.BAN_MEMBERS));
+	const currentUser = $derived(getUser());
 
 	onMount(async () => {
 		try {
@@ -26,7 +30,6 @@
 
 	function parseMemberRoles(member: Member) {
 		if (!member.roles) return [];
-		// roles comes as JSON string from SQLite or already parsed array
 		if (typeof member.roles === 'string') {
 			try {
 				const parsed = JSON.parse(member.roles);
@@ -42,7 +45,6 @@
 		error = '';
 		try {
 			await assignRole(userId, roleId);
-			// Refresh members
 			members = await getMembers();
 		} catch (err) {
 			error = (err as ApiError).message || 'Failed to assign role';
@@ -62,6 +64,53 @@
 	function memberHasRole(member: Member, roleId: string): boolean {
 		return parseMemberRoles(member).some((r: { id: string }) => r.id === roleId);
 	}
+
+	function isOwner(member: Member): boolean {
+		return parseMemberRoles(member).some((r: { id: string }) => r.id === 'owner');
+	}
+
+	function isBanned(member: Member): boolean {
+		return member.banned_at != null;
+	}
+
+	function banTooltip(member: Member): string {
+		const parts = ['Banned'];
+		if (member.banned_by_username) parts.push(`by ${member.banned_by_username}`);
+		if (member.banned_at) {
+			const date = new Date(member.banned_at + 'Z');
+			parts.push(`on ${date.toLocaleDateString()}`);
+		}
+		if (member.ban_reason) parts.push(`— ${member.ban_reason}`);
+		return parts.join(' ');
+	}
+
+	function promptBan(member: Member) {
+		confirmAction = { type: 'ban', member };
+		banReason = '';
+	}
+
+	function promptUnban(member: Member) {
+		confirmAction = { type: 'unban', member };
+		banReason = '';
+	}
+
+	async function executeAction() {
+		if (!confirmAction) return;
+		error = '';
+		try {
+			if (confirmAction.type === 'ban') {
+				await banMember(confirmAction.member.id, banReason || undefined);
+			} else {
+				await unbanMember(confirmAction.member.id);
+			}
+			members = await getMembers();
+		} catch (err) {
+			error = (err as ApiError).message || `Failed to ${confirmAction.type} member`;
+		} finally {
+			confirmAction = null;
+			banReason = '';
+		}
+	}
 </script>
 
 <div class="settings-page">
@@ -80,32 +129,48 @@
 		{:else}
 			<div class="member-list">
 				{#each members as member}
-					<div class="member-item">
+					<div class="member-item" class:banned={isBanned(member)} title={isBanned(member) ? banTooltip(member) : ''}>
 						<div class="member-info">
 							{#if member.avatar_url}
-								<img src={member.avatar_url} alt="" class="avatar" />
+								<img src={member.avatar_url} alt="" class="avatar" class:banned-avatar={isBanned(member)} />
 							{:else}
-								<div class="avatar placeholder">{member.username.charAt(0).toUpperCase()}</div>
+								<div class="avatar placeholder" class:banned-avatar={isBanned(member)}>{member.username.charAt(0).toUpperCase()}</div>
 							{/if}
 							<div class="member-details">
-								<span class="member-name">{member.display_name || member.username}</span>
+								<span class="member-name" class:banned-text={isBanned(member)}>
+									{member.display_name || member.username}
+									{#if isBanned(member)}
+										<span class="banned-badge">Banned</span>
+									{/if}
+								</span>
 								{#if member.display_name}
 									<span class="member-username">@{member.username}</span>
 								{/if}
 							</div>
-							<div class="member-roles">
-								{#each parseMemberRoles(member) as role}
-									<span class="role-chip" style="border-color: {role.color || '#99aab5'}">
-										<span class="role-dot" style="background: {role.color || '#99aab5'}"></span>
-										{role.name}
-									</span>
-								{/each}
-							</div>
-							{#if canManageRoles}
-								<button class="btn-sm" onclick={() => (editingMember = editingMember === member.id ? null : member.id)}>
-									{editingMember === member.id ? 'Close' : 'Roles'}
-								</button>
+							{#if !isBanned(member)}
+								<div class="member-roles">
+									{#each parseMemberRoles(member) as role}
+										<span class="role-chip" style="border-color: {role.color || '#99aab5'}">
+											<span class="role-dot" style="background: {role.color || '#99aab5'}"></span>
+											{role.name}
+										</span>
+									{/each}
+								</div>
 							{/if}
+							<div class="member-actions">
+								{#if !isBanned(member) && canManageRoles}
+									<button class="btn-sm" onclick={() => (editingMember = editingMember === member.id ? null : member.id)}>
+										{editingMember === member.id ? 'Close' : 'Roles'}
+									</button>
+								{/if}
+								{#if !isOwner(member) && currentUser?.id !== member.id && canBan}
+									{#if isBanned(member)}
+										<button class="btn-sm" onclick={() => promptUnban(member)}>Unban</button>
+									{:else}
+										<button class="btn-sm btn-danger" onclick={() => promptBan(member)}>Ban</button>
+									{/if}
+								{/if}
+							</div>
 						</div>
 
 						{#if editingMember === member.id && canManageRoles}
@@ -137,6 +202,31 @@
 		{/if}
 	</div>
 </div>
+
+{#if confirmAction}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="modal-overlay" onkeydown={(e) => e.key === 'Escape' && (confirmAction = null)} onclick={() => (confirmAction = null)}>
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (confirmAction = null)}>
+			<h2>{confirmAction.type === 'ban' ? 'Ban' : 'Unban'} {confirmAction.member.display_name || confirmAction.member.username}?</h2>
+			{#if confirmAction.type === 'ban'}
+				<p class="modal-desc">This user will be permanently banned and unable to rejoin.</p>
+				<div class="form-group">
+					<label for="ban-reason">Reason (optional)</label>
+					<input id="ban-reason" type="text" bind:value={banReason} placeholder="Reason for ban" />
+				</div>
+			{:else}
+				<p class="modal-desc">This user will be unbanned and able to rejoin.</p>
+			{/if}
+			<div class="modal-actions">
+				<button class="btn-sm" onclick={() => (confirmAction = null)}>Cancel</button>
+				<button class="btn-sm {confirmAction.type === 'ban' ? 'btn-danger' : ''}" onclick={executeAction}>
+					{confirmAction.type === 'ban' ? 'Ban' : 'Unban'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <style>
 	.settings-page {
@@ -282,6 +372,106 @@
 	.btn-sm:hover {
 		color: var(--text);
 		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+	}
+
+	.btn-danger {
+		color: #e74c3c;
+		border-color: #e74c3c;
+	}
+
+	.btn-danger:hover {
+		background: rgba(231, 76, 60, 0.15);
+		color: #e74c3c;
+	}
+
+	.member-actions {
+		display: flex;
+		gap: 0.35rem;
+		align-items: center;
+		flex-shrink: 0;
+	}
+
+	.modal-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.6);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 100;
+	}
+
+	.modal {
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 1.5rem;
+		min-width: 320px;
+		max-width: 420px;
+	}
+
+	.modal h2 {
+		margin: 0 0 0.5rem;
+		font-size: 1.1rem;
+	}
+
+	.modal-desc {
+		color: var(--text-muted);
+		font-size: 0.85rem;
+		margin: 0 0 1rem;
+	}
+
+	.modal .form-group {
+		margin-bottom: 1rem;
+	}
+
+	.modal .form-group label {
+		display: block;
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		margin-bottom: 0.25rem;
+	}
+
+	.modal .form-group input {
+		width: 100%;
+		padding: 0.4rem 0.5rem;
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		background: var(--bg);
+		color: var(--text);
+		font-size: 0.85rem;
+	}
+
+	.modal-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.5rem;
+	}
+
+	.banned {
+		opacity: 0.55;
+	}
+
+	.banned:hover {
+		opacity: 0.8;
+	}
+
+	.banned-text {
+		color: var(--text-muted) !important;
+	}
+
+	.banned-avatar {
+		filter: grayscale(100%);
+	}
+
+	.banned-badge {
+		font-size: 0.65rem;
+		color: #e74c3c;
+		background: rgba(231, 76, 60, 0.15);
+		padding: 0.05rem 0.3rem;
+		border-radius: 3px;
+		margin-left: 0.35rem;
+		font-weight: 500;
 	}
 
 	.error-message {

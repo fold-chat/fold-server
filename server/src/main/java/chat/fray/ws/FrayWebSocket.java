@@ -145,7 +145,7 @@ public class FrayWebSocket {
             var user = userRepo.findById(userId).orElse(Map.of());
             var allChannels = channelRepo.listAll();
             var categories = categoryRepo.listAll();
-            var members = userRepo.listMembers();
+var members = userRepo.listMembers(false);
             var readStates = readStateRepo.findAllForUser(userId);
             var unreadCounts = readStateRepo.unreadCounts(userId);
 

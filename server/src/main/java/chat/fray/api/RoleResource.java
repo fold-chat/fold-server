@@ -60,22 +60,6 @@ public class RoleResource {
         return Response.ok(Map.of("deleted", true, "affected_users", userCount)).build();
     }
 
-    // --- Member role assignment ---
-
-    @PUT
-    @Path("/members/{userId}/roles/{roleId}")
-    public Response assignRole(@PathParam("userId") String userId, @PathParam("roleId") String roleId) {
-        roleService.assignRole(sc().getUserId(), userId, roleId);
-        return Response.noContent().build();
-    }
-
-    @DELETE
-    @Path("/members/{userId}/roles/{roleId}")
-    public Response removeRole(@PathParam("userId") String userId, @PathParam("roleId") String roleId) {
-        roleService.removeRole(sc().getUserId(), userId, roleId);
-        return Response.noContent().build();
-    }
-
     // --- DTOs ---
 
     public record CreateRoleRequest(String name, List<String> permissions, int position, String color) {}

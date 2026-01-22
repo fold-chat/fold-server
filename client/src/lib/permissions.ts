@@ -16,7 +16,6 @@ export const PermissionName = {
 	MANAGE_CHANNELS: 'MANAGE_CHANNELS',
 	MANAGE_ROLES: 'MANAGE_ROLES',
 	MANAGE_SERVER: 'MANAGE_SERVER',
-	KICK_MEMBERS: 'KICK_MEMBERS',
 	BAN_MEMBERS: 'BAN_MEMBERS',
 	CREATE_INVITES: 'CREATE_INVITES',
 	MANAGE_INVITES: 'MANAGE_INVITES',
@@ -39,7 +38,6 @@ const SERVER_LEVEL = new Set<string>([
 	PermissionName.MANAGE_CHANNELS,
 	PermissionName.MANAGE_ROLES,
 	PermissionName.MANAGE_SERVER,
-	PermissionName.KICK_MEMBERS,
 	PermissionName.BAN_MEMBERS,
 	PermissionName.CREATE_INVITES,
 	PermissionName.MANAGE_INVITES,
@@ -103,7 +101,6 @@ export const PERMISSION_GROUPS = {
 			label: 'Manage Server',
 			desc: 'Edit server settings'
 		},
-		{ name: PermissionName.KICK_MEMBERS, label: 'Kick Members', desc: 'Remove members temporarily' },
 		{ name: PermissionName.BAN_MEMBERS, label: 'Ban Members', desc: 'Permanently ban members' },
 		{ name: PermissionName.CREATE_INVITES, label: 'Create Invites', desc: 'Create invite links' },
 		{

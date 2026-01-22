@@ -90,12 +90,6 @@ public class UserResource {
         return Response.noContent().build();
     }
 
-    @GET
-    @Path("/members")
-    public Response listMembers() {
-        return Response.ok(userRepo.listMembers()).build();
-    }
-
     // --- DTOs ---
 
     public record UpdateProfileRequest(String display_name, String bio, String status_preference, String status_text, String avatar_url) {}

@@ -20,8 +20,8 @@ Permissions are stored as 64-bit bitmasks. Each bit represents a permission.
 - Bit 16: MANAGE_CHANNELS - Create/edit/delete channels/categories
 - Bit 17: MANAGE_ROLES - Create/edit/delete roles, assign roles
 - Bit 18: MANAGE_SERVER - Edit server settings and view audit log
-- Bit 19: KICK_MEMBERS - Kick (temp remove) members
-- Bit 20: BAN_MEMBERS - Ban (permanent remove) members
+- Bit 19: Reserved (was KICK_MEMBERS)
+- Bit 20: BAN_MEMBERS - Ban members
 - Bit 21: CREATE_INVITES - Create invite links
 - Bit 22: MANAGE_INVITES - Revoke invites created by others
 - Bit 23: CHANGE_NICKNAME - Change own display name
@@ -51,5 +51,5 @@ Reserved for future features.
 ## Default Role Bitmasks
 - **Owner**: 0 (bypasses all checks via special role status, not bitmask)
 - **Admin**: 272763914111 (ADMINISTRATOR + all channel/server/voice perms)
-- **Moderator**: 3671935 (channel perms + KICK + BAN + CREATE_INVITES)
+- **Moderator**: 3671935 (channel perms + BAN + CREATE_INVITES)
 - **Member**: 10485815 (VIEW_CHANNEL + SEND_MESSAGES + MANAGE_OWN_MESSAGES + UPLOAD_FILES + ADD_REACTIONS + CREATE_INVITES + CHANGE_NICKNAME)

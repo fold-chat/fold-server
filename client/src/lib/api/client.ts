@@ -19,6 +19,17 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 		...options
 	});
 
+	if (res.status === 403) {
+		const body = await res.json().catch(() => ({ error: 'forbidden' })) as ApiError;
+		if (body.error === 'banned') {
+			if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+				window.location.href = '/login?reason=banned';
+			}
+			throw body;
+		}
+		throw body;
+	}
+
 	if (res.status === 401) {
 		// Attempt refresh once
 		const refreshed = await tryRefresh();

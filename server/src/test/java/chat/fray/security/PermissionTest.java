@@ -29,7 +29,6 @@ class PermissionTest {
         assertEquals(16, Permission.MANAGE_CHANNELS.bit);
         assertEquals(17, Permission.MANAGE_ROLES.bit);
         assertEquals(18, Permission.MANAGE_SERVER.bit);
-        assertEquals(19, Permission.KICK_MEMBERS.bit);
         assertEquals(20, Permission.BAN_MEMBERS.bit);
         assertEquals(21, Permission.CREATE_INVITES.bit);
         assertEquals(22, Permission.MANAGE_INVITES.bit);
@@ -186,7 +185,6 @@ class PermissionTest {
         assertTrue(Permission.isServerLevel(Permission.MANAGE_CHANNELS));
         assertTrue(Permission.isServerLevel(Permission.MANAGE_ROLES));
         assertTrue(Permission.isServerLevel(Permission.MANAGE_SERVER));
-        assertTrue(Permission.isServerLevel(Permission.KICK_MEMBERS));
         assertTrue(Permission.isServerLevel(Permission.BAN_MEMBERS));
         assertTrue(Permission.isServerLevel(Permission.CREATE_INVITES));
         assertTrue(Permission.isServerLevel(Permission.MANAGE_INVITES));

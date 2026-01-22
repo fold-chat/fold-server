@@ -29,7 +29,7 @@ public enum Permission {
     MANAGE_CHANNELS(16),
     MANAGE_ROLES(17),
     MANAGE_SERVER(18),
-    KICK_MEMBERS(19),
+    // bit 19 reserved (was KICK_MEMBERS)
     BAN_MEMBERS(20),
     CREATE_INVITES(21),
     MANAGE_INVITES(22),
@@ -59,7 +59,7 @@ public enum Permission {
     /** All permissions that are server-level (shouldn't appear in channel override UI) */
     private static final EnumSet<Permission> SERVER_LEVEL = EnumSet.of(
             MANAGE_CHANNELS, MANAGE_ROLES, MANAGE_SERVER,
-            KICK_MEMBERS, BAN_MEMBERS, CREATE_INVITES, MANAGE_INVITES,
+            BAN_MEMBERS, CREATE_INVITES, MANAGE_INVITES,
             CHANGE_NICKNAME, MANAGE_NICKNAMES, ADMINISTRATOR
     );
 

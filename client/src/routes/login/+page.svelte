@@ -7,8 +7,14 @@
 
 	let username = $state('');
 	let password = $state('');
-	let error = $state('');
 	let loading = $state(false);
+
+	const reasonMessages: Record<string, string> = {
+		banned: 'You have been banned from this server.'
+	};
+
+	const urlReason = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('reason') : null;
+	let error = $state(urlReason ? reasonMessages[urlReason] || '' : '');
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
@@ -22,7 +28,9 @@
 			goto('/');
 		} catch (err) {
 			const apiErr = err as ApiError;
-			if (apiErr.error === 'account_locked') {
+			if (apiErr.error === 'banned') {
+				error = 'You have been banned from this server.';
+			} else if (apiErr.error === 'account_locked') {
 				error = `Account locked. Try again in ${apiErr.retry_after} seconds.`;
 			} else {
 				error = apiErr.message || 'Invalid username or password';

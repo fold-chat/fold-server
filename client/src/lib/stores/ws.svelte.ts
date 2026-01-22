@@ -6,7 +6,7 @@ import { setChannels, getChannels, setCategories, addChannel, updateChannel, rem
 import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './messages.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
-import { setMembers } from './members.svelte.js';
+import { setMembers, removeMember, updateMember, getMembers as getStoreMembers } from './members.svelte.js';
 import { getUser, setPermissions, setMediaSearchEnabled } from './auth.svelte.js';
 import { goto } from '$app/navigation';
 
@@ -149,6 +149,32 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 		case 'REACTION_ADD':
 		case 'REACTION_REMOVE':
 			handleReactionEvent(msg.op, msg.d);
+			break;
+		case 'MEMBER_BAN':
+			if (msg.d?.user_id) {
+				const userId = msg.d.user_id as string;
+				const me = getUser();
+				if (me && me.id === userId) {
+					disconnect();
+					window.location.href = '/login?reason=banned';
+				} else {
+					// Update member in store to show as banned
+					const members = getStoreMembers();
+					const member = members.find(m => m.id === userId);
+					if (member) {
+						updateMember({ ...member, banned_at: new Date().toISOString(), banned_by: msg.d.banned_by as string ?? null, ban_reason: msg.d.reason as string ?? null, banned_by_username: null });
+					}
+				}
+			}
+			break;
+		case 'MEMBER_UNBAN':
+			if (msg.d?.user_id) {
+				const unbannedId = msg.d.user_id as string;
+				const existing = getStoreMembers().find(m => m.id === unbannedId);
+				if (existing) {
+					updateMember({ ...existing, banned_at: null, banned_by: null, ban_reason: null, banned_by_username: null });
+				}
+			}
 			break;
 	}
 }

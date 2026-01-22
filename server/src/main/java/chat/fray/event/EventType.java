@@ -28,5 +28,7 @@ public enum EventType {
     THREAD_UPDATE,
     THREAD_DELETE,
     REACTION_ADD,
-    REACTION_REMOVE
+    REACTION_REMOVE,
+    MEMBER_BAN,
+    MEMBER_UNBAN
 }

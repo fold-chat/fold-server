@@ -30,6 +30,10 @@ export interface Member {
 	created_at: string;
 	last_seen_at: string | null;
 	roles: RoleBadge[];
+	banned_at: string | null;
+	banned_by: string | null;
+	ban_reason: string | null;
+	banned_by_username: string | null;
 }
 
 export function getMe() {
@@ -62,4 +66,15 @@ export function deleteMe(password: string) {
 		method: 'DELETE',
 		body: JSON.stringify({ password })
 	});
+}
+
+export function banMember(id: string, reason?: string) {
+	return api<void>(`/members/${id}/ban`, {
+		method: 'POST',
+		body: JSON.stringify({ reason: reason || null })
+	});
+}
+
+export function unbanMember(id: string) {
+	return api<void>(`/members/${id}/ban`, { method: 'DELETE' });
 }

@@ -68,6 +68,10 @@ public class AuthResource {
                     .cookie(authService.accessCookie(result.accessToken()))
                     .cookie(authService.refreshCookie(result.refreshToken()))
                     .build();
+        } catch (AuthService.BannedException e) {
+            return Response.status(403)
+                    .entity(Map.of("error", "banned", "message", "You have been banned"))
+                    .build();
         } catch (AuthService.LockedException e) {
             return Response.status(423)
                     .entity(Map.of("error", "account_locked", "retry_after", e.retryAfterSeconds))

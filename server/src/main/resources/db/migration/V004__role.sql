@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_user_role_role_id ON user_role(role_id);
 -- Permissions are 64-bit bitmasks. See docs/permissions.md for full bit layout.
 -- Owner: bypasses all checks (special role, not bitmask-dependent)
 -- Admin: ADMINISTRATOR(bit31) + all channel/server/voice perms
--- Moderator: channel perms + KICK + BAN + CREATE_INVITES
+-- Moderator: channel perms + BAN + CREATE_INVITES
 -- Member: VIEW_CHANNEL(0) + SEND_MESSAGES(1) + MANAGE_OWN_MESSAGES(2) + UPLOAD_FILES(4) + ADD_REACTIONS(5) + CREATE_THREADS(8) + MANAGE_OWN_THREADS(9) + CREATE_INVITES(21) + CHANGE_NICKNAME(23)
 INSERT OR IGNORE INTO role (id, name, permissions, position, color, is_default) VALUES
     ('owner', 'Owner', 0, 1, '#e74c3c', 0),
