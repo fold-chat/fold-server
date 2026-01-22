@@ -40,7 +40,9 @@
 				? hasChannelPermission(channelId, PermissionName.SEND_IN_LOCKED_THREADS)
 				: false
 	);
+	let canUploadFiles = $derived(channelId ? hasChannelPermission(channelId, PermissionName.UPLOAD_FILES) : false);
 	let canManageMessages = $derived(channelId ? hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES) : false);
+	let canManageOwnMessages = $derived(channelId ? hasChannelPermission(channelId, PermissionName.MANAGE_OWN_MESSAGES) : false);
 	let canAddReactions = $derived(channelId ? hasChannelPermission(channelId, PermissionName.ADD_REACTIONS) : false);
 	let currentUserId = $derived(getUser()?.id ?? '');
 	let isVisible = $derived(thread !== null || pending !== null);
@@ -223,6 +225,7 @@
 				{editContent}
 				{typingUsers}
 			{canManageMessages}
+				{canManageOwnMessages}
 				{canAddReactions}
 				onLoadMore={loadOlder}
 				onStartEdit={startEdit}
@@ -237,7 +240,7 @@
 		{#if isLocked && !canSend}
 			<div class="locked-placeholder">🔒 This thread is locked</div>
 		{:else}
-			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} />
+			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} {canUploadFiles} />
 		{/if}
 	</div>
 {/if}

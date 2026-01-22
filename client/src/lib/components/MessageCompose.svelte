@@ -13,7 +13,7 @@
 		preview?: string;
 	}
 
-	let { onSend, onTyping, disabled = false }: { onSend: (content: string, attachmentIds?: string[]) => void; onTyping?: () => void; disabled?: boolean } = $props();
+	let { onSend, onTyping, disabled = false, canUploadFiles = true }: { onSend: (content: string, attachmentIds?: string[]) => void; onTyping?: () => void; disabled?: boolean; canUploadFiles?: boolean } = $props();
 
 	let content = $state('');
 	let textarea = $state<HTMLTextAreaElement | null>(null);
@@ -92,6 +92,7 @@
 
 	function handleDragOver(e: DragEvent) {
 		e.preventDefault();
+		if (disabled || !canUploadFiles) return;
 		dragging = true;
 	}
 
@@ -102,6 +103,7 @@
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
 		dragging = false;
+		if (disabled || !canUploadFiles) return;
 		if (e.dataTransfer?.files.length) {
 			addFiles(e.dataTransfer.files);
 		}
@@ -173,10 +175,10 @@
 		</div>
 	{/if}
 	<div class="compose-row">
-		<button class="attach-btn" onclick={() => fileInput?.click()} title="Attach file">📎</button>
+		<button class="attach-btn" onclick={() => fileInput?.click()} title="Attach file" disabled={disabled || !canUploadFiles}>📎</button>
 		<input type="file" bind:this={fileInput} onchange={handleFileSelect} multiple hidden />
 		<div class="emoji-btn-wrapper">
-			<button class="attach-btn" onclick={() => showEmojiPicker = !showEmojiPicker} title="Emoji">😀</button>
+			<button class="attach-btn" onclick={() => showEmojiPicker = !showEmojiPicker} title="Emoji" {disabled}>😀</button>
 			{#if showEmojiPicker}
 				<div class="emoji-picker-anchor">
 					<EmojiPicker onSelect={insertEmoji} onClose={() => showEmojiPicker = false} />
@@ -185,7 +187,7 @@
 		</div>
 		{#if getMediaSearchEnabled()}
 			<div class="gif-btn-wrapper">
-				<button class="attach-btn" onclick={() => showGifPicker = !showGifPicker} title="GIF">GIF</button>
+				<button class="attach-btn" onclick={() => showGifPicker = !showGifPicker} title="GIF" {disabled}>GIF</button>
 				{#if showGifPicker}
 					<div class="gif-picker-anchor">
 						<GifPicker onSelect={insertGif} onClose={() => showGifPicker = false} />
@@ -261,7 +263,12 @@
 		opacity: 0.7;
 	}
 
-	.attach-btn:hover {
+	.attach-btn:disabled {
+		opacity: 0.3;
+		cursor: not-allowed;
+	}
+
+	.attach-btn:not(:disabled):hover {
 		opacity: 1;
 		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
 	}

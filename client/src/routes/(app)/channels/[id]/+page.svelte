@@ -20,7 +20,9 @@ import { getThreads } from '$lib/api/threads.js';
 	let channel = $derived(getChannelById(channelId));
 	let isForumChannel = $derived(channel?.type === 'THREAD_CHANNEL');
 	let canSend = $derived(hasChannelPermission(channelId, PermissionName.SEND_MESSAGES));
+	let canUploadFiles = $derived(hasChannelPermission(channelId, PermissionName.UPLOAD_FILES));
 	let canManageMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES));
+	let canManageOwnMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_OWN_MESSAGES));
 	let canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	let canCreateThreads = $derived(hasChannelPermission(channelId, PermissionName.CREATE_THREADS));
 	let canAddReactions = $derived(hasChannelPermission(channelId, PermissionName.ADD_REACTIONS));
@@ -220,6 +222,7 @@ import { getThreads } from '$lib/api/threads.js';
 				{editContent}
 				typingUsers={getTypingUsers(channelId)}
 			{canManageMessages}
+				{canManageOwnMessages}
 				{canCreateThreads}
 				{canAddReactions}
 				{highlightMessageId}
@@ -232,7 +235,7 @@ import { getThreads } from '$lib/api/threads.js';
 				onStartThread={handleStartThread}
 				onOpenThread={handleOpenThread}
 			/>
-			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} />
+			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} {canUploadFiles} />
 		</div>
 	{#if activeThread || pendingThread}
 		<ThreadPanel />

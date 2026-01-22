@@ -13,6 +13,7 @@
 
 	let threads = $derived(getChannelThreads(channelId));
 	let canCreate = $derived(hasChannelPermission(channelId, PermissionName.CREATE_THREADS));
+	let canUploadFiles = $derived(hasChannelPermission(channelId, PermissionName.UPLOAD_FILES));
 
 	let loading = $state(false);
 	let hasMore = $state(true);
@@ -115,7 +116,7 @@
 				bind:value={newTitle}
 				disabled={submitting}
 			/>
-			<MessageCompose onSend={handleNewPost} disabled={submitting || !newTitle.trim()} />
+			<MessageCompose onSend={handleNewPost} disabled={submitting || !newTitle.trim()} {canUploadFiles} />
 		</div>
 	{/if}
 

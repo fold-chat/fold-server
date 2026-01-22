@@ -16,6 +16,7 @@ import type { Message } from '$lib/api/messages.js';
 		editContent = '',
 		typingUsers = [],
 		canManageMessages = false,
+		canManageOwnMessages = false,
 		canCreateThreads = false,
 		canAddReactions = false,
 		highlightMessageId = null,
@@ -36,6 +37,7 @@ import type { Message } from '$lib/api/messages.js';
 		editContent?: string;
 		typingUsers?: string[];
 		canManageMessages?: boolean;
+		canManageOwnMessages?: boolean;
 		canCreateThreads?: boolean;
 		canAddReactions?: boolean;
 		highlightMessageId?: string | null;
@@ -314,7 +316,7 @@ import type { Message } from '$lib/api/messages.js';
 					{#if canCreateThreads && !msgThread && !msg.thread_id}
 						<button class="action-btn" onclick={() => onStartThread?.(msg.id)} title="Start Thread">💬</button>
 					{/if}
-					{#if msg.author_id === currentUserId || canManageMessages}
+					{#if (msg.author_id === currentUserId && canManageOwnMessages) || canManageMessages}
 						<button class="action-btn" onclick={() => onStartEdit?.(msg.id, msg.content)} title="Edit">✏️</button>
 						<button class="action-btn" onclick={() => onDelete?.(msg.id)} title="Delete">🗑️</button>
 					{/if}

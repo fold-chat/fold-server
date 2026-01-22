@@ -26,3 +26,5 @@ Thumbs.db
 *.db-wal
 *.db-shm
 
+# Secrets file
+.env
