@@ -12,6 +12,11 @@ let setupRequired = $state(false);
 let initialized = $state(false);
 let permissions = $state<UserPermissions>({ server: [], channels: new Map() });
 let mediaSearchEnabled = $state(false);
+let serverSettings = $state<{ server_name: string | null; server_icon: string | null; server_description: string | null }>({
+	server_name: 'Fray',
+	server_icon: null,
+	server_description: null
+});
 
 export function getUser(): User | null {
 	return user;
@@ -92,10 +97,23 @@ export function setMediaSearchEnabled(v: boolean) {
 	mediaSearchEnabled = v;
 }
 
+export function getServerSettings() {
+	return serverSettings;
+}
+
+export function setServerSettings(s: { server_name?: string | null; server_icon?: string | null; server_description?: string | null }) {
+	serverSettings = { ...serverSettings, ...s };
+}
+
+export function getServerName(): string {
+	return serverSettings.server_name || 'Fray';
+}
+
 export function reset() {
 	user = null;
 	initialized = false;
 	setupRequired = false;
 	permissions = { server: [], channels: new Map() };
 	mediaSearchEnabled = false;
+	serverSettings = { server_name: 'Fray', server_icon: null, server_description: null };
 }

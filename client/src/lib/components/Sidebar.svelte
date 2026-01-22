@@ -20,7 +20,7 @@
 	import type { Category, Channel } from '$lib/api/channels.js';
 	import { getActiveChannelId } from '$lib/stores/messages.svelte.js';
 	import { getConnectionState } from '$lib/stores/ws.svelte.js';
-	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { hasServerPermission, getServerName } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { goto } from '$app/navigation';
 import ConfirmDialog from './ConfirmDialog.svelte';
@@ -29,6 +29,7 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 
 	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
+	const canManageServer = $derived(hasServerPermission(PermissionName.MANAGE_SERVER));
 
 	// --- Channel dialog state (create + edit) ---
 	let channelDialogOpen = $state(false);
@@ -324,7 +325,7 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 	{/if}
 
 	<div class="sidebar-header">
-		<h2>Fray</h2>
+		<h2>{getServerName()}</h2>
 		<button class="search-btn" onclick={openSearch} title="Search (⌘K)">
 			<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
 				<path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.45 4.39l4.26 4.26a.75.75 0 11-1.06 1.06l-4.26-4.26A7 7 0 012 9z" clip-rule="evenodd" />
@@ -413,6 +414,9 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 		{#if canManageChannels}
 			<button class="sidebar-action" onclick={handleCreateChannel}>+ Channel</button>
 			<button class="sidebar-action" onclick={handleCreateCategory}>+ Category</button>
+		{/if}
+		{#if canManageServer}
+			<button class="sidebar-action" onclick={() => goto('/settings/server')}>Server</button>
 		{/if}
 		{#if canManageRoles}
 			<button class="sidebar-action" onclick={() => goto('/settings/roles')}>Roles</button>

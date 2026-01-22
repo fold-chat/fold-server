@@ -7,7 +7,7 @@ import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './me
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
 import { setMembers, removeMember, updateMember, getMembers as getStoreMembers } from './members.svelte.js';
-import { getUser, setPermissions, setMediaSearchEnabled } from './auth.svelte.js';
+import { getUser, setPermissions, setMediaSearchEnabled, setServerSettings } from './auth.svelte.js';
 import { goto } from '$app/navigation';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
@@ -167,7 +167,7 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 				}
 			}
 			break;
-		case 'MEMBER_UNBAN':
+	case 'MEMBER_UNBAN':
 			if (msg.d?.user_id) {
 				const unbannedId = msg.d.user_id as string;
 				const existing = getStoreMembers().find(m => m.id === unbannedId);
@@ -175,6 +175,9 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 					updateMember({ ...existing, banned_at: null, banned_by: null, ban_reason: null, banned_by_username: null });
 				}
 			}
+			break;
+		case 'SERVER_SETTINGS_UPDATE':
+			if (msg.d) setServerSettings(msg.d as Record<string, string | null>);
 			break;
 	}
 }
@@ -192,6 +195,7 @@ interface HelloPayload {
 	heartbeat_interval_ms: number;
 	session_id: string;
 	media_search?: boolean;
+	server_settings?: { server_name?: string | null; server_icon?: string | null; server_description?: string | null };
 }
 
 function handleUserStateUpdate(data: Record<string, unknown>) {
@@ -242,6 +246,7 @@ function handleHello(data: HelloPayload) {
 		);
 	}
 	setMediaSearchEnabled(data.media_search ?? false);
+	if (data.server_settings) setServerSettings(data.server_settings);
 	startHeartbeat(data.heartbeat_interval_ms || 30000);
 }
 

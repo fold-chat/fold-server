@@ -30,5 +30,6 @@ public enum EventType {
     REACTION_ADD,
     REACTION_REMOVE,
     MEMBER_BAN,
-    MEMBER_UNBAN
+    MEMBER_UNBAN,
+    SERVER_SETTINGS_UPDATE
 }

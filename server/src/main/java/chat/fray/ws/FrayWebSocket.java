@@ -32,6 +32,7 @@ public class FrayWebSocket {
     @Inject PermissionService permissionService;
     @Inject RoleService roleService;
     @Inject FrayMediaConfig mediaConfig;
+    @Inject DatabaseService db;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -206,6 +207,14 @@ var members = userRepo.listMembers(false);
             hello.put("heartbeat_interval_ms", 30000);
             hello.put("session_id", UUID.randomUUID().toString());
             hello.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
+
+            // Server settings
+            var settingsRows = db.query("SELECT key, value FROM server_config WHERE key IN ('server_name', 'server_icon', 'server_description')");
+            var serverSettings = new LinkedHashMap<String, Object>();
+            for (var row : settingsRows) {
+                serverSettings.put((String) row.get("key"), row.get("value"));
+            }
+            hello.put("server_settings", serverSettings);
 
             return mapper.writeValueAsString(Map.of("op", "HELLO", "d", hello));
         } catch (Exception e) {
