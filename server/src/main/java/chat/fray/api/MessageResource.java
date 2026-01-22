@@ -10,6 +10,7 @@ import chat.fray.db.ReactionRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
+import chat.fray.util.MentionParser;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -34,6 +35,7 @@ public class MessageResource {
     @Inject FileService fileService;
     @Inject RateLimitService rateLimitService;
     @Inject PermissionService permissionService;
+    @Inject MentionParser mentionParser;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
@@ -46,7 +48,7 @@ public class MessageResource {
         }
         var msg = msgOpt.get();
         permissionService.requirePermission(sc().getUserId(), (String) msg.get("channel_id"), Permission.VIEW_CHANNEL);
-        return Response.ok(withAttachments(msg)).build();
+        return Response.ok(withAttachmentsAndMentions(msg)).build();
     }
 
     @PATCH
@@ -76,7 +78,7 @@ public class MessageResource {
         }
 
         messageRepo.updateContent(id, req.content());
-        var updated = messageRepo.findByIdWithAuthor(id).map(this::withAttachments);
+        var updated = messageRepo.findByIdWithAuthor(id).map(this::withAttachmentsAndMentions);
         updated.ifPresent(m -> eventBus.publish(Event.of(EventType.MESSAGE_UPDATE, m, Scope.channel((String) msg.get("channel_id")))));
         return updated
                 .map(m -> Response.ok(m).build())
@@ -184,6 +186,25 @@ public class MessageResource {
         var result = new HashMap<>(msg);
         result.put("attachments", enriched);
         result.put("reactions", groupReactions((String) msg.get("id"), reactionRepo.findByMessageId((String) msg.get("id")), null));
+        return result;
+    }
+
+    private Map<String, Object> withAttachmentsAndMentions(Map<String, Object> msg) {
+        var result = withAttachments(msg);
+        var parsed = mentionParser.parse((String) msg.get("content"), (String) msg.get("author_id"), (String) msg.get("channel_id"));
+        result.put("mentions", parsed.users().stream().map(u -> Map.of(
+                "id", u.id(),
+                "username", u.username(),
+                "display_name", u.displayName()
+        )).toList());
+        result.put("mention_roles", parsed.roles().stream().map(r -> {
+            var rm = new HashMap<String, Object>();
+            rm.put("id", r.id());
+            rm.put("name", r.name());
+            rm.put("color", r.color());
+            return (Map<String, Object>) rm;
+        }).toList());
+        result.put("mention_everyone", parsed.mentionEveryone());
         return result;
     }
 

@@ -235,7 +235,7 @@ import { getThreads } from '$lib/api/threads.js';
 				onStartThread={handleStartThread}
 				onOpenThread={handleOpenThread}
 			/>
-			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} {canUploadFiles} />
+			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} {canUploadFiles} {channelId} />
 		</div>
 	{#if activeThread || pendingThread}
 		<ThreadPanel />

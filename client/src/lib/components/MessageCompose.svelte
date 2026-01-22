@@ -2,7 +2,10 @@
 	import { uploadFile } from '$lib/api/messages.js';
 	import EmojiPicker from './EmojiPicker.svelte';
 	import GifPicker from './GifPicker.svelte';
-	import { getMediaSearchEnabled } from '$lib/stores/auth.svelte.js';
+	import MentionAutocomplete from './MentionAutocomplete.svelte';
+	import { getMediaSearchEnabled, hasChannelPermission } from '$lib/stores/auth.svelte.js';
+	import { getMembers } from '$lib/stores/members.svelte.js';
+	import { getRolesList } from '$lib/stores/roles.svelte.js';
 
 	interface PendingFile {
 		file: File;
@@ -13,7 +16,7 @@
 		preview?: string;
 	}
 
-	let { onSend, onTyping, disabled = false, canUploadFiles = true }: { onSend: (content: string, attachmentIds?: string[]) => void; onTyping?: () => void; disabled?: boolean; canUploadFiles?: boolean } = $props();
+	let { onSend, onTyping, disabled = false, canUploadFiles = true, channelId = null }: { onSend: (content: string, attachmentIds?: string[]) => void; onTyping?: () => void; disabled?: boolean; canUploadFiles?: boolean; channelId?: string | null } = $props();
 
 	let content = $state('');
 	let textarea = $state<HTMLTextAreaElement | null>(null);
@@ -22,9 +25,67 @@
 	let dragging = $state(false);
 	let showEmojiPicker = $state(false);
 	let showGifPicker = $state(false);
+	let mentionQuery = $state<string | null>(null);
+	let mentionStartPos = $state<number>(0);
+	let mentionSelectedIndex = $state(0);
 	let canSend = $derived(content.trim().length > 0 || pendingFiles.length > 0);
+	let showMentionEveryone = $derived(channelId ? hasChannelPermission(channelId, 'MENTION_EVERYONE') : false);
+
+	interface MentionItem {
+		type: 'user' | 'role' | 'everyone';
+		id?: string;
+		name: string;
+		displayName?: string;
+		color?: string;
+	}
+
+	let mentionItems = $derived.by(() => {
+		if (mentionQuery === null) return [] as MentionItem[];
+		const q = mentionQuery.toLowerCase();
+		const items: MentionItem[] = [];
+		for (const member of getMembers()) {
+			const username = member.username.toLowerCase();
+			const displayName = (member.display_name || member.username).toLowerCase();
+			if (username.includes(q) || displayName.includes(q)) {
+				items.push({ type: 'user', id: member.id, name: member.username, displayName: member.display_name || member.username });
+			}
+		}
+		for (const role of getRolesList()) {
+			if (role.name.toLowerCase().includes(q)) {
+				items.push({ type: 'role', id: role.id, name: role.name, color: role.color ?? undefined });
+			}
+		}
+		if (showMentionEveryone && 'everyone'.includes(q)) {
+			items.push({ type: 'everyone', name: 'everyone' });
+		}
+		return items.slice(0, 10);
+	});
 
 	function handleKeydown(e: KeyboardEvent) {
+		if (mentionQuery !== null && mentionItems.length > 0) {
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				mentionQuery = null;
+				return;
+			}
+			if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				mentionSelectedIndex = Math.max(0, mentionSelectedIndex - 1);
+				return;
+			}
+			if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				mentionSelectedIndex = Math.min(mentionItems.length - 1, mentionSelectedIndex + 1);
+				return;
+			}
+			if (e.key === 'Enter' || e.key === 'Tab') {
+				e.preventDefault();
+				const item = mentionItems[mentionSelectedIndex];
+				if (item) insertMention(item);
+				return;
+			}
+		}
+		
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			submit();
@@ -34,6 +95,60 @@
 	function handleInput() {
 		onTyping?.();
 		autoResize();
+		detectMention();
+	}
+
+	function detectMention() {
+		if (!textarea) return;
+		const pos = textarea.selectionStart;
+		const textBefore = content.slice(0, pos);
+		
+		// Find last '@' before cursor
+		const lastAt = textBefore.lastIndexOf('@');
+		if (lastAt === -1) {
+			mentionQuery = null;
+			return;
+		}
+		
+		// Check if there's whitespace between @ and cursor
+		const afterAt = textBefore.slice(lastAt + 1);
+		if (/\s/.test(afterAt)) {
+			mentionQuery = null;
+			return;
+		}
+		
+		// Valid mention trigger
+		mentionQuery = afterAt;
+		mentionStartPos = lastAt;
+		mentionSelectedIndex = 0;
+	}
+
+	function insertMention(item: { type: 'user' | 'role' | 'everyone'; id?: string; name: string }) {
+		if (!textarea || mentionQuery === null) return;
+		
+		let insertText = '';
+		if (item.type === 'user' && item.id) {
+			insertText = `<@${item.id}>`;
+		} else if (item.type === 'role' && item.id) {
+			insertText = `<@&${item.id}>`;
+		} else if (item.type === 'everyone') {
+			insertText = '@everyone';
+		}
+		
+		// Replace from @ to cursor position
+		const before = content.slice(0, mentionStartPos);
+		const after = content.slice(textarea.selectionStart);
+		content = before + insertText + ' ' + after;
+		
+		// Reset mention state
+		mentionQuery = null;
+		
+		// Move cursor after inserted mention
+		const newPos = before.length + insertText.length + 1;
+		requestAnimationFrame(() => {
+			textarea?.focus();
+			textarea?.setSelectionRange(newPos, newPos);
+		});
 	}
 
 	async function submit() {
@@ -195,16 +310,25 @@
 				{/if}
 			</div>
 		{/if}
-		<textarea
-			class="compose-input"
+		<div class="textarea-wrapper">
+			{#if mentionQuery !== null && mentionItems.length > 0}
+				<MentionAutocomplete
+					items={mentionItems}
+					selectedIndex={mentionSelectedIndex}
+					onSelect={insertMention}
+				/>
+			{/if}
+			<textarea
+				class="compose-input"
 			bind:this={textarea}
 			bind:value={content}
 			onkeydown={handleKeydown}
 			oninput={handleInput}
 			placeholder={disabled ? 'You do not have permission to send messages' : 'Send a message...'}
 			rows="1"
-			{disabled}
-		></textarea>
+				{disabled}
+			></textarea>
+		</div>
 		<button class="send-btn" onclick={submit} disabled={!canSend || disabled}>Send</button>
 	</div>
 </div>
@@ -230,8 +354,13 @@
 		gap: 0.5rem;
 	}
 
-	.compose-input {
+	.textarea-wrapper {
 		flex: 1;
+		position: relative;
+	}
+
+	.compose-input {
+		width: 100%;
 		background: var(--bg-surface);
 		border: 1px solid var(--border);
 		color: var(--text);

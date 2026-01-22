@@ -210,7 +210,7 @@
 						<span class="parent-author">{parentMessage.author_display_name || parentMessage.author_username || 'Unknown'}</span>
 						<span class="parent-time">{formatTimestamp(parentMessage.created_at)}</span>
 					</div>
-					<div class="parent-content">{@html renderMarkdown(parentMessage.content)}</div>
+					<div class="parent-content">{@html renderMarkdown(parentMessage.content, { mentions: parentMessage.mentions, mention_roles: parentMessage.mention_roles, mention_everyone: parentMessage.mention_everyone })}</div>
 				{/if}
 			</div>
 		{/if}

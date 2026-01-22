@@ -17,6 +17,7 @@ import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
 import chat.fray.service.RoleService;
+import chat.fray.util.MentionParser;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -51,6 +52,7 @@ public class ChannelResource {
     @Inject PermissionService permissionService;
     @Inject RoleService roleService;
     @Inject RoleRepository roleRepo;
+    @Inject MentionParser mentionParser;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
@@ -171,7 +173,7 @@ public class ChannelResource {
             }
         }
 
-        var created = messageRepo.findByIdWithAuthor(id).map(this::withAttachments);
+        var created = messageRepo.findByIdWithAuthor(id).map(m -> withAttachmentsAndMentions(m, sc.getUserId()));
         created.ifPresent(m -> eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId))));
         return created
                 .map(m -> Response.status(201).entity(m).build())
@@ -242,7 +244,7 @@ public class ChannelResource {
         }
 
         var thread = threadRepo.findByIdWithMeta(threadId);
-        var firstMessage = messageRepo.findByIdWithAuthor(messageId).map(this::withAttachments);
+        var firstMessage = messageRepo.findByIdWithAuthor(messageId).map(m -> withAttachmentsAndMentions(m, sc.getUserId()));
 
         if (thread.isPresent()) {
             var payload = new HashMap<>(thread.get());
@@ -396,6 +398,25 @@ public class ChannelResource {
         return result;
     }
 
+    private Map<String, Object> withAttachmentsAndMentions(Map<String, Object> msg, String currentUserId) {
+        var result = withAttachments(msg);
+        var parsed = mentionParser.parse((String) msg.get("content"), (String) msg.get("author_id"), (String) msg.get("channel_id"));
+        result.put("mentions", parsed.users().stream().map(u -> Map.of(
+                "id", u.id(),
+                "username", u.username(),
+                "display_name", u.displayName()
+        )).toList());
+        result.put("mention_roles", parsed.roles().stream().map(r -> {
+            var rm = new HashMap<String, Object>();
+            rm.put("id", r.id());
+            rm.put("name", r.name());
+            rm.put("color", r.color());
+            return (Map<String, Object>) rm;
+        }).toList());
+        result.put("mention_everyone", parsed.mentionEveryone());
+        return result;
+    }
+
     private List<Map<String, Object>> withAttachmentsAndReactions(List<Map<String, Object>> messages, String currentUserId) {
         var msgIds = messages.stream().map(m -> (String) m.get("id")).toList();
         var reactionsByMsg = reactionRepo.findByMessageIds(msgIds);
@@ -409,6 +430,23 @@ public class ChannelResource {
             }).toList());
             var reactions = reactionsByMsg.getOrDefault((String) msg.get("id"), List.of());
             result.put("reactions", MessageResource.groupReactions((String) msg.get("id"), reactions, currentUserId));
+            
+            // Add mentions
+            var parsed = mentionParser.parse((String) msg.get("content"), (String) msg.get("author_id"), (String) msg.get("channel_id"));
+            result.put("mentions", parsed.users().stream().map(u -> Map.of(
+                    "id", u.id(),
+                    "username", u.username(),
+                    "display_name", u.displayName()
+            )).toList());
+            result.put("mention_roles", parsed.roles().stream().map(r -> {
+                var rm = new HashMap<String, Object>();
+                rm.put("id", r.id());
+                rm.put("name", r.name());
+                rm.put("color", r.color());
+                return (Map<String, Object>) rm;
+            }).toList());
+            result.put("mention_everyone", parsed.mentionEveryone());
+            
             return (Map<String, Object>) result;
         }).toList();
     }

@@ -7,6 +7,18 @@ export interface ReactionGroup {
 	me: boolean;
 }
 
+export interface MentionedUser {
+	id: string;
+	username: string;
+	display_name: string;
+}
+
+export interface MentionedRole {
+	id: string;
+	name: string;
+	color: string;
+}
+
 export interface Message {
 	id: string;
 	channel_id: string;
@@ -21,6 +33,9 @@ export interface Message {
 	author_avatar_url?: string;
 	attachments?: FileAttachment[];
 	reactions?: ReactionGroup[];
+	mentions?: MentionedUser[];
+	mention_roles?: MentionedRole[];
+	mention_everyone?: boolean;
 }
 
 export interface FileAttachment {

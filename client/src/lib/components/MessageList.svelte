@@ -254,7 +254,7 @@ import type { Message } from '$lib/api/messages.js';
 								<img src={klipyLogo} alt="KLIPY" class="klipy-watermark" />
 							</div>
 						{:else}
-							<div class="content">{@html renderMarkdown(msg.content)}</div>
+							<div class="content">{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
 						{/if}
 						{#if msg.attachments && msg.attachments.length > 0}
 							<div class="attachments">

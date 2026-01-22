@@ -120,3 +120,24 @@ button:disabled {
 	font-size: 0.875rem;
 	color: var(--text-muted);
 }
+
+/* Mentions */
+.mention {
+	background: rgba(88, 101, 242, 0.15);
+	color: #5865f2;
+	padding: 0 2px;
+	border-radius: 3px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 0.1s;
+}
+
+.mention:hover {
+	background: rgba(88, 101, 242, 0.3);
+	text-decoration: underline;
+}
+
+.mention-role {
+	/* Role-specific styling - color set inline from server */
+	font-weight: 600;
+}

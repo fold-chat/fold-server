@@ -6,6 +6,7 @@ import { setChannels, getChannels, setCategories, addChannel, updateChannel, rem
 import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './messages.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
+import { setMembers } from './members.svelte.js';
 import { getUser, setPermissions, setMediaSearchEnabled } from './auth.svelte.js';
 import { goto } from '$app/navigation';
 
@@ -207,6 +208,7 @@ function handleHello(data: HelloPayload) {
 	setUnreadCounts(data.unread_counts ?? []);
 	setThreadReadStates(data.thread_read_states ?? []);
 	if (data.roles) setRoles(data.roles);
+	if (data.members) setMembers(data.members);
 	if (data.user_permissions) {
 		setPermissions(
 			data.user_permissions.server ?? [],
