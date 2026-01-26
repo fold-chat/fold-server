@@ -15,13 +15,27 @@ public class ReadStateRepository {
 
     public void upsert(String userId, String channelId, String lastReadMessageId) {
         db.execute("""
-                INSERT INTO channel_read_state (user_id, channel_id, last_read_message_id, updated_at)
-                VALUES (?, ?, ?, datetime('now'))
+                INSERT INTO channel_read_state (user_id, channel_id, last_read_message_id, mention_count, updated_at)
+                VALUES (?, ?, ?, 0, datetime('now'))
                 ON CONFLICT (user_id, channel_id) DO UPDATE SET
                     last_read_message_id = excluded.last_read_message_id,
+                    mention_count = 0,
                     updated_at = datetime('now')
                 """,
                 userId, channelId, lastReadMessageId
+        );
+    }
+
+    /** Increment mention_count for a user's channel read state. Creates row if missing. */
+    public void incrementMentionCount(String userId, String channelId) {
+        db.execute("""
+                INSERT INTO channel_read_state (user_id, channel_id, mention_count, updated_at)
+                VALUES (?, ?, 1, datetime('now'))
+                ON CONFLICT (user_id, channel_id) DO UPDATE SET
+                    mention_count = channel_read_state.mention_count + 1,
+                    updated_at = datetime('now')
+                """,
+                userId, channelId
         );
     }
 
@@ -41,11 +55,13 @@ public class ReadStateRepository {
     /**
      * Get unread counts per channel for a user.
      * Excludes threaded messages — those are tracked separately via thread_read_state.
+     * Includes mention_count from read state.
      */
     public List<Map<String, Object>> unreadCounts(String userId) {
         return db.query("""
                 SELECT c.id AS channel_id,
-                       COUNT(m.id) AS unread_count
+                       COUNT(m.id) AS unread_count,
+                       COALESCE(rs.mention_count, 0) AS mention_count
                 FROM channel c
                 LEFT JOIN channel_read_state rs ON rs.channel_id = c.id AND rs.user_id = ?
                 LEFT JOIN message m ON m.channel_id = c.id AND m.thread_id IS NULL AND (rs.last_read_message_id IS NULL OR m.id > rs.last_read_message_id)

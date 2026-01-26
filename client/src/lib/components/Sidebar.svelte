@@ -1,8 +1,9 @@
 <script lang="ts">
-	import {
+import {
 		getChannelsByCategory,
 		getChannels,
 		getUnreadCount,
+		getMentionCount,
 		reorderCategoriesLocal,
 		reorderChannelsLocal,
 		removeChannel as removeChannelStore,
@@ -378,7 +379,8 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 			{/if}
 			{#if !group.category || !collapsedCategories.has(group.category.id)}
 			{#each group.channels as channel}
-				{@const unread = getUnreadCount(channel.id)}
+			{@const unread = getUnreadCount(channel.id)}
+			{@const mentions = getMentionCount(channel.id)}
 				<button
 					class="channel-item"
 					class:active={getActiveChannelId() === channel.id}
@@ -398,7 +400,9 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 				{/if}
 					<span class="channel-hash">{channel.type === 'THREAD_CHANNEL' ? '💬' : '#'}</span>
 					<span class="channel-name">{channel.name}</span>
-					{#if unread > 0}
+					{#if mentions > 0}
+						<span class="mention-badge">{mentions > 99 ? '99+' : mentions}</span>
+					{:else if unread > 0}
 						<span class="unread-badge">{unread > 99 ? '99+' : unread}</span>
 					{/if}
 				{#if canManageChannels}
@@ -562,7 +566,18 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 	}
 
 	.unread-badge {
-		background: var(--accent, #5865f2);
+		background: var(--text-muted);
+		color: white;
+		font-size: 0.65rem;
+		font-weight: 700;
+		padding: 0.1rem 0.4rem;
+		border-radius: 8px;
+		min-width: 1rem;
+		text-align: center;
+	}
+
+	.mention-badge {
+		background: #e74c3c;
 		color: white;
 		font-size: 0.65rem;
 		font-weight: 700;

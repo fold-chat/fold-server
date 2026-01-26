@@ -2,7 +2,7 @@ import type { Channel, Category } from '$lib/api/channels.js';
 import type { Member } from '$lib/api/users.js';
 import type { Role } from '$lib/api/roles.js';
 import type { ThreadReadState } from '$lib/api/threads.js';
-import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates, setUnreadCounts } from './channels.svelte.js';
+import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates, setUnreadCounts, markChannelRead } from './channels.svelte.js';
 import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './messages.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
@@ -178,6 +178,11 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 			break;
 		case 'SERVER_SETTINGS_UPDATE':
 			if (msg.d) setServerSettings(msg.d as Record<string, string | null>);
+			break;
+		case 'READ_STATE_UPDATE':
+			if (msg.d?.channel_id && msg.d?.last_read_message_id) {
+				markChannelRead(msg.d.channel_id as string, msg.d.last_read_message_id as string);
+			}
 			break;
 	}
 }

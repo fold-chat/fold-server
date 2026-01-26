@@ -1,7 +1,9 @@
 import type { Message, ReactionGroup } from '$lib/api/messages.js';
-import { incrementUnread } from './channels.svelte.js';
+import { incrementUnread, incrementMentionCount, getChannelById } from './channels.svelte.js';
 import { handleThreadMessageEvent, handleThreadReactionEvent } from './threads.svelte.js';
 import { getUser } from './auth.svelte.js';
+import { getMembers } from './members.svelte.js';
+import { showMentionNotification } from '$lib/notifications.js';
 
 // channelId → messages (sorted oldest first)
 let messagesByChannel = $state<Map<string, Message[]>>(new Map());
@@ -125,6 +127,13 @@ export function handleMessageEvent(op: string, data: Record<string, unknown> | u
 			if (msg.channel_id !== activeChannelId) {
 				incrementUnread(msg.channel_id);
 			}
+			// Mention detection
+			if (isMentioned(msg)) {
+				if (msg.channel_id !== activeChannelId) {
+					incrementMentionCount(msg.channel_id);
+				}
+				showMentionNotification(msg, getChannelById(msg.channel_id)?.name);
+			}
 			break;
 		}
 		case 'MESSAGE_UPDATE': {
@@ -201,6 +210,29 @@ export function handleReactionEvent(op: string, data: Record<string, unknown> | 
 function isCurrentUser(userId: string): boolean {
 	const user = getUser();
 	return user?.id === userId;
+}
+
+/** Check if current user is mentioned in a message (direct, role, or @everyone). */
+function isMentioned(msg: Message): boolean {
+	const user = getUser();
+	if (!user || msg.author_id === user.id) return false;
+
+	// @everyone
+	if (msg.mention_everyone) return true;
+
+	// Direct mention
+	if (msg.mentions?.some((m) => m.id === user.id)) return true;
+
+	// Role mention — check if user has any of the mentioned roles
+	if (msg.mention_roles?.length) {
+		const member = getMembers().find((m) => m.id === user.id);
+		if (member?.roles) {
+			const userRoleIds = new Set(member.roles.map((r) => r.id));
+			if (msg.mention_roles.some((r) => userRoleIds.has(r.id))) return true;
+		}
+	}
+
+	return false;
 }
 
 export function handleTypingEvent(op: string, data: Record<string, unknown> | undefined) {

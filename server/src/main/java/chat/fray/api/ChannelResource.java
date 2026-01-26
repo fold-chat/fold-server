@@ -13,6 +13,7 @@ import chat.fray.db.ReactionRepository;
 import chat.fray.db.ReadStateRepository;
 import chat.fray.db.RoleRepository;
 import chat.fray.db.ThreadRepository;
+import chat.fray.db.UserRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
@@ -28,6 +29,7 @@ import jakarta.ws.rs.core.Response;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +55,7 @@ public class ChannelResource {
     @Inject PermissionService permissionService;
     @Inject RoleService roleService;
     @Inject RoleRepository roleRepo;
+    @Inject UserRepository userRepo;
     @Inject MentionParser mentionParser;
     @Inject EventBus eventBus;
     @Inject AuditLogService auditLogService;
@@ -183,7 +186,11 @@ public class ChannelResource {
         }
 
         var created = messageRepo.findByIdWithAuthor(id).map(m -> withAttachmentsAndMentions(m, sc.getUserId()));
-        created.ifPresent(m -> eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId))));
+        created.ifPresent(m -> {
+            eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId)));
+            // Increment mention_count for mentioned users
+            incrementMentionCounts(sc.getUserId(), channelId, req.content());
+        });
         return created
                 .map(m -> Response.status(201).entity(m).build())
                 .orElse(Response.status(500).build());
@@ -196,7 +203,11 @@ public class ChannelResource {
         if (channelRepo.findById(channelId).isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
         }
+        // upsert resets mention_count to 0
         readStateRepo.upsert(sc.getUserId(), channelId, req.last_read_message_id());
+        eventBus.publish(Event.of(EventType.READ_STATE_UPDATE,
+                Map.of("channel_id", channelId, "last_read_message_id", req.last_read_message_id(), "mention_count", 0),
+                Scope.user(sc.getUserId())));
         return Response.noContent().build();
     }
 
@@ -366,6 +377,33 @@ public class ChannelResource {
     public record CreateThreadRequest(String parent_message_id, String title, String content, List<String> attachment_ids) {}
 
     // --- Helpers ---
+
+    /** Resolve all mentioned user IDs from content and increment their mention_count. */
+    private void incrementMentionCounts(String authorId, String channelId, String content) {
+        if (content == null || content.isBlank()) return;
+        var parsed = mentionParser.parse(content, authorId, channelId);
+        var mentionedUserIds = new HashSet<String>();
+
+        // Direct user mentions
+        for (var u : parsed.users()) mentionedUserIds.add(u.id());
+
+        // Role mentions → resolve to user IDs
+        for (var r : parsed.roles()) mentionedUserIds.addAll(roleRepo.findUserIdsWithRole(r.id()));
+
+        // @everyone → all active users
+        if (parsed.mentionEveryone()) {
+            userRepo.listAll().stream()
+                    .map(u -> (String) u.get("id"))
+                    .forEach(mentionedUserIds::add);
+        }
+
+        // Exclude author
+        mentionedUserIds.remove(authorId);
+
+        for (var userId : mentionedUserIds) {
+            readStateRepo.incrementMentionCount(userId, channelId);
+        }
+    }
 
     private FraySecurityContext sc() {
         return (FraySecurityContext) requestContext.getSecurityContext();

@@ -6,6 +6,7 @@ let channels = $state<Channel[]>([]);
 let categories = $state<Category[]>([]);
 let readStates = $state<Map<string, string | null>>(new Map());
 let unreadCounts = $state<Map<string, number>>(new Map());
+let mentionCounts = $state<Map<string, number>>(new Map());
 
 export function getChannels(): Channel[] {
 	return channels;
@@ -27,6 +28,16 @@ export function getUnreadCount(channelId: string): number {
 	return unreadCounts.get(channelId) ?? 0;
 }
 
+export function getMentionCount(channelId: string): number {
+	return mentionCounts.get(channelId) ?? 0;
+}
+
+export function getTotalMentionCount(): number {
+	let total = 0;
+	for (const c of mentionCounts.values()) total += c;
+	return total;
+}
+
 export function setChannels(chs: Channel[]) {
 	channels = chs.sort((a, b) => a.position - b.position);
 }
@@ -39,8 +50,9 @@ export function setReadStates(states: Array<{ channel_id: string; last_read_mess
 	readStates = new Map(states.map((s) => [s.channel_id, s.last_read_message_id]));
 }
 
-export function setUnreadCounts(counts: Array<{ channel_id: string; unread_count: number }>) {
+export function setUnreadCounts(counts: Array<{ channel_id: string; unread_count: number; mention_count?: number }>) {
 	unreadCounts = new Map(counts.map((c) => [c.channel_id, c.unread_count]));
+	mentionCounts = new Map(counts.filter((c) => c.mention_count).map((c) => [c.channel_id, c.mention_count!]));
 }
 
 export function markChannelRead(channelId: string, messageId: string) {
@@ -48,11 +60,18 @@ export function markChannelRead(channelId: string, messageId: string) {
 	readStates.set(channelId, messageId);
 	unreadCounts = new Map(unreadCounts);
 	unreadCounts.set(channelId, 0);
+	mentionCounts = new Map(mentionCounts);
+	mentionCounts.set(channelId, 0);
 }
 
 export function incrementUnread(channelId: string) {
 	unreadCounts = new Map(unreadCounts);
 	unreadCounts.set(channelId, (unreadCounts.get(channelId) ?? 0) + 1);
+}
+
+export function incrementMentionCount(channelId: string) {
+	mentionCounts = new Map(mentionCounts);
+	mentionCounts.set(channelId, (mentionCounts.get(channelId) ?? 0) + 1);
 }
 
 export function addChannel(ch: Channel & { category?: Category }) {
