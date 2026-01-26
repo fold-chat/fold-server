@@ -30,6 +30,7 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
 	const canManageServer = $derived(hasServerPermission(PermissionName.MANAGE_SERVER));
+	const canViewAudit = $derived(hasServerPermission(PermissionName.ADMINISTRATOR) || hasServerPermission(PermissionName.MANAGE_SERVER));
 
 	// --- Channel dialog state (create + edit) ---
 	let channelDialogOpen = $state(false);
@@ -421,6 +422,9 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 		{#if canManageRoles}
 			<button class="sidebar-action" onclick={() => goto('/settings/roles')}>Roles</button>
 			<button class="sidebar-action" onclick={() => goto('/settings/members')}>Members</button>
+		{/if}
+		{#if canViewAudit}
+			<button class="sidebar-action" onclick={() => goto('/settings/audit-log')}>Audit Log</button>
 		{/if}
 	</div>
 </aside>

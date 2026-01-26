@@ -4,6 +4,7 @@ import chat.fray.auth.FraySecurityContext;
 import chat.fray.db.InviteRepository;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
+import chat.fray.service.AuditLogService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -24,6 +25,7 @@ public class InviteResource {
 
     @Inject InviteRepository inviteRepo;
     @Inject PermissionService permissionService;
+    @Inject AuditLogService auditLogService;
     @Context ContainerRequestContext requestContext;
 
     @POST
@@ -35,6 +37,7 @@ public class InviteResource {
 
         inviteRepo.create(id, code, sc.getUserId(), req.max_uses(), req.expires_at());
         var invite = inviteRepo.findByCode(code);
+        auditLogService.log(sc.getUserId(), "INVITE_CREATE", "invite", id, Map.of("code", code));
         return Response.status(Response.Status.CREATED).entity(invite.orElse(Map.of())).build();
     }
 
@@ -69,7 +72,9 @@ public class InviteResource {
         if (invite.isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found")).build();
         }
+        var inviteId = (String) invite.get().get("id");
         inviteRepo.delete(code);
+        auditLogService.log(sc().getUserId(), "INVITE_REVOKE", "invite", inviteId, Map.of("code", code));
         return Response.noContent().build();
     }
 

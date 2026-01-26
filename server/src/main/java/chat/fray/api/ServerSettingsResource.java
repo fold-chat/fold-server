@@ -8,6 +8,7 @@ import chat.fray.event.EventType;
 import chat.fray.event.Scope;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
+import chat.fray.service.AuditLogService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -29,6 +30,7 @@ public class ServerSettingsResource {
     @Inject DatabaseService db;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
+    @Inject AuditLogService auditLogService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -86,6 +88,7 @@ public class ServerSettingsResource {
 
         if (!updated.isEmpty()) {
             eventBus.publish(Event.of(EventType.SERVER_SETTINGS_UPDATE, updated, Scope.server()));
+            auditLogService.log(sc.getUserId(), "SERVER_SETTINGS_UPDATE", "server", null, updated);
         }
 
         // Return full settings

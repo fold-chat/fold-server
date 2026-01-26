@@ -10,6 +10,7 @@ import chat.fray.event.Scope;
 import chat.fray.event.SessionRegistry;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
+import chat.fray.service.AuditLogService;
 import chat.fray.service.RoleService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -31,6 +32,7 @@ public class ModerationResource {
     @Inject EventBus eventBus;
     @Inject SessionRegistry sessionRegistry;
     @Inject RoleService roleService;
+    @Inject AuditLogService auditLogService;
     @Context ContainerRequestContext requestContext;
 
     @POST
@@ -68,6 +70,11 @@ public class ModerationResource {
         if (reason != null) data.put("reason", reason);
         eventBus.publish(Event.of(EventType.MEMBER_BAN, data, Scope.server()));
 
+        // Audit log
+        var details = new java.util.HashMap<String, Object>();
+        if (reason != null) details.put("reason", reason);
+        auditLogService.log(sc.getUserId(), "MEMBER_BAN", "user", targetId, details);
+
         return Response.noContent().build();
     }
 
@@ -92,6 +99,9 @@ public class ModerationResource {
                 "unbanned_by", sc.getUserId()
         ), Scope.server()));
 
+        // Audit log
+        auditLogService.log(sc.getUserId(), "MEMBER_UNBAN", "user", targetId);
+
         return Response.noContent().build();
     }
 
@@ -108,6 +118,7 @@ public class ModerationResource {
     @Path("/{userId}/roles/{roleId}")
     public Response assignRole(@PathParam("userId") String userId, @PathParam("roleId") String roleId) {
         roleService.assignRole(sc().getUserId(), userId, roleId);
+        auditLogService.log(sc().getUserId(), "ROLE_ASSIGN", "user", userId, Map.of("role_id", roleId));
         return Response.noContent().build();
     }
 
@@ -115,6 +126,7 @@ public class ModerationResource {
     @Path("/{userId}/roles/{roleId}")
     public Response removeRole(@PathParam("userId") String userId, @PathParam("roleId") String roleId) {
         roleService.removeRole(sc().getUserId(), userId, roleId);
+        auditLogService.log(sc().getUserId(), "ROLE_REMOVE", "user", userId, Map.of("role_id", roleId));
         return Response.noContent().build();
     }
 

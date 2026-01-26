@@ -3,6 +3,7 @@ package chat.fray.api;
 import chat.fray.auth.FraySecurityContext;
 import chat.fray.db.RoleRepository;
 import chat.fray.security.Permission;
+import chat.fray.service.AuditLogService;
 import chat.fray.service.RoleService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -21,6 +22,7 @@ public class RoleResource {
 
     @Inject RoleService roleService;
     @Inject RoleRepository roleRepo;
+    @Inject AuditLogService auditLogService;
     @Context ContainerRequestContext requestContext;
 
     // --- Role CRUD ---
@@ -42,6 +44,7 @@ public class RoleResource {
         }
         long permissions = req.permissions() != null ? Permission.fromNames(req.permissions()) : 0L;
         var role = roleService.createRole(sc().getUserId(), req.name().trim(), permissions, req.position(), req.color());
+        auditLogService.log(sc().getUserId(), "ROLE_CREATE", "role", (String) role.get("id"), Map.of("name", req.name()));
         return Response.status(201).entity(role).build();
     }
 
@@ -50,6 +53,7 @@ public class RoleResource {
     public Response updateRole(@PathParam("id") String id, UpdateRoleRequest req) {
         Long permissions = req.permissions() != null ? Permission.fromNames(req.permissions()) : null;
         var role = roleService.updateRole(sc().getUserId(), id, req.name(), permissions, req.position(), req.color());
+        auditLogService.log(sc().getUserId(), "ROLE_UPDATE", "role", id);
         return Response.ok(role).build();
     }
 
@@ -57,6 +61,7 @@ public class RoleResource {
     @Path("/roles/{id}")
     public Response deleteRole(@PathParam("id") String id) {
         long userCount = roleService.deleteRole(sc().getUserId(), id);
+        auditLogService.log(sc().getUserId(), "ROLE_DELETE", "role", id);
         return Response.ok(Map.of("deleted", true, "affected_users", userCount)).build();
     }
 

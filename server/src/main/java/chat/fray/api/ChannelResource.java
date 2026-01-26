@@ -16,6 +16,7 @@ import chat.fray.db.ThreadRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
+import chat.fray.service.AuditLogService;
 import chat.fray.service.RoleService;
 import chat.fray.util.MentionParser;
 import jakarta.inject.Inject;
@@ -54,6 +55,7 @@ public class ChannelResource {
     @Inject RoleRepository roleRepo;
     @Inject MentionParser mentionParser;
     @Inject EventBus eventBus;
+    @Inject AuditLogService auditLogService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -75,7 +77,10 @@ public class ChannelResource {
         int position = req.position() != null ? req.position() : channelRepo.nextPosition();
         channelRepo.create(id, req.name().trim(), type, req.category_id(), req.topic(), req.description(), position);
         var created = channelRepo.findById(id);
-        created.ifPresent(c -> eventBus.publish(Event.of(EventType.CHANNEL_CREATE, withCategory(c), Scope.server())));
+        created.ifPresent(c -> {
+            eventBus.publish(Event.of(EventType.CHANNEL_CREATE, withCategory(c), Scope.server()));
+            auditLogService.log(sc().getUserId(), "CHANNEL_CREATE", "channel", id, Map.of("name", req.name()));
+        });
         return created
                 .map(c -> Response.status(201).entity(c).build())
                 .orElse(Response.status(500).build());
@@ -98,7 +103,10 @@ public class ChannelResource {
         int position = req.position() != null ? req.position() : ((Long) ch.get("position")).intValue();
         channelRepo.update(id, name, topic, description, categoryId, position);
         var updated = channelRepo.findById(id);
-        updated.ifPresent(c -> eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, withCategory(c), Scope.server())));
+        updated.ifPresent(c -> {
+            eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, withCategory(c), Scope.server()));
+            auditLogService.log(sc().getUserId(), "CHANNEL_UPDATE", "channel", id);
+        });
         return updated
                 .map(c -> Response.ok(c).build())
                 .orElse(Response.status(500).build());
@@ -113,6 +121,7 @@ public class ChannelResource {
         }
         channelRepo.delete(id);
         eventBus.publish(Event.of(EventType.CHANNEL_DELETE, Map.of("id", id), Scope.server()));
+        auditLogService.log(sc().getUserId(), "CHANNEL_DELETE", "channel", id);
         return Response.noContent().build();
     }
 
