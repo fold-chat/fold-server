@@ -26,7 +26,8 @@ import {
 	import { goto } from '$app/navigation';
 import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
-	import { openSearch } from '$lib/stores/search.svelte.js';
+import { openSearch } from '$lib/stores/search.svelte.js';
+	import { cycleTheme, getThemePreference } from '$lib/stores/theme.svelte.js';
 
 	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
@@ -427,9 +428,12 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 			<button class="sidebar-action" onclick={() => goto('/settings/roles')}>Roles</button>
 			<button class="sidebar-action" onclick={() => goto('/settings/members')}>Members</button>
 		{/if}
-		{#if canViewAudit}
+	{#if canViewAudit}
 			<button class="sidebar-action" onclick={() => goto('/settings/audit-log')}>Audit Log</button>
 		{/if}
+		<button class="sidebar-action theme-toggle" onclick={cycleTheme} title="Theme: {getThemePreference()}">
+			{#if getThemePreference() === 'dark'}🌙{:else if getThemePreference() === 'light'}☀️{:else}🖥{/if}
+		</button>
 	</div>
 </aside>
 

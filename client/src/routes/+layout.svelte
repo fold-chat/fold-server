@@ -1,8 +1,9 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
 	import '../app.css';
-	import { init, isInitialized, isSetupRequired, isAuthenticated } from '$lib/stores/auth.svelte.js';
+import { init, isInitialized, isSetupRequired, isAuthenticated } from '$lib/stores/auth.svelte.js';
 	import { connect, disconnect } from '$lib/stores/ws.svelte.js';
+	import { initTheme } from '$lib/stores/theme.svelte.js';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -16,6 +17,7 @@
 	}
 
 	onMount(() => {
+		initTheme();
 		init().then(() => {
 			const path = page.url.pathname;
 			if (isSetupRequired() && path !== '/setup') {
