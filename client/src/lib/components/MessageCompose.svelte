@@ -260,6 +260,14 @@
 			textarea?.setSelectionRange(pos, pos);
 		});
 	}
+
+	$effect(() => {
+		function onToggleEmoji() {
+			if (!disabled) showEmojiPicker = !showEmojiPicker;
+		}
+		window.addEventListener('fray:toggle-emoji', onToggleEmoji);
+		return () => window.removeEventListener('fray:toggle-emoji', onToggleEmoji);
+	});
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
