@@ -41,7 +41,7 @@
 	let permError = $state('');
 	let selectedRoleId = $state<string | null>(null);
 
-	const THREAD_PERMS = new Set([
+	const THREAD_PERMS = new Set<string>([
 		PermissionName.CREATE_THREADS,
 		PermissionName.MANAGE_OWN_THREADS,
 		PermissionName.MANAGE_THREADS,
@@ -49,7 +49,7 @@
 	]);
 
 	const channelPerms = $derived.by(() => {
-		let groups = [...PERMISSION_GROUPS.Channel];
+		let groups: ReadonlyArray<{ readonly name: string; readonly label: string; readonly desc: string }> = [...PERMISSION_GROUPS.Channel];
 		if (channelType === 'VOICE') groups = [...groups, ...PERMISSION_GROUPS.Voice];
 		if (channelType === 'TEXT') groups = groups.filter((p) => !THREAD_PERMS.has(p.name));
 		return groups.filter((p) => !isServerLevelPermission(p.name));
