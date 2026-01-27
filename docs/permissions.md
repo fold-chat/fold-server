@@ -14,7 +14,8 @@ Permissions are stored as 64-bit bitmasks. Each bit represents a permission.
 - Bit 8: CREATE_THREADS - Create threads from messages
 - Bit 9: MANAGE_OWN_THREADS - Lock/archive/delete own threads
 - Bit 10: MANAGE_THREADS - Lock/archive/delete any thread (including others')
-- Bits 11-15: Reserved
+- Bit 11: SEND_IN_LOCKED_THREADS - Send messages in locked threads
+- Bits 12-15: Reserved
 
 ## Server Permissions (bits 16-31)
 - Bit 16: MANAGE_CHANNELS - Create/edit/delete channels/categories
@@ -50,6 +51,6 @@ Reserved for future features.
 
 ## Default Role Bitmasks
 - **Owner**: 0 (bypasses all checks via special role status, not bitmask)
-- **Admin**: 272763914111 (ADMINISTRATOR + all channel/server/voice perms)
+- **Admin**: 272763916159 (ADMINISTRATOR + all channel/server/voice perms incl. SEND_IN_LOCKED_THREADS)
 - **Moderator**: 3671935 (channel perms + BAN + CREATE_INVITES)
-- **Member**: 10485815 (VIEW_CHANNEL + SEND_MESSAGES + MANAGE_OWN_MESSAGES + UPLOAD_FILES + ADD_REACTIONS + CREATE_INVITES + CHANGE_NICKNAME)
+- **Member**: 10486583 (VIEW_CHANNEL + SEND_MESSAGES + MANAGE_OWN_MESSAGES + UPLOAD_FILES + ADD_REACTIONS + CREATE_THREADS + MANAGE_OWN_THREADS + CREATE_INVITES + CHANGE_NICKNAME)

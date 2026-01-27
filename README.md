@@ -7,21 +7,32 @@ Open-source, self-hostable community tool for small, privacy-conscious communiti
 ### Implemented
 - **Auth** — JWT + cookie-based sessions, Argon2id passwords, lockout protection
 - **Messaging** — CRUD with UUIDv7 time-sorted IDs, real-time updates
-- **Channels & Categories** — Organize conversations
+- **Channels & Categories** — Organize, reorder, rename, delete
 - **File Uploads** — Content-addressed storage
 - **Invites** — Join via invite codes
 - **User Profiles** — Profile settings
 - **Rate Limiting** — Token-bucket based, configurable
 - **WebSocket** — Real-time events, heartbeat, typing indicators, auto-reconnect
 - **First-run Setup** — Initial server configuration
-- **Role Seeding** — Owner/admin/moderator/member roles
-- **Read State Tracking** — Per-channel read status
+- **Read State Tracking** — Per-channel/thread read status with mention counts
+- **Permissions** — Bitmask RBAC, channel-level overrides, management UI
+- **Threads** — Chat threads + forum-style thread channels with tags
+- **Search** — Full-text message search (FTS5)
+- **Reactions** — Emoji reactions with picker
+- **Mentions** — @user/@role with unread mention counts
+- **Banning** — User bans + IP bans
+- **Audit Log** — Action logging with admin viewer
+- **Server Settings** — Name, icon, description management
+- **GIF Search** — Media proxy with GIF picker
+- **Themes** — Dark/light mode
+- **Keyboard Shortcuts** — Navigable via shortcuts
+- **Notifications** — Desktop notification support
+- **Roles** — Full CRUD, assignment, 4 seeded defaults (owner/admin/moderator/member)
 
 ### Planned
 - **Voice & video** — LiveKit integration
-- **Permissions** — Channel-level role overrides
-- **Message search** — Full-text search with FTS5
-- **Presence** — Online/offline status
+- **Direct messages** — 1:1 messaging
+- **Presence** — Online/offline/idle status
 
 ## Tech Stack
 
