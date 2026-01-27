@@ -8,10 +8,13 @@ import chat.fray.auth.RateLimitService;
 import chat.fray.db.MessageRepository;
 import chat.fray.db.ReactionRepository;
 import chat.fray.db.ReadStateRepository;
+import chat.fray.db.RoleRepository;
 import chat.fray.db.ThreadRepository;
+import chat.fray.db.UserRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
+import chat.fray.util.MentionParser;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -20,6 +23,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -32,9 +36,12 @@ public class ThreadResource {
     @Inject MessageRepository messageRepo;
     @Inject ReactionRepository reactionRepo;
     @Inject ReadStateRepository readStateRepo;
+    @Inject RoleRepository roleRepo;
+    @Inject UserRepository userRepo;
     @Inject FileService fileService;
     @Inject RateLimitService rateLimitService;
     @Inject PermissionService permissionService;
+    @Inject MentionParser mentionParser;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
@@ -112,8 +119,11 @@ public class ThreadResource {
             }
         }
 
-        var created = messageRepo.findByIdWithAuthor(id).map(this::withAttachments);
-        created.ifPresent(m -> eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId))));
+        var created = messageRepo.findByIdWithAuthor(id).map(this::withAttachmentsAndMentions);
+        created.ifPresent(m -> {
+            eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId)));
+            incrementMentionCounts(sc.getUserId(), channelId, req.content());
+        });
         return created
                 .map(m -> Response.status(201).entity(m).build())
                 .orElse(Response.status(500).build());
@@ -210,7 +220,43 @@ public class ThreadResource {
         return null;
     }
 
-    private Map<String, Object> withAttachments(Map<String, Object> msg) {
+    /** Resolve all mentioned user IDs from content and increment their mention_count. */
+    private void incrementMentionCounts(String authorId, String channelId, String content) {
+        if (content == null || content.isBlank()) return;
+        var parsed = mentionParser.parse(content, authorId, channelId);
+        var mentionedUserIds = new HashSet<String>();
+
+        for (var u : parsed.users()) mentionedUserIds.add(u.id());
+        for (var r : parsed.roles()) mentionedUserIds.addAll(roleRepo.findUserIdsWithRole(r.id()));
+        if (parsed.mentionEveryone()) {
+            userRepo.listAll().stream()
+                    .map(u -> (String) u.get("id"))
+                    .forEach(mentionedUserIds::add);
+        }
+        mentionedUserIds.remove(authorId);
+        for (var userId : mentionedUserIds) {
+            readStateRepo.incrementMentionCount(userId, channelId);
+        }
+    }
+
+    private void addMentions(Map<String, Object> result, Map<String, Object> msg) {
+        var parsed = mentionParser.parse((String) msg.get("content"), (String) msg.get("author_id"), (String) msg.get("channel_id"));
+        result.put("mentions", parsed.users().stream().map(u -> Map.of(
+                "id", u.id(),
+                "username", u.username(),
+                "display_name", u.displayName()
+        )).toList());
+        result.put("mention_roles", parsed.roles().stream().map(r -> {
+            var rm = new HashMap<String, Object>();
+            rm.put("id", r.id());
+            rm.put("name", r.name());
+            rm.put("color", r.color());
+            return (Map<String, Object>) rm;
+        }).toList());
+        result.put("mention_everyone", parsed.mentionEveryone());
+    }
+
+    private Map<String, Object> withAttachmentsAndMentions(Map<String, Object> msg) {
         var attachments = fileService.getAttachments((String) msg.get("id"));
         var enriched = attachments.stream().map(a -> {
             var m = new HashMap<>(a);
@@ -220,6 +266,7 @@ public class ThreadResource {
         var result = new HashMap<>(msg);
         result.put("attachments", enriched);
         result.put("reactions", MessageResource.groupReactions((String) msg.get("id"), reactionRepo.findByMessageId((String) msg.get("id")), null));
+        addMentions(result, msg);
         return result;
     }
 
@@ -236,6 +283,7 @@ public class ThreadResource {
             }).toList());
             var reactions = reactionsByMsg.getOrDefault((String) msg.get("id"), List.of());
             result.put("reactions", MessageResource.groupReactions((String) msg.get("id"), reactions, currentUserId));
+            addMentions(result, msg);
             return (Map<String, Object>) result;
         }).toList();
     }
