@@ -71,6 +71,7 @@ public class EmbeddedLiveKitManager {
             // Health check
             if (waitForHealthy()) {
                 LOG.info("[BOOT] LiveKit (embedded) ... OK");
+                liveKitService.reconcileOnStartup();
             } else {
                 LOG.warn("[BOOT] LiveKit (embedded) ... STARTED (health check pending)");
             }

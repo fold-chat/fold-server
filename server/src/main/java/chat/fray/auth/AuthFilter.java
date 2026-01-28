@@ -72,6 +72,7 @@ public class AuthFilter implements ContainerRequestFilter {
         // Prefix public paths
         if (p.startsWith("api/v0/setup")) return true;
         if (p.startsWith("api/v0/files/")) return true;
+        if (p.startsWith("api/v0/webhooks/")) return true;
 
         // Invite GET only (public info)
         if (p.startsWith("api/v0/invites/") && "GET".equals(method)) return true;

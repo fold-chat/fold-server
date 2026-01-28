@@ -17,7 +17,10 @@ import chat.fray.db.UserRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
+import chat.fray.db.VoiceKeyRepository;
+import chat.fray.db.VoiceStateRepository;
 import chat.fray.service.AuditLogService;
+import chat.fray.service.LiveKitService;
 import chat.fray.service.RoleService;
 import chat.fray.util.MentionParser;
 import jakarta.inject.Inject;
@@ -59,6 +62,9 @@ public class ChannelResource {
     @Inject MentionParser mentionParser;
     @Inject EventBus eventBus;
     @Inject AuditLogService auditLogService;
+    @Inject VoiceKeyRepository voiceKeyRepo;
+    @Inject VoiceStateRepository voiceStateRepo;
+    @Inject LiveKitService liveKitService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -79,6 +85,10 @@ public class ChannelResource {
         String id = UUID.randomUUID().toString();
         int position = req.position() != null ? req.position() : channelRepo.nextPosition();
         channelRepo.create(id, req.name().trim(), type, req.category_id(), req.topic(), req.description(), position);
+        // Auto-generate E2EE key for voice channels
+        if ("VOICE".equals(type)) {
+            voiceKeyRepo.createKey(id);
+        }
         var created = channelRepo.findById(id);
         created.ifPresent(c -> {
             eventBus.publish(Event.of(EventType.CHANNEL_CREATE, withCategory(c), Scope.server()));
@@ -119,8 +129,17 @@ public class ChannelResource {
     @Path("/{id}")
     public Response delete(@PathParam("id") String id) {
         permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
-        if (channelRepo.findById(id).isEmpty()) {
+        var existing = channelRepo.findById(id);
+        if (existing.isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+        // Voice channel cleanup
+        if ("VOICE".equals(existing.get().get("type"))) {
+            voiceStateRepo.deleteByChannel(id);
+            voiceKeyRepo.deleteByChannel(id);
+            if (liveKitService.isEnabled()) {
+                liveKitService.deleteRoom("voice-" + id);
+            }
         }
         channelRepo.delete(id);
         eventBus.publish(Event.of(EventType.CHANNEL_DELETE, Map.of("id", id), Scope.server()));

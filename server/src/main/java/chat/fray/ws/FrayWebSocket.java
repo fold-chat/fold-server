@@ -5,6 +5,7 @@ import chat.fray.config.FrayMediaConfig;
 import chat.fray.db.*;
 import chat.fray.event.*;
 import chat.fray.security.PermissionService;
+import chat.fray.service.LiveKitService;
 import chat.fray.service.RoleService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.websockets.next.*;
@@ -33,6 +34,8 @@ public class FrayWebSocket {
     @Inject RoleService roleService;
     @Inject FrayMediaConfig mediaConfig;
     @Inject DatabaseService db;
+    @Inject VoiceStateRepository voiceStateRepo;
+    @Inject LiveKitService liveKitService;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -207,6 +210,22 @@ var members = userRepo.listMembers(false);
             hello.put("heartbeat_interval_ms", 30000);
             hello.put("session_id", UUID.randomUUID().toString());
             hello.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
+
+            // Voice states for viewable voice channels
+            var voiceChannelIds = channels.stream()
+                    .filter(c -> "VOICE".equals(c.get("type")))
+                    .map(c -> (String) c.get("id"))
+                    .toList();
+            var allVoiceStates = new LinkedHashMap<String, Object>();
+            for (var vcId : voiceChannelIds) {
+                allVoiceStates.put(vcId, voiceStateRepo.findByChannel(vcId));
+            }
+            hello.put("voice_states", allVoiceStates);
+
+            // Capabilities
+            var capabilities = new LinkedHashMap<String, Object>();
+            capabilities.put("voice_video", liveKitService.isEnabled());
+            hello.put("capabilities", capabilities);
 
             // Server settings
             var settingsRows = db.query("SELECT key, value FROM server_config WHERE key IN ('server_name', 'server_icon', 'server_description')");

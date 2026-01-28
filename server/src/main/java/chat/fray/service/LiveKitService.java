@@ -1,6 +1,7 @@
 package chat.fray.service;
 
 import chat.fray.config.FrayLiveKitConfig;
+import chat.fray.db.VoiceStateRepository;
 import io.livekit.server.AccessToken;
 import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
@@ -25,6 +26,9 @@ public class LiveKitService {
     @Inject
     FrayLiveKitConfig config;
 
+    @Inject
+    VoiceStateRepository voiceStateRepo;
+
     private RoomServiceClient roomService;
 
     // Resolved at runtime — may come from config or EmbeddedLiveKitManager
@@ -46,6 +50,29 @@ public class LiveKitService {
                     config.apiSecret().orElseThrow(() -> new IllegalStateException("fray.livekit.api-secret required for external mode"))
             );
             LOG.info("[BOOT] LiveKit (external) ... OK");
+            reconcileOnStartup();
+        }
+    }
+
+    /** Reconcile voice_state table with actual LiveKit state on startup */
+    public void reconcileOnStartup() {
+        if (!isEnabled() || roomService == null) return;
+        try {
+            voiceStateRepo.clearAll();
+            var rooms = listRooms();
+            int total = 0;
+            for (var room : rooms) {
+                if (!room.getName().startsWith("voice-")) continue;
+                String channelId = room.getName().substring("voice-".length());
+                var participants = listParticipants(room.getName());
+                for (var p : participants) {
+                    voiceStateRepo.upsert(p.getIdentity(), channelId, 0, 0);
+                    total++;
+                }
+            }
+            LOG.infof("[BOOT] Voice state reconciled: %d participants across %d rooms", total, rooms.size());
+        } catch (Exception e) {
+            LOG.warnf("Voice state reconciliation failed: %s", e.getMessage());
         }
     }
 
