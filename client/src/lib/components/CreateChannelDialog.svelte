@@ -6,6 +6,7 @@
 	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName, PERMISSION_GROUPS, isServerLevelPermission } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
+	import { isVoiceVideoEnabled } from '$lib/stores/voice.svelte.js';
 
 	let {
 		open = false,
@@ -256,16 +257,19 @@
 									<span class="type-desc">Threaded discussions</span>
 								</span>
 							</button>
-							<button
-								class="type-btn disabled"
-								disabled
-							>
-								<span class="type-icon">🔊</span>
-								<span class="type-info">
-									<span class="type-name">Voice</span>
-									<span class="type-desc">Coming soon</span>
-								</span>
-							</button>
+						<button
+							class="type-btn"
+							class:selected={channelType === 'VOICE'}
+							class:disabled={!isVoiceVideoEnabled()}
+							disabled={!isVoiceVideoEnabled()}
+							onclick={() => channelType = 'VOICE'}
+						>
+							<span class="type-icon">🔊</span>
+							<span class="type-info">
+								<span class="type-name">Voice</span>
+								<span class="type-desc">{isVoiceVideoEnabled() ? 'Voice & video chat' : 'Voice not configured'}</span>
+							</span>
+						</button>
 						</div>
 					</div>
 				{/if}

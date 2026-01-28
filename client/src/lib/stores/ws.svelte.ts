@@ -8,6 +8,7 @@ import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
 import { setMembers, removeMember, updateMember, getMembers as getStoreMembers } from './members.svelte.js';
 import { getUser, setPermissions, setMediaSearchEnabled, setServerSettings } from './auth.svelte.js';
+import { hydrateVoiceStates, setVoiceVideoEnabled, handleVoiceStateUpdate, handleVoiceMove, handleVoiceKeyRotate } from './voice.svelte.js';
 import { goto } from '$app/navigation';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
@@ -184,6 +185,15 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 				markChannelRead(msg.d.channel_id as string, msg.d.last_read_message_id as string);
 			}
 			break;
+		case 'VOICE_STATE_UPDATE':
+			if (msg.d) handleVoiceStateUpdate(msg.d);
+			break;
+		case 'VOICE_MOVE':
+			if (msg.d) handleVoiceMove(msg.d);
+			break;
+		case 'VOICE_KEY_ROTATE':
+			if (msg.d) handleVoiceKeyRotate(msg.d);
+			break;
 	}
 }
 
@@ -201,6 +211,8 @@ interface HelloPayload {
 	session_id: string;
 	media_search?: boolean;
 	server_settings?: { server_name?: string | null; server_icon?: string | null; server_description?: string | null };
+	voice_states?: Array<import('$lib/api/voice.js').VoiceState>;
+	capabilities?: { voice_video?: boolean };
 }
 
 function handleUserStateUpdate(data: Record<string, unknown>) {
@@ -252,6 +264,8 @@ function handleHello(data: HelloPayload) {
 	}
 	setMediaSearchEnabled(data.media_search ?? false);
 	if (data.server_settings) setServerSettings(data.server_settings);
+	hydrateVoiceStates(data.voice_states ?? []);
+	setVoiceVideoEnabled(data.capabilities?.voice_video ?? false);
 	startHeartbeat(data.heartbeat_interval_ms || 30000);
 }
 
