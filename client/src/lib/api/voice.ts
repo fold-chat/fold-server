@@ -65,3 +65,22 @@ export function moveUser(channelId: string, userId: string, targetChannelId: str
 export function rotateKey(channelId: string) {
 	return api<void>(`/voice/${channelId}/rotate-key`, { method: 'POST' });
 }
+
+export interface VoiceRoomStats {
+	channel_id: string;
+	room_name: string;
+	participants: number;
+	num_publishers: number;
+}
+
+export interface VoiceStats {
+	mode: string;
+	status: string;
+	active_connections: number;
+	active_rooms: number;
+	rooms: VoiceRoomStats[];
+}
+
+export function getVoiceStats() {
+	return api<VoiceStats>('/voice/stats');
+}

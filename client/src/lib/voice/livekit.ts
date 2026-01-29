@@ -98,9 +98,14 @@ export async function connectToRoom(
 	if (e2eeOptions) {
 		try {
 			await room.setE2EEEnabled(true);
+			callbacks?.onE2EEStateChanged?.('local', 'enabled');
 		} catch {
 			console.warn('[Voice] Failed to enable E2EE');
+			callbacks?.onE2EEStateChanged?.('local', 'failed');
 		}
+	} else {
+		// E2EE not available (Firefox or worker load failure)
+		callbacks?.onE2EEStateChanged?.('local', 'unsupported');
 	}
 
 	// Enable microphone by default (user can mute after)

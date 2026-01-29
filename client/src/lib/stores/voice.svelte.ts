@@ -28,6 +28,13 @@ let voiceVideoEnabled = $state(false);
 let currentEncryptionKey = $state<string | null>(null);
 let currentKeyIndex = $state<number>(0);
 
+// Server-enforced mute/deaf (cannot be overridden by user)
+let serverMuted = $state(false);
+let serverDeafened = $state(false);
+
+// E2EE availability
+let e2eeActive = $state(false);
+
 // LiveKit integration state
 let speakingUserIds = $state<Set<string>>(new Set());
 let cameraActive = $state(false);
@@ -110,6 +117,22 @@ export function isPttActive(): boolean {
 	return pttActive;
 }
 
+export function isServerMuted(): boolean {
+	return serverMuted;
+}
+
+export function isServerDeafened(): boolean {
+	return serverDeafened;
+}
+
+export function isE2eeActive(): boolean {
+	return e2eeActive;
+}
+
+export function setE2eeActive(active: boolean) {
+	e2eeActive = active;
+}
+
 // --- Setters / Hydration ---
 
 export function setVoiceVideoEnabled(enabled: boolean) {
@@ -133,6 +156,8 @@ export function hydrateVoiceStates(states: VoiceState[]) {
 			currentVoiceChannelId = myState.channel_id;
 			localAudioMuted = myState.self_mute;
 			localDeafened = myState.self_deaf;
+			serverMuted = myState.server_mute;
+			serverDeafened = myState.server_deaf;
 		}
 	}
 }
@@ -140,60 +165,37 @@ export function hydrateVoiceStates(states: VoiceState[]) {
 // --- Event Handlers ---
 
 export function handleVoiceStateUpdate(data: Record<string, unknown>) {
-	const state = data as unknown as VoiceState;
-	if (!state.channel_id || !state.user_id) return;
+	// Server sends { channel_id, voice_states: [...] } — full state for the channel
+	const channelId = data.channel_id as string;
+	const states = data.voice_states as VoiceState[] | undefined;
+	if (!channelId) return;
 
-	const removed = data.removed as boolean | undefined;
-
-	if (removed) {
-		// User left voice
-		const channelStates = voiceStates.get(state.channel_id) ?? [];
-		const filtered = channelStates.filter(s => s.user_id !== state.user_id);
-		const next = new Map(voiceStates);
-		if (filtered.length === 0) {
-			next.delete(state.channel_id);
-		} else {
-			next.set(state.channel_id, filtered);
-		}
-		voiceStates = next;
-
-		// If it's us, clear local state
-		const me = getUser();
-		if (me && state.user_id === me.id) {
-			currentVoiceChannelId = null;
-			localAudioMuted = false;
-			localDeafened = false;
-			currentEncryptionKey = null;
-		}
+	const next = new Map(voiceStates);
+	if (states && states.length > 0) {
+		next.set(channelId, states);
 	} else {
-		// User joined or updated
-		const next = new Map(voiceStates);
-		const channelStates = next.get(state.channel_id) ?? [];
-		const idx = channelStates.findIndex(s => s.user_id === state.user_id);
+		next.delete(channelId);
+	}
+	voiceStates = next;
 
-		// Also remove from previous channel if they moved
-		if (data.previous_channel_id) {
-			const prevId = data.previous_channel_id as string;
-			const prevStates = (next.get(prevId) ?? []).filter(s => s.user_id !== state.user_id);
-			if (prevStates.length === 0) next.delete(prevId);
-			else next.set(prevId, prevStates);
-		}
-
-		if (idx >= 0) {
-			channelStates[idx] = state;
-			next.set(state.channel_id, [...channelStates]);
-		} else {
-			next.set(state.channel_id, [...channelStates, state]);
-		}
-		voiceStates = next;
-
-		// Update local state if it's us
-		const me = getUser();
-		if (me && state.user_id === me.id) {
-			currentVoiceChannelId = state.channel_id;
-			localAudioMuted = state.self_mute;
-			localDeafened = state.self_deaf;
-		}
+	// Update local user state
+	const me = getUser();
+	if (!me) return;
+	const myState = states?.find(s => s.user_id === me.id);
+	if (myState) {
+		currentVoiceChannelId = myState.channel_id;
+		localAudioMuted = myState.self_mute;
+		localDeafened = myState.self_deaf;
+		serverMuted = myState.server_mute;
+		serverDeafened = myState.server_deaf;
+	} else if (currentVoiceChannelId === channelId) {
+		// We were in this channel but are no longer in the state list — we left
+		currentVoiceChannelId = null;
+		localAudioMuted = false;
+		localDeafened = false;
+		serverMuted = false;
+		serverDeafened = false;
+		currentEncryptionKey = null;
 	}
 }
 
@@ -237,14 +239,21 @@ export async function handleVoiceKeyRotate(data: Record<string, unknown>) {
 
 // --- Actions ---
 
+// Track last join error for UI display
+let lastJoinError = $state<string | null>(null);
+
+export function getLastJoinError(): string | null {
+	return lastJoinError;
+}
+
 export async function joinVoice(channelId: string) {
+	lastJoinError = null;
 	try {
 		const resp = await getVoiceToken(channelId);
 		currentVoiceChannelId = channelId;
 		currentEncryptionKey = resp.encryption_key;
 		currentKeyIndex = resp.key_index;
 
-		// Connect to LiveKit room with E2EE
 		await connectToRoom(
 			resp.url,
 			resp.token,
@@ -254,10 +263,10 @@ export async function joinVoice(channelId: string) {
 		);
 
 		return resp;
-	} catch (e) {
-		// If LiveKit connect fails, revert state
+	} catch (e: any) {
 		currentVoiceChannelId = null;
 		currentEncryptionKey = null;
+		lastJoinError = e?.message || 'Voice unavailable';
 		throw e;
 	}
 }
@@ -281,35 +290,36 @@ export async function leaveCurrentVoice() {
 	currentVoiceChannelId = null;
 	localAudioMuted = false;
 	localDeafened = false;
+	serverMuted = false;
+	serverDeafened = false;
 	currentEncryptionKey = null;
 }
 
 export async function toggleMute() {
+	if (serverMuted) return; // server-muted — cannot override
 	const newMuted = !localAudioMuted;
 	localAudioMuted = newMuted;
 	try {
-		// Sync LiveKit mic state
 		await setMicrophoneEnabled(!newMuted);
 		await updateVoiceStateApi({ self_mute: newMuted });
 	} catch {
-		localAudioMuted = !newMuted; // revert
+		localAudioMuted = !newMuted;
 		await setMicrophoneEnabled(newMuted).catch(() => {});
 	}
 }
 
 export async function toggleDeafen() {
+	if (serverDeafened) return; // server-deafened — cannot override
 	const newDeafened = !localDeafened;
 	localDeafened = newDeafened;
-	// Deafening also mutes
 	if (newDeafened && !localAudioMuted) {
 		localAudioMuted = true;
 	}
 	try {
-		// Sync LiveKit mic state
 		await setMicrophoneEnabled(!newDeafened && !localAudioMuted);
 		await updateVoiceStateApi({ self_deaf: newDeafened, self_mute: newDeafened || localAudioMuted });
 	} catch {
-		localDeafened = !newDeafened; // revert
+		localDeafened = !newDeafened;
 		if (newDeafened) localAudioMuted = false;
 		await setMicrophoneEnabled(true).catch(() => {});
 	}
@@ -367,9 +377,13 @@ export function resetVoiceState() {
 	currentVoiceChannelId = null;
 	localAudioMuted = false;
 	localDeafened = false;
+	serverMuted = false;
+	serverDeafened = false;
 	voiceVideoEnabled = false;
 	currentEncryptionKey = null;
 	currentKeyIndex = 0;
+	e2eeActive = false;
+	lastJoinError = null;
 	speakingUserIds = new Set();
 	cameraActive = false;
 	screenShareActive = false;
@@ -389,7 +403,6 @@ function makeLiveKitCallbacks(): LiveKitCallbacks {
 			speakingUserIds = new Set(ids);
 		},
 		onTrackSubscribed: (track, _pub, _participant) => {
-			// Auto-attach audio tracks
 			if (track.kind === Track.Kind.Audio) {
 				const el = track.attach();
 				el.style.display = 'none';
@@ -403,6 +416,9 @@ function makeLiveKitCallbacks(): LiveKitCallbacks {
 		},
 		onConnectionStateChanged: (state) => {
 			livekitConnectionState = state;
+		},
+		onE2EEStateChanged: (_identity, state) => {
+			e2eeActive = state === 'enabled';
 		}
 	};
 }

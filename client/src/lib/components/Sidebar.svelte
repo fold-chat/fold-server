@@ -28,9 +28,11 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
 import { openSearch } from '$lib/stores/search.svelte.js';
 	import { cycleTheme, getThemePreference } from '$lib/stores/theme.svelte.js';
-import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, joinVoice, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive } from '$lib/stores/voice.svelte.js';
+import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, joinVoice, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
-	import { hasChannelPermission } from '$lib/stores/auth.svelte.js';
+	import { hasChannelPermission, getUser } from '$lib/stores/auth.svelte.js';
+	import { serverMute, serverUnmute, serverDeafen, serverUndeafen, disconnectUser, moveUser } from '$lib/api/voice.js';
+	import type { VoiceState } from '$lib/api/voice.js';
 
 	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
@@ -193,6 +195,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 
 	function selectChannel(channel: Channel) {
 		if (channel.type === 'VOICE') {
+			if (getCurrentVoiceChannelId() === channel.id) return;
 			joinVoice(channel.id).catch(() => {});
 		} else {
 			goto(`/channels/${channel.id}`);
@@ -211,6 +214,43 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 		if (!id) return false;
 		return hasChannelPermission(id, PermissionName.VIDEO);
 	});
+
+	// --- Voice user context menu ---
+	let voiceCtxMenu = $state<{ x: number; y: number; vu: VoiceState; channelId: string } | null>(null);
+
+	function openVoiceCtx(e: MouseEvent, vu: VoiceState, channelId: string) {
+		e.preventDefault();
+		const me = getUser();
+		if (!me || me.id === vu.user_id) return; // no self-moderation
+		const canMute = hasChannelPermission(channelId, PermissionName.MUTE_MEMBERS);
+		const canDeafen = hasChannelPermission(channelId, PermissionName.DEAFEN_MEMBERS);
+		const canMove = hasChannelPermission(channelId, PermissionName.MOVE_MEMBERS);
+		if (!canMute && !canDeafen && !canMove) return;
+		voiceCtxMenu = { x: e.clientX, y: e.clientY, vu, channelId };
+	}
+
+	function closeVoiceCtx() { voiceCtxMenu = null; }
+
+	async function doServerMute(vu: VoiceState, channelId: string) {
+		closeVoiceCtx();
+		try {
+			if (vu.server_mute) await serverUnmute(channelId, vu.user_id);
+			else await serverMute(channelId, vu.user_id);
+		} catch { /* ignore */ }
+	}
+
+	async function doServerDeafen(vu: VoiceState, channelId: string) {
+		closeVoiceCtx();
+		try {
+			if (vu.server_deaf) await serverUndeafen(channelId, vu.user_id);
+			else await serverDeafen(channelId, vu.user_id);
+		} catch { /* ignore */ }
+	}
+
+	async function doDisconnect(vu: VoiceState, channelId: string) {
+		closeVoiceCtx();
+		try { await disconnectUser(channelId, vu.user_id); } catch { /* ignore */ }
+	}
 
 	// --- Drag handlers ---
 
@@ -439,7 +479,8 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 				{#if isVoice && voiceUsers.length > 0}
 					<div class="voice-users">
 						{#each voiceUsers.slice(0, 8) as vu}
-					<div class="voice-user" class:muted={vu.self_mute || vu.server_mute} class:deafened={vu.self_deaf || vu.server_deaf} class:speaking={isSpeaking(vu.user_id)}>
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="voice-user" class:muted={vu.self_mute || vu.server_mute} class:deafened={vu.self_deaf || vu.server_deaf} class:speaking={isSpeaking(vu.user_id)} oncontextmenu={(e) => openVoiceCtx(e, vu, channel.id)}>
 								{#if vu.avatar_url}
 									<img class="voice-avatar" src={vu.avatar_url} alt="" />
 								{:else}
@@ -463,18 +504,40 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 		{/each}
 	</nav>
 
+	{#if getLastJoinError()}
+		<div class="voice-error-banner">
+			<span>⚠️ {getLastJoinError()}</span>
+		</div>
+	{/if}
+
 	{#if getCurrentVoiceChannelId()}
 		<div class="voice-bar">
 			<div class="voice-bar-info">
-				<span class="voice-bar-label">Voice Connected</span>
-				<span class="voice-bar-channel">🔊 {voiceChannelName}</span>
+				{#if getLivekitConnectionState() === 'reconnecting'}
+					<span class="voice-bar-label" style="color: #f39c12">Reconnecting…</span>
+				{:else}
+					<span class="voice-bar-label">Voice Connected</span>
+				{/if}
+				<span class="voice-bar-channel">🔊 {voiceChannelName}
+					{#if !isE2eeActive()}
+						<span class="e2ee-warn" title="E2EE unavailable — audio is not encrypted (browser may not support it)">⚠ No E2EE</span>
+					{/if}
+				</span>
 			</div>
 			<div class="voice-bar-controls">
+				{#if isServerMuted()}
+					<span class="server-indicator" title="Server muted">🔇 Server Muted</span>
+				{/if}
+				{#if isServerDeafened()}
+					<span class="server-indicator" title="Server deafened">🔕 Server Deafened</span>
+				{/if}
 				<button
 					class="voice-control-btn"
-					class:active={isLocalAudioMuted()}
-					title={isLocalAudioMuted() ? 'Unmute' : 'Mute'}
+					class:active={isLocalAudioMuted() || isServerMuted()}
+					class:server-enforced={isServerMuted()}
+					title={isServerMuted() ? 'Server muted' : isLocalAudioMuted() ? 'Unmute' : 'Mute'}
 					onclick={toggleMute}
+					disabled={isServerMuted()}
 				>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 						{#if isLocalAudioMuted()}
@@ -493,9 +556,11 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 				</button>
 				<button
 					class="voice-control-btn"
-					class:active={isLocalDeafened()}
-					title={isLocalDeafened() ? 'Undeafen' : 'Deafen'}
+					class:active={isLocalDeafened() || isServerDeafened()}
+					class:server-enforced={isServerDeafened()}
+					title={isServerDeafened() ? 'Server deafened' : isLocalDeafened() ? 'Undeafen' : 'Deafen'}
 					onclick={toggleDeafen}
+					disabled={isServerDeafened()}
 				>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 						{#if isLocalDeafened()}
@@ -575,6 +640,30 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 		</button>
 	</div>
 </aside>
+
+{#if voiceCtxMenu}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="voice-ctx-overlay" onclick={closeVoiceCtx} onkeydown={(e) => { if (e.key === 'Escape') closeVoiceCtx(); }}>
+		<div class="voice-ctx-menu" style="left:{voiceCtxMenu.x}px;top:{voiceCtxMenu.y}px">
+			<div class="voice-ctx-header">{voiceCtxMenu.vu.display_name || voiceCtxMenu.vu.username}</div>
+			{#if hasChannelPermission(voiceCtxMenu.channelId, PermissionName.MUTE_MEMBERS)}
+				<button class="voice-ctx-item" onclick={() => voiceCtxMenu && doServerMute(voiceCtxMenu.vu, voiceCtxMenu.channelId)}>
+					{voiceCtxMenu.vu.server_mute ? 'Server Unmute' : 'Server Mute'}
+				</button>
+			{/if}
+			{#if hasChannelPermission(voiceCtxMenu.channelId, PermissionName.DEAFEN_MEMBERS)}
+				<button class="voice-ctx-item" onclick={() => voiceCtxMenu && doServerDeafen(voiceCtxMenu.vu, voiceCtxMenu.channelId)}>
+					{voiceCtxMenu.vu.server_deaf ? 'Server Undeafen' : 'Server Deafen'}
+				</button>
+			{/if}
+			{#if hasChannelPermission(voiceCtxMenu.channelId, PermissionName.MUTE_MEMBERS)}
+				<button class="voice-ctx-item danger" onclick={() => voiceCtxMenu && doDisconnect(voiceCtxMenu.vu, voiceCtxMenu.channelId)}>
+					Disconnect
+				</button>
+			{/if}
+		</div>
+	</div>
+{/if}
 
 <CreateChannelDialog
 	open={channelDialogOpen}
@@ -1072,5 +1161,94 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 		color: #2ecc71;
 		border-color: #2ecc71;
 		background: rgba(46, 204, 113, 0.15);
+	}
+
+	.voice-control-btn:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+
+	.voice-control-btn:disabled:hover {
+		background: none;
+	}
+
+	.voice-control-btn.server-enforced {
+		color: #e67e22;
+	}
+
+	.server-indicator {
+		font-size: 0.55rem;
+		color: #e67e22;
+		padding: 0.15rem 0.3rem;
+		border-radius: 3px;
+		background: rgba(230, 126, 34, 0.15);
+		white-space: nowrap;
+	}
+
+	.voice-error-banner {
+		padding: 0.4rem 0.75rem;
+		background: rgba(231, 76, 60, 0.15);
+		color: #e74c3c;
+		font-size: 0.7rem;
+		text-align: center;
+		border-top: 1px solid var(--border);
+	}
+
+	.e2ee-warn {
+		font-size: 0.6rem;
+		color: #f39c12;
+		margin-left: 0.3rem;
+		cursor: help;
+	}
+
+	/* Voice user context menu */
+	.voice-ctx-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 1000;
+	}
+
+	.voice-ctx-menu {
+		position: fixed;
+		background: var(--bg-surface, #2b2d31);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		padding: 0.3rem;
+		min-width: 140px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+		z-index: 1001;
+	}
+
+	.voice-ctx-header {
+		padding: 0.3rem 0.5rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		border-bottom: 1px solid var(--border);
+		margin-bottom: 0.2rem;
+	}
+
+	.voice-ctx-item {
+		width: 100%;
+		padding: 0.35rem 0.5rem;
+		background: none;
+		border: none;
+		color: var(--text);
+		font-size: 0.75rem;
+		cursor: pointer;
+		border-radius: 3px;
+		text-align: left;
+	}
+
+	.voice-ctx-item:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+	}
+
+	.voice-ctx-item.danger {
+		color: var(--danger, #e74c3c);
+	}
+
+	.voice-ctx-item.danger:hover {
+		background: rgba(231, 76, 60, 0.15);
 	}
 </style>

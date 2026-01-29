@@ -17,4 +17,7 @@ public interface FrayRateLimitConfig {
     Optional<String> passwordChange();
     Optional<String> search();
     Optional<String> mediaSearch();
+    Optional<String> voiceToken();
+    Optional<String> voiceState();
+    Optional<String> voiceModeration();
 }
