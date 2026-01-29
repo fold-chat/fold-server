@@ -28,8 +28,9 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
 import { openSearch } from '$lib/stores/search.svelte.js';
 	import { cycleTheme, getThemePreference } from '$lib/stores/theme.svelte.js';
-	import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, joinVoice, leaveCurrentVoice, toggleMute, toggleDeafen } from '$lib/stores/voice.svelte.js';
+import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, joinVoice, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
+	import { hasChannelPermission } from '$lib/stores/auth.svelte.js';
 
 	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
@@ -203,6 +204,12 @@ import { openSearch } from '$lib/stores/search.svelte.js';
 		if (!id) return null;
 		const ch = getChannelById(id);
 		return ch?.name ?? null;
+	});
+
+	const canVideoInVoice = $derived.by(() => {
+		const id = getCurrentVoiceChannelId();
+		if (!id) return false;
+		return hasChannelPermission(id, PermissionName.VIDEO);
 	});
 
 	// --- Drag handlers ---
@@ -432,7 +439,7 @@ import { openSearch } from '$lib/stores/search.svelte.js';
 				{#if isVoice && voiceUsers.length > 0}
 					<div class="voice-users">
 						{#each voiceUsers.slice(0, 8) as vu}
-							<div class="voice-user" class:muted={vu.self_mute || vu.server_mute} class:deafened={vu.self_deaf || vu.server_deaf}>
+					<div class="voice-user" class:muted={vu.self_mute || vu.server_mute} class:deafened={vu.self_deaf || vu.server_deaf} class:speaking={isSpeaking(vu.user_id)}>
 								{#if vu.avatar_url}
 									<img class="voice-avatar" src={vu.avatar_url} alt="" />
 								{:else}
@@ -501,6 +508,39 @@ import { openSearch } from '$lib/stores/search.svelte.js';
 						{/if}
 					</svg>
 				</button>
+				{#if canVideoInVoice}
+					<button
+						class="voice-control-btn"
+						class:active={isCameraActive()}
+						title={isCameraActive() ? 'Turn off camera' : 'Turn on camera'}
+						onclick={toggleCamera}
+					>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+							{#if isCameraActive()}
+								<path d="M23 7l-7 5 7 5V7z" />
+								<rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+							{:else}
+								<line x1="1" y1="1" x2="23" y2="23" />
+								<path d="M21 21H3a2 2 0 01-2-2V8a2 2 0 012-2h3m3-3h6l2 3h4a2 2 0 012 2v9.34" />
+							{/if}
+						</svg>
+					</button>
+					<button
+						class="voice-control-btn"
+						class:active={isScreenShareActive()}
+						title={isScreenShareActive() ? 'Stop sharing' : 'Share screen'}
+						onclick={toggleScreenShare}
+					>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+							<rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+							<line x1="8" y1="21" x2="16" y2="21" />
+							<line x1="12" y1="17" x2="12" y2="21" />
+						</svg>
+					</button>
+				{/if}
+				{#if isPttEnabled()}
+					<span class="ptt-indicator" class:active={isPttActive()} title="Push to talk">PTT</span>
+				{/if}
 				<button
 					class="voice-control-btn disconnect-btn"
 					title="Disconnect"
@@ -894,6 +934,16 @@ import { openSearch } from '$lib/stores/search.svelte.js';
 		opacity: 0.5;
 	}
 
+	.voice-user.speaking {
+		opacity: 1;
+	}
+
+	.voice-user.speaking .voice-avatar,
+	.voice-user.speaking .voice-avatar-placeholder {
+		outline: 2px solid #2ecc71;
+		outline-offset: 1px;
+	}
+
 	.voice-avatar {
 		width: 18px;
 		height: 18px;
@@ -1005,5 +1055,22 @@ import { openSearch } from '$lib/stores/search.svelte.js';
 
 	.voice-control-btn.disconnect-btn:hover {
 		background: rgba(231, 76, 60, 0.15);
+	}
+
+	.ptt-indicator {
+		font-size: 0.55rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		color: var(--text-muted);
+		padding: 0.15rem 0.3rem;
+		border: 1px solid var(--border);
+		border-radius: 3px;
+		line-height: 1;
+	}
+
+	.ptt-indicator.active {
+		color: #2ecc71;
+		border-color: #2ecc71;
+		background: rgba(46, 204, 113, 0.15);
 	}
 </style>

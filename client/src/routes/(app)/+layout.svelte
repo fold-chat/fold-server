@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { logout } from '$lib/api/auth.js';
+import { logout } from '$lib/api/auth.js';
 	import { reset, getServerName } from '$lib/stores/auth.svelte.js';
 	import { disconnect } from '$lib/stores/ws.svelte.js';
 	import { isSearchOpen, closeSearch, toggleSearch } from '$lib/stores/search.svelte.js';
 	import { getChannels, getTotalMentionCount } from '$lib/stores/channels.svelte.js';
 	import { getActiveChannelId } from '$lib/stores/messages.svelte.js';
 	import { isShortcutHelpOpen, closeShortcutHelp, toggleShortcutHelp } from '$lib/stores/shortcuts.svelte.js';
+	import { isPttEnabled, getPttKey, pttKeyDown, pttKeyUp } from '$lib/stores/voice.svelte.js';
 	import { goto } from '$app/navigation';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import SearchModal from '$lib/components/SearchModal.svelte';
@@ -47,7 +48,19 @@
 		if (channels[next]) goto(`/channels/${channels[next].id}`);
 	}
 
+	function onKeyup(e: KeyboardEvent) {
+		if (isPttEnabled() && getPttKey() && e.key === getPttKey()) {
+			pttKeyUp();
+		}
+	}
+
 	function onKeydown(e: KeyboardEvent) {
+		// Push-to-talk
+		if (isPttEnabled() && getPttKey() && e.key === getPttKey() && !e.repeat) {
+			pttKeyDown();
+			return;
+		}
+
 		const mod = e.metaKey || e.ctrlKey;
 
 		// Escape always works, even in inputs
@@ -99,7 +112,7 @@
 	}
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onkeyup={onKeyup} />
 
 <div class="app-shell">
 	<Sidebar />

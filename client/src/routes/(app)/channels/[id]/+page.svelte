@@ -13,7 +13,8 @@ import { getThreads } from '$lib/api/threads.js';
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
 	import ThreadPanel from '$lib/components/ThreadPanel.svelte';
-	import ForumView from '$lib/components/ForumView.svelte';
+import ForumView from '$lib/components/ForumView.svelte';
+	import VoicePanel from '$lib/components/VoicePanel.svelte';
 
 	let channelId = $derived(page.params.id!);
 	let aroundMessageId = $derived(page.url.searchParams.get('around'));
@@ -213,6 +214,7 @@ import { getThreads } from '$lib/api/threads.js';
 			{#if channel?.description}
 				<div class="channel-description">{channel.description}</div>
 			{/if}
+			<VoicePanel />
 			<MessageList
 				messages={getMessages(channelId)}
 				loading={isLoading(channelId)}

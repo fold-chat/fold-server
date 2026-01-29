@@ -211,7 +211,7 @@ interface HelloPayload {
 	session_id: string;
 	media_search?: boolean;
 	server_settings?: { server_name?: string | null; server_icon?: string | null; server_description?: string | null };
-	voice_states?: Array<import('$lib/api/voice.js').VoiceState>;
+	voice_states?: Array<import('$lib/api/voice.js').VoiceState> | Record<string, Array<import('$lib/api/voice.js').VoiceState>>;
 	capabilities?: { voice_video?: boolean };
 }
 
@@ -264,7 +264,17 @@ function handleHello(data: HelloPayload) {
 	}
 	setMediaSearchEnabled(data.media_search ?? false);
 	if (data.server_settings) setServerSettings(data.server_settings);
-	hydrateVoiceStates(data.voice_states ?? []);
+	// Server sends voice_states as { channelId: VoiceState[] } — flatten to array
+	const rawVs = data.voice_states;
+	let voiceArr: import('$lib/api/voice.js').VoiceState[] = [];
+	if (Array.isArray(rawVs)) {
+		voiceArr = rawVs;
+	} else if (rawVs && typeof rawVs === 'object') {
+		for (const states of Object.values(rawVs as Record<string, import('$lib/api/voice.js').VoiceState[]>)) {
+			voiceArr.push(...states);
+		}
+	}
+	hydrateVoiceStates(voiceArr);
 	setVoiceVideoEnabled(data.capabilities?.voice_video ?? false);
 	startHeartbeat(data.heartbeat_interval_ms || 30000);
 }

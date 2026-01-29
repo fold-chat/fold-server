@@ -3,6 +3,7 @@ package chat.fray.service;
 import chat.fray.config.FrayFileConfig;
 import chat.fray.config.FrayLiveKitConfig;
 import chat.fray.db.DatabaseService;
+import io.quarkus.runtime.Startup;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -23,6 +24,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@Startup
 @ApplicationScoped
 public class EmbeddedLiveKitManager {
 
