@@ -28,7 +28,7 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
 import { openSearch } from '$lib/stores/search.svelte.js';
 	import { cycleTheme, getThemePreference } from '$lib/stores/theme.svelte.js';
-import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, joinVoice, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
+	import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
 	import { hasChannelPermission, getUser } from '$lib/stores/auth.svelte.js';
 	import { serverMute, serverUnmute, serverDeafen, serverUndeafen, disconnectUser, moveUser } from '$lib/api/voice.js';
@@ -194,12 +194,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 	} | null>(null);
 
 	function selectChannel(channel: Channel) {
-		if (channel.type === 'VOICE') {
-			if (getCurrentVoiceChannelId() === channel.id) return;
-			joinVoice(channel.id).catch(() => {});
-		} else {
-			goto(`/channels/${channel.id}`);
-		}
+		goto(`/channels/${channel.id}`);
 	}
 
 	const voiceChannelName = $derived.by(() => {
@@ -447,7 +442,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 				<div class="channel-wrapper">
 				<button
 					class="channel-item"
-					class:active={isVoice ? getCurrentVoiceChannelId() === channel.id : getActiveChannelId() === channel.id}
+					class:active={getActiveChannelId() === channel.id}
 					class:unread={unread > 0}
 					class:drop-before={dropMark?.id === channel.id && dropMark?.position === 'before'}
 					class:drop-after={dropMark?.id === channel.id && dropMark?.position === 'after'}

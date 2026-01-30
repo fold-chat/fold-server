@@ -14,12 +14,13 @@ import { getThreads } from '$lib/api/threads.js';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
 	import ThreadPanel from '$lib/components/ThreadPanel.svelte';
 import ForumView from '$lib/components/ForumView.svelte';
-	import VoicePanel from '$lib/components/VoicePanel.svelte';
+import VoiceChannelView from '$lib/components/VoiceChannelView.svelte';
 
 	let channelId = $derived(page.params.id!);
 	let aroundMessageId = $derived(page.url.searchParams.get('around'));
 	let channel = $derived(getChannelById(channelId));
 	let isForumChannel = $derived(channel?.type === 'THREAD_CHANNEL');
+	let isVoiceChannel = $derived(channel?.type === 'VOICE');
 	let canSend = $derived(hasChannelPermission(channelId, PermissionName.SEND_MESSAGES));
 	let canUploadFiles = $derived(hasChannelPermission(channelId, PermissionName.UPLOAD_FILES));
 	let canManageMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES));
@@ -38,16 +39,19 @@ import ForumView from '$lib/components/ForumView.svelte';
 	$effect(() => {
 		const chId = channelId;
 		const around = aroundMessageId;
+		const isVoice = channel?.type === 'VOICE';
 		if (chId) {
 			setActiveChannelId(chId);
-			untrack(() => {
-				if (around) {
-					loadMessagesAround(chId, around);
-				} else {
-					loadMessages(chId);
-				}
-				loadChannelThreads(chId);
-			});
+			if (!isVoice) {
+				untrack(() => {
+					if (around) {
+						loadMessagesAround(chId, around);
+					} else {
+						loadMessages(chId);
+					}
+					loadChannelThreads(chId);
+				});
+			}
 		}
 		return () => setActiveChannelId(null);
 	});
@@ -199,6 +203,8 @@ import ForumView from '$lib/components/ForumView.svelte';
 
 {#if isForumChannel}
 	<ForumView {channelId} channelName={channel?.name ?? ''} channelTopic={channel?.topic ?? null} channelDescription={channel?.description ?? null} />
+{:else if isVoiceChannel}
+	<VoiceChannelView {channelId} channelName={channel?.name ?? ''} />
 {:else}
 	<div class="channel-view">
 		<div class="channel-main">
@@ -214,7 +220,6 @@ import ForumView from '$lib/components/ForumView.svelte';
 			{#if channel?.description}
 				<div class="channel-description">{channel.description}</div>
 			{/if}
-			<VoicePanel />
 			<MessageList
 				messages={getMessages(channelId)}
 				loading={isLoading(channelId)}
