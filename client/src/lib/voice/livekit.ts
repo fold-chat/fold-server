@@ -15,7 +15,7 @@ import {
 // --- Types ---
 
 export interface LiveKitCallbacks {
-	onSpeakersChanged: (speakerIds: string[]) => void;
+	onSpeakersChanged: (speakers: Array<{ identity: string; audioLevel: number }>) => void;
 	onTrackSubscribed: (track: RemoteTrack, pub: RemoteTrackPublication, participant: RemoteParticipant) => void;
 	onTrackUnsubscribed: (track: RemoteTrack, pub: RemoteTrackPublication, participant: RemoteParticipant) => void;
 	onConnectionStateChanged: (state: ConnectionState) => void;
@@ -235,7 +235,7 @@ export function getLocalVideoTracks(): Array<{
 // --- Event handlers ---
 
 function handleSpeakersChanged(speakers: Participant[]) {
-	callbacks?.onSpeakersChanged(speakers.map((s) => s.identity));
+	callbacks?.onSpeakersChanged(speakers.map((s) => ({ identity: s.identity, audioLevel: s.audioLevel })));
 }
 
 function handleTrackSubscribed(

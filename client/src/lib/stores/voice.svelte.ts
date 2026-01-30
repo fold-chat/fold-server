@@ -37,10 +37,12 @@ let e2eeActive = $state(false);
 
 // LiveKit integration state
 let speakingUserIds = $state<Set<string>>(new Set());
+let audioLevels = $state<Map<string, number>>(new Map());
 let cameraActive = $state(false);
 let screenShareActive = $state(false);
 let livekitConnectionState = $state<string>('disconnected');
 let hasVideoTracks = $state(false);
+let videoTrackRevision = $state(0);
 
 // Push-to-talk state
 let pttEnabled = $state(false);
@@ -87,6 +89,14 @@ export function isSpeaking(userId: string): boolean {
 
 export function getSpeakingUserIds(): Set<string> {
 	return speakingUserIds;
+}
+
+export function getAudioLevel(userId: string): number {
+	return audioLevels.get(userId) ?? 0;
+}
+
+export function getVideoTrackRevision(): number {
+	return videoTrackRevision;
 }
 
 export function isCameraActive(): boolean {
@@ -277,9 +287,11 @@ export async function leaveCurrentVoice() {
 	// Disconnect from LiveKit first
 	await disconnectFromRoom(false);
 	speakingUserIds = new Set();
+	audioLevels = new Map();
 	cameraActive = false;
 	screenShareActive = false;
 	hasVideoTracks = false;
+	videoTrackRevision = 0;
 	livekitConnectionState = 'disconnected';
 
 	try {
@@ -385,9 +397,11 @@ export function resetVoiceState() {
 	e2eeActive = false;
 	lastJoinError = null;
 	speakingUserIds = new Set();
+	audioLevels = new Map();
 	cameraActive = false;
 	screenShareActive = false;
 	hasVideoTracks = false;
+	videoTrackRevision = 0;
 	livekitConnectionState = 'disconnected';
 	pttEnabled = false;
 	pttKey = null;
@@ -399,8 +413,11 @@ export function resetVoiceState() {
 
 function makeLiveKitCallbacks(): LiveKitCallbacks {
 	return {
-		onSpeakersChanged: (ids: string[]) => {
-			speakingUserIds = new Set(ids);
+		onSpeakersChanged: (speakers) => {
+			speakingUserIds = new Set(speakers.map((s) => s.identity));
+			const levels = new Map<string, number>();
+			for (const s of speakers) levels.set(s.identity, s.audioLevel);
+			audioLevels = levels;
 		},
 		onTrackSubscribed: (track, _pub, _participant) => {
 			if (track.kind === Track.Kind.Audio) {
@@ -427,4 +444,5 @@ function updateVideoTrackState() {
 	const remote = getVideoTracks();
 	const local = getLocalVideoTracks();
 	hasVideoTracks = remote.length > 0 || local.length > 0;
+	videoTrackRevision++;
 }
