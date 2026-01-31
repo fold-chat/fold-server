@@ -503,30 +503,31 @@
 		gap: 8px;
 		padding: 8px;
 		overflow-y: auto;
-		align-content: start;
+		align-content: center;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.participant-grid.grid-1 {
-		grid-template-columns: 1fr;
-		justify-items: center;
-		align-content: center;
+		grid-template-columns: minmax(0, 20rem);
 	}
 
 	.participant-grid.grid-2 {
-		grid-template-columns: repeat(2, 1fr);
+		grid-template-columns: repeat(2, minmax(0, 20rem));
 	}
 
 	.participant-grid.grid-3 {
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(3, minmax(0, 20rem));
 	}
 
 	.participant-grid.grid-4 {
-		grid-template-columns: repeat(4, 1fr);
+		grid-template-columns: repeat(4, minmax(0, 20rem));
 	}
 
 	/* Participant tile */
 
 	.participant-tile {
+		max-width:20rem;
 		display: flex;
 		flex-direction: column;
 		align-items: center;

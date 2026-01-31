@@ -6,6 +6,7 @@ import {
 	type RemoteTrackPublication,
 	type RemoteParticipant,
 	type Participant,
+	type LocalTrack,
 	type LocalTrackPublication,
 	ConnectionState,
 	ExternalE2EEKeyProvider,
@@ -20,6 +21,10 @@ export interface LiveKitCallbacks {
 	onTrackUnsubscribed: (track: RemoteTrack, pub: RemoteTrackPublication, participant: RemoteParticipant) => void;
 	onConnectionStateChanged: (state: ConnectionState) => void;
 	onE2EEStateChanged?: (participantIdentity: string, state: string) => void;
+	onParticipantConnected?: (identity: string) => void;
+	onParticipantDisconnected?: (identity: string) => void;
+	onLocalTrackPublished?: () => void;
+	onLocalTrackUnpublished?: () => void;
 }
 
 // --- State ---
@@ -90,6 +95,10 @@ export async function connectToRoom(
 	room.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
 	room.on(RoomEvent.TrackUnsubscribed, handleTrackUnsubscribed);
 	room.on(RoomEvent.ConnectionStateChanged, handleConnectionStateChanged);
+	room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+	room.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+	room.on(RoomEvent.LocalTrackPublished, handleLocalTrackPublished);
+	room.on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 
 	// Connect
 	await room.connect(url, token);
@@ -256,6 +265,54 @@ function handleTrackUnsubscribed(
 
 function handleConnectionStateChanged(state: ConnectionState) {
 	callbacks?.onConnectionStateChanged(state);
+}
+
+function handleParticipantConnected(participant: RemoteParticipant) {
+	callbacks?.onParticipantConnected?.(participant.identity);
+}
+
+function handleParticipantDisconnected(participant: RemoteParticipant) {
+	callbacks?.onParticipantDisconnected?.(participant.identity);
+}
+
+function handleLocalTrackPublished(_pub: LocalTrackPublication) {
+	callbacks?.onLocalTrackPublished?.();
+}
+
+function handleLocalTrackUnpublished(_pub: LocalTrackPublication) {
+	callbacks?.onLocalTrackUnpublished?.();
+}
+
+// --- Per-participant track helpers ---
+
+/**
+ * Get the camera track for a participant (local or remote) by their user identity.
+ */
+export function getParticipantVideoTrack(userId: string): RemoteTrack | LocalTrack | null {
+	if (!room) return null;
+	if (room.localParticipant.identity === userId) {
+		const pub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+		return pub?.track ?? null;
+	}
+	const participant = room.remoteParticipants.get(userId);
+	if (!participant) return null;
+	const pub = participant.getTrackPublication(Track.Source.Camera);
+	return pub?.track ?? null;
+}
+
+/**
+ * Get the screen share track for a participant (local or remote) by their user identity.
+ */
+export function getParticipantScreenTrack(userId: string): RemoteTrack | LocalTrack | null {
+	if (!room) return null;
+	if (room.localParticipant.identity === userId) {
+		const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+		return pub?.track ?? null;
+	}
+	const participant = room.remoteParticipants.get(userId);
+	if (!participant) return null;
+	const pub = participant.getTrackPublication(Track.Source.ScreenShare);
+	return pub?.track ?? null;
 }
 
 // --- Helpers ---

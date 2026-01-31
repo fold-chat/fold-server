@@ -12,6 +12,8 @@ import {
 	isScreenShareEnabled as lkIsScreenShareEnabled,
 	getVideoTracks,
 	getLocalVideoTracks,
+	getParticipantVideoTrack as lkGetParticipantVideoTrack,
+	getParticipantScreenTrack as lkGetParticipantScreenTrack,
 	type LiveKitCallbacks
 } from '$lib/voice/livekit.js';
 import { Track, ConnectionState } from 'livekit-client';
@@ -38,6 +40,7 @@ let e2eeActive = $state(false);
 // LiveKit integration state
 let speakingUserIds = $state<Set<string>>(new Set());
 let audioLevels = $state<Map<string, number>>(new Map());
+let connectedParticipantIds = $state<Set<string>>(new Set());
 let cameraActive = $state(false);
 let screenShareActive = $state(false);
 let livekitConnectionState = $state<string>('disconnected');
@@ -93,6 +96,18 @@ export function getSpeakingUserIds(): Set<string> {
 
 export function getAudioLevel(userId: string): number {
 	return audioLevels.get(userId) ?? 0;
+}
+
+export function getConnectedParticipantIds(): Set<string> {
+	return connectedParticipantIds;
+}
+
+export function getParticipantVideoTrack(userId: string) {
+	return lkGetParticipantVideoTrack(userId);
+}
+
+export function getParticipantScreenTrack(userId: string) {
+	return lkGetParticipantScreenTrack(userId);
 }
 
 export function getVideoTrackRevision(): number {
@@ -288,6 +303,7 @@ export async function leaveCurrentVoice() {
 	await disconnectFromRoom(false);
 	speakingUserIds = new Set();
 	audioLevels = new Map();
+	connectedParticipantIds = new Set();
 	cameraActive = false;
 	screenShareActive = false;
 	hasVideoTracks = false;
@@ -398,6 +414,7 @@ export function resetVoiceState() {
 	lastJoinError = null;
 	speakingUserIds = new Set();
 	audioLevels = new Map();
+	connectedParticipantIds = new Set();
 	cameraActive = false;
 	screenShareActive = false;
 	hasVideoTracks = false;
@@ -419,6 +436,16 @@ function makeLiveKitCallbacks(): LiveKitCallbacks {
 			for (const s of speakers) levels.set(s.identity, s.audioLevel);
 			audioLevels = levels;
 		},
+		onParticipantConnected: (identity) => {
+			connectedParticipantIds = new Set([...connectedParticipantIds, identity]);
+		},
+		onParticipantDisconnected: (identity) => {
+			const next = new Set(connectedParticipantIds);
+			next.delete(identity);
+			connectedParticipantIds = next;
+		},
+		onLocalTrackPublished: () => updateVideoTrackState(),
+		onLocalTrackUnpublished: () => updateVideoTrackState(),
 		onTrackSubscribed: (track, _pub, _participant) => {
 			if (track.kind === Track.Kind.Audio) {
 				const el = track.attach();
