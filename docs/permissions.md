@@ -1,4 +1,4 @@
-# Fray Permissions
+# Kith Permissions
 
 Permissions are stored as 64-bit bitmasks. Each bit represents a permission.
 

@@ -44,7 +44,7 @@
 <div class="auth-page">
 	<div class="auth-card">
 		<h1>Sign in</h1>
-		<p>Welcome back to Fray</p>
+		<p>Welcome back to Kith</p>
 
 		{#if error}
 			<div class="error-message">{error}</div>

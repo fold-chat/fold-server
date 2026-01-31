@@ -160,7 +160,7 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 	}
 
 	// --- Category collapse state ---
-	const COLLAPSED_KEY = 'fray_collapsed_categories';
+	const COLLAPSED_KEY = 'kith_collapsed_categories';
 	let collapsedCategories = $state<Set<string>>(loadCollapsed());
 
 	function loadCollapsed(): Set<string> {

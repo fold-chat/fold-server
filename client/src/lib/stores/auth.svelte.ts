@@ -13,7 +13,7 @@ let initialized = $state(false);
 let permissions = $state<UserPermissions>({ server: [], channels: new Map() });
 let mediaSearchEnabled = $state(false);
 let serverSettings = $state<{ server_name: string | null; server_icon: string | null; server_description: string | null }>({
-	server_name: 'Fray',
+	server_name: 'Kith',
 	server_icon: null,
 	server_description: null
 });
@@ -106,7 +106,7 @@ export function setServerSettings(s: { server_name?: string | null; server_icon?
 }
 
 export function getServerName(): string {
-	return serverSettings.server_name || 'Fray';
+	return serverSettings.server_name || 'kith';
 }
 
 export function reset() {
@@ -115,5 +115,5 @@ export function reset() {
 	setupRequired = false;
 	permissions = { server: [], channels: new Map() };
 	mediaSearchEnabled = false;
-	serverSettings = { server_name: 'Fray', server_icon: null, server_description: null };
+	serverSettings = { server_name: 'Kith', server_icon: null, server_description: null };
 }

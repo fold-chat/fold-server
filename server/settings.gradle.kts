@@ -9,4 +9,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "fray-server"
+rootProject.name = "kith-server"

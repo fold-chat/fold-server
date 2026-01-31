@@ -31,7 +31,7 @@ dependencies {
     testImplementation("org.mockito:mockito-core:5.14.2")
 }
 
-group = "chat.fray"
+group = "chat.kith"
 version = "0.1.0"
 
 java {

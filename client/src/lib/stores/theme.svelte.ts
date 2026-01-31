@@ -1,7 +1,7 @@
 export type ThemePreference = 'dark' | 'light' | 'system';
 export type ResolvedTheme = 'dark' | 'light';
 
-const STORAGE_KEY = 'fray_theme';
+const STORAGE_KEY = 'kith_theme';
 
 let preference = $state<ThemePreference>('system');
 

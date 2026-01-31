@@ -265,8 +265,8 @@
 		function onToggleEmoji() {
 			if (!disabled) showEmojiPicker = !showEmojiPicker;
 		}
-		window.addEventListener('fray:toggle-emoji', onToggleEmoji);
-		return () => window.removeEventListener('fray:toggle-emoji', onToggleEmoji);
+		window.addEventListener('kith:toggle-emoji', onToggleEmoji);
+		return () => window.removeEventListener('kith:toggle-emoji', onToggleEmoji);
 	});
 </script>
 

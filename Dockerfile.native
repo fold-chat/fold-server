@@ -2,9 +2,9 @@ FROM gcr.io/distroless/base-nossl-debian12
 
 WORKDIR /app
 
-COPY fray /app/fray
+COPY kith /app/kith
 COPY liblibsql.so /app/liblibsql.so
 
 EXPOSE 8080
 
-ENTRYPOINT ["/app/fray"]
+ENTRYPOINT ["/app/kith"]

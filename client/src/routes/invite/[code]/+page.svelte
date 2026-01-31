@@ -29,7 +29,7 @@
 			<p>{error}</p>
 		{:else if invite && invite.valid}
 			<h1>You've been invited!</h1>
-			<p>Join the Fray community</p>
+			<p>Join the Kith community</p>
 			<a href="/register?invite={code}">
 				<button style="width: 100%">Accept invite</button>
 			</a>

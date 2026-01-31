@@ -2,10 +2,10 @@ FROM eclipse-temurin:25-jre
 
 WORKDIR /app
 
-COPY server/build/fray-runner.jar /app/fray.jar
+COPY server/build/kith-runner.jar /app/kith.jar
 
 EXPOSE 8080
 
 ENV JAVA_OPTS="--enable-native-access=ALL-UNNAMED"
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/fray.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/kith.jar"]

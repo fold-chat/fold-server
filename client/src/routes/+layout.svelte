@@ -38,7 +38,7 @@ import { init, isInitialized, isSetupRequired, isAuthenticated } from '$lib/stor
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>Fray</title>
+	<title>Kith</title>
 </svelte:head>
 
 {#if isInitialized()}
