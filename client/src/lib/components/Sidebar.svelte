@@ -34,9 +34,6 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 	import type { VoiceState } from '$lib/api/voice.js';
 
 	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
-	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
-	const canManageServer = $derived(hasServerPermission(PermissionName.MANAGE_SERVER));
-	const canViewAudit = $derived(hasServerPermission(PermissionName.ADMINISTRATOR) || hasServerPermission(PermissionName.MANAGE_SERVER));
 
 	// --- Channel dialog state (create + edit) ---
 	let channelDialogOpen = $state(false);
@@ -609,16 +606,6 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 		{#if canManageChannels}
 			<button class="sidebar-action" onclick={handleCreateChannel}>+ Channel</button>
 			<button class="sidebar-action" onclick={handleCreateCategory}>+ Category</button>
-		{/if}
-		{#if canManageServer}
-			<button class="sidebar-action" onclick={() => goto('/settings/server')}>Server</button>
-		{/if}
-		{#if canManageRoles}
-			<button class="sidebar-action" onclick={() => goto('/settings/roles')}>Roles</button>
-			<button class="sidebar-action" onclick={() => goto('/settings/members')}>Members</button>
-		{/if}
-	{#if canViewAudit}
-			<button class="sidebar-action" onclick={() => goto('/settings/audit-log')}>Audit Log</button>
 		{/if}
 		<button class="sidebar-action theme-toggle" onclick={cycleTheme} title="Theme: {getThemePreference()}">
 			{#if getThemePreference() === 'dark'}🌙{:else if getThemePreference() === 'light'}☀️{:else}🖥{/if}

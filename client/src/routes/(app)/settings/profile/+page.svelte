@@ -56,9 +56,10 @@
 	}
 </script>
 
-<div class="settings-page">
-	<div class="settings-card">
-		<h1>Profile Settings</h1>
+<div class="settings-card">
+		<div class="header-row">
+			<h1>Profile Settings</h1>
+		</div>
 
 		{#if error}
 			<div class="error-message">{error}</div>
@@ -67,21 +68,25 @@
 			<div class="success-message">{success}</div>
 		{/if}
 
-		<div class="avatar-section">
-			{#if getUser()?.avatar_url}
-				<img src={getUser()?.avatar_url} alt="Avatar" class="avatar" />
-			{:else}
-				<div class="avatar placeholder">{getUser()?.username?.charAt(0).toUpperCase()}</div>
-			{/if}
-			<label class="upload-btn">
-				{uploading ? 'Uploading...' : 'Change avatar'}
-				<input type="file" accept="image/*" onchange={handleAvatarUpload} hidden />
-			</label>
-		</div>
-
-		<form onsubmit={handleSave}>
+		<div class="form-section">
 			<div class="form-group">
-				<label for="displayName">Display name</label>
+				<!-- svelte-ignore a11y_label_has_associated_control -->
+				<label>Avatar</label>
+				<div class="avatar-section">
+					{#if getUser()?.avatar_url}
+						<img src={getUser()?.avatar_url} alt="Avatar" class="avatar" />
+					{:else}
+						<div class="avatar placeholder">{getUser()?.username?.charAt(0).toUpperCase()}</div>
+					{/if}
+					<label class="upload-btn">
+						{uploading ? 'Uploading...' : 'Change avatar'}
+						<input type="file" accept="image/*" onchange={handleAvatarUpload} hidden />
+					</label>
+				</div>
+			</div>
+
+			<div class="form-group">
+				<label for="displayName">Display Name</label>
 				<input id="displayName" type="text" bind:value={displayName} />
 			</div>
 			<div class="form-group">
@@ -92,38 +97,20 @@
 				<label for="statusText">Status</label>
 				<input id="statusText" type="text" bind:value={statusText} placeholder="What are you up to?" />
 			</div>
-			<button type="submit" disabled={loading} style="width:100%">
-				{loading ? 'Saving...' : 'Save changes'}
-			</button>
-		</form>
-	</div>
+
+			<div class="form-actions">
+				<button class="btn-primary" type="submit" disabled={loading} onclick={handleSave}>
+					{loading ? 'Saving...' : 'Save Changes'}
+				</button>
+			</div>
+		</div>
 </div>
 
 <style>
-	.settings-page {
-		padding: 2rem;
-		max-width: 600px;
-		margin: 0 auto;
-		overflow-y: auto;
-		width: 100%;
-	}
-
-	.settings-card {
-		background: var(--bg-surface);
-		border-radius: 8px;
-		padding: 1.5rem;
-	}
-
-	.settings-card h1 {
-		font-size: 1.25rem;
-		margin-bottom: 1rem;
-	}
-
 	.avatar-section {
 		display: flex;
 		align-items: center;
-		gap: 1rem;
-		margin-bottom: 1.5rem;
+		gap: 0.75rem;
 	}
 
 	.avatar {
@@ -131,6 +118,7 @@
 		height: 64px;
 		border-radius: 50%;
 		object-fit: cover;
+		border: 2px solid var(--border);
 	}
 
 	.avatar.placeholder {
@@ -151,11 +139,5 @@
 
 	.upload-btn:hover {
 		text-decoration: underline;
-	}
-
-	.success-message {
-		color: var(--success);
-		font-size: 0.875rem;
-		margin-bottom: 1rem;
 	}
 </style>

@@ -104,12 +104,10 @@
 	}
 </script>
 
-<div class="settings-page" bind:this={scrollContainer} onscroll={handleScroll}>
-	<div class="settings-card">
-		<div class="header-row">
-			<h1>Audit Log</h1>
-			<p><a href="/">&larr; Back</a></p>
-		</div>
+<div class="settings-card" bind:this={scrollContainer} onscroll={handleScroll}>
+	<div class="header-row">
+		<h1>Audit Log</h1>
+	</div>
 
 		{#if error}
 			<div class="error-message">{error}</div>
@@ -151,42 +149,9 @@
 				{/if}
 			</div>
 		{/if}
-	</div>
 </div>
 
 <style>
-	.settings-page {
-		padding: 2rem;
-		max-width: 900px;
-		margin: 0 auto;
-		overflow-y: auto;
-		height: 100vh;
-	}
-
-	.settings-card {
-		background: var(--bg-surface);
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 1.5rem;
-	}
-
-	.header-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		margin-bottom: 1rem;
-	}
-
-	h1 {
-		font-size: 1.25rem;
-		margin: 0;
-	}
-
-	.muted {
-		color: var(--text-muted);
-		font-size: 0.875rem;
-	}
-
 	.log-list {
 		display: flex;
 		flex-direction: column;
@@ -260,12 +225,4 @@
 		padding: 1rem 0;
 	}
 
-	.error-message {
-		color: #e74c3c;
-		font-size: 0.85rem;
-		margin-bottom: 0.75rem;
-		padding: 0.5rem;
-		background: rgba(231, 76, 60, 0.1);
-		border-radius: 4px;
-	}
 </style>

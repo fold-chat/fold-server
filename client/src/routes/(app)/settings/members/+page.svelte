@@ -113,12 +113,10 @@
 	}
 </script>
 
-<div class="settings-page">
-	<div class="settings-card">
-		<div class="header-row">
-			<h1>Members</h1>
-			<p><a href="/">&larr; Back</a></p>
-		</div>
+<div class="settings-card">
+	<div class="header-row">
+		<h1>Members</h1>
+	</div>
 
 		{#if error}
 			<div class="error-message">{error}</div>
@@ -200,7 +198,6 @@
 				{/each}
 			</div>
 		{/if}
-	</div>
 </div>
 
 {#if confirmAction}
@@ -229,38 +226,6 @@
 {/if}
 
 <style>
-	.settings-page {
-		padding: 2rem;
-		max-width: 800px;
-		margin: 0 auto;
-		overflow-y: auto;
-		height: 100vh;
-	}
-
-	.settings-card {
-		background: var(--bg-surface);
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		padding: 1.5rem;
-	}
-
-	.header-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: baseline;
-		margin-bottom: 1rem;
-	}
-
-	h1 {
-		font-size: 1.25rem;
-		margin: 0;
-	}
-
-	.muted {
-		color: var(--text-muted);
-		font-size: 0.875rem;
-	}
-
 	.member-list {
 		display: flex;
 		flex-direction: column;
@@ -359,31 +324,6 @@
 		cursor: pointer;
 	}
 
-	.btn-sm {
-		padding: 0.25rem 0.5rem;
-		font-size: 0.75rem;
-		border: 1px solid var(--border);
-		background: none;
-		color: var(--text-muted);
-		border-radius: 3px;
-		cursor: pointer;
-	}
-
-	.btn-sm:hover {
-		color: var(--text);
-		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
-	}
-
-	.btn-danger {
-		color: #e74c3c;
-		border-color: #e74c3c;
-	}
-
-	.btn-danger:hover {
-		background: rgba(231, 76, 60, 0.15);
-		color: #e74c3c;
-	}
-
 	.member-actions {
 		display: flex;
 		gap: 0.35rem;
@@ -434,12 +374,12 @@
 
 	.modal .form-group input {
 		width: 100%;
-		padding: 0.4rem 0.5rem;
+		padding: 0.5rem 0.6rem;
 		border: 1px solid var(--border);
 		border-radius: 4px;
 		background: var(--bg);
 		color: var(--text);
-		font-size: 0.85rem;
+		font-size: 0.875rem;
 	}
 
 	.modal-actions {
@@ -474,12 +414,4 @@
 		font-weight: 500;
 	}
 
-	.error-message {
-		color: #e74c3c;
-		font-size: 0.85rem;
-		margin-bottom: 0.75rem;
-		padding: 0.5rem;
-		background: rgba(231, 76, 60, 0.1);
-		border-radius: 4px;
-	}
 </style>

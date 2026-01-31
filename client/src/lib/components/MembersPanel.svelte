@@ -205,9 +205,9 @@
 	.member-item {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: 0.5rem;
 		width: 100%;
-		padding: 0.3rem 1rem;
+		padding: 0.35rem 0.75rem;
 		background: none;
 		border: none;
 		color: var(--text);
@@ -215,8 +215,8 @@
 		text-align: left;
 		font-size: 0.8rem;
 		border-radius: 4px;
-		margin: 0 0.25rem;
-		width: calc(100% - 0.5rem);
+		margin: 0 0.5rem;
+		width: calc(100% - 1rem);
 	}
 
 	.member-item:hover {
@@ -224,24 +224,24 @@
 	}
 
 	.member-avatar {
-		width: 24px;
-		height: 24px;
+		width: 32px;
+		height: 32px;
 		border-radius: 50%;
 		object-fit: cover;
 		flex-shrink: 0;
 	}
 
 	.member-avatar-placeholder {
-		width: 24px;
-		height: 24px;
+		width: 32px;
+		height: 32px;
 		border-radius: 50%;
-		background: var(--bg-active, rgba(255, 255, 255, 0.1));
+		background: var(--accent, #5865f2);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 0.65rem;
+		font-size: 0.75rem;
 		font-weight: 600;
-		color: var(--text-muted);
+		color: white;
 		flex-shrink: 0;
 	}
 
@@ -266,7 +266,7 @@
 		padding: 1rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 1rem;
 		overflow-y: auto;
 	}
 
@@ -329,11 +329,11 @@
 	.profile-field {
 		display: flex;
 		flex-direction: column;
-		gap: 0.15rem;
+		gap: 0.25rem;
 	}
 
 	.field-label {
-		font-size: 0.65rem;
+		font-size: 0.75rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
@@ -341,7 +341,7 @@
 	}
 
 	.field-value {
-		font-size: 0.8rem;
+		font-size: 0.85rem;
 		color: var(--text);
 		word-break: break-word;
 	}
