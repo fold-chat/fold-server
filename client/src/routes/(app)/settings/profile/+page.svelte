@@ -56,10 +56,9 @@
 	}
 </script>
 
-<div class="auth-page">
-	<div class="auth-card">
-		<h1>Profile settings</h1>
-		<p><a href="/">&larr; Back</a></p>
+<div class="settings-page">
+	<div class="settings-card">
+		<h1>Profile Settings</h1>
 
 		{#if error}
 			<div class="error-message">{error}</div>
@@ -101,6 +100,25 @@
 </div>
 
 <style>
+	.settings-page {
+		padding: 2rem;
+		max-width: 600px;
+		margin: 0 auto;
+		overflow-y: auto;
+		width: 100%;
+	}
+
+	.settings-card {
+		background: var(--bg-surface);
+		border-radius: 8px;
+		padding: 1.5rem;
+	}
+
+	.settings-card h1 {
+		font-size: 1.25rem;
+		margin-bottom: 1rem;
+	}
+
 	.avatar-section {
 		display: flex;
 		align-items: center;

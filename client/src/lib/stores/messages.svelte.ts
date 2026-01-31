@@ -4,6 +4,7 @@ import { handleThreadMessageEvent, handleThreadReactionEvent } from './threads.s
 import { getUser } from './auth.svelte.js';
 import { getMembers } from './members.svelte.js';
 import { showMentionNotification } from '$lib/notifications.js';
+import { addNotification } from '$lib/stores/notifications.svelte.js';
 
 // channelId → messages (sorted oldest first)
 let messagesByChannel = $state<Map<string, Message[]>>(new Map());
@@ -132,7 +133,9 @@ export function handleMessageEvent(op: string, data: Record<string, unknown> | u
 				if (msg.channel_id !== activeChannelId) {
 					incrementMentionCount(msg.channel_id);
 				}
-				showMentionNotification(msg, getChannelById(msg.channel_id)?.name);
+				const channelName = getChannelById(msg.channel_id)?.name ?? 'unknown';
+				showMentionNotification(msg, channelName);
+				addNotification(msg, channelName);
 			}
 			break;
 		}

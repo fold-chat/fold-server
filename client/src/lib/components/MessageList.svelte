@@ -3,6 +3,7 @@ import type { Message } from '$lib/api/messages.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { addReaction, removeReaction } from '$lib/api/reactions.js';
 	import { renderMarkdown, formatTimestamp } from '$lib/utils/markdown.js';
+	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	import EmojiPicker from './EmojiPicker.svelte';
 	import klipyLogo from '$lib/assets/klipy.svg';
 	import { tick } from 'svelte';
@@ -202,6 +203,16 @@ import type { Message } from '$lib/api/messages.js';
 		return m ? m[1] : '';
 	}
 
+	function handleContentClick(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		const mention = target.closest('.mention[data-user-id]') as HTMLElement | null;
+		if (mention) {
+			e.preventDefault();
+			const userId = mention.dataset.userId;
+			if (userId) openMemberProfile(userId);
+		}
+	}
+
 	function typingText(users: string[]): string {
 		if (users.length === 0) return '';
 		if (users.length === 1) return `${users[0]} is typing...`;
@@ -211,7 +222,8 @@ import type { Message } from '$lib/api/messages.js';
 </script>
 
 <div class="message-list-container">
-	<div class="message-list" bind:this={scrollContainer} onscroll={handleScroll}>
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="message-list" bind:this={scrollContainer} onscroll={handleScroll} onclick={handleContentClick}>
 		{#if loading && messages.length === 0}
 			<div class="loading">Loading messages...</div>
 		{/if}

@@ -21,12 +21,11 @@ import {
 	import type { Category, Channel } from '$lib/api/channels.js';
 	import { getActiveChannelId } from '$lib/stores/messages.svelte.js';
 	import { getConnectionState } from '$lib/stores/ws.svelte.js';
-	import { hasServerPermission, getServerName } from '$lib/stores/auth.svelte.js';
+	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { goto } from '$app/navigation';
 import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
-import { openSearch } from '$lib/stores/search.svelte.js';
 	import { cycleTheme, getThemePreference } from '$lib/stores/theme.svelte.js';
 	import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
@@ -382,15 +381,6 @@ import { openSearch } from '$lib/stores/search.svelte.js';
 		</div>
 	{/if}
 
-	<div class="sidebar-header">
-		<h2>{getServerName()}</h2>
-		<button class="search-btn" onclick={openSearch} title="Search (⌘K)">
-			<svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
-				<path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.45 4.39l4.26 4.26a.75.75 0 11-1.06 1.06l-4.26-4.26A7 7 0 012 9z" clip-rule="evenodd" />
-			</svg>
-		</button>
-	</div>
-
 	<nav class="channel-list" ondragleave={onListDragLeave}>
 		{#each getChannelsByCategory() as group}
 			{#if group.category}
@@ -683,7 +673,7 @@ import { openSearch } from '$lib/stores/search.svelte.js';
 		border-right: 1px solid var(--border);
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
+		height: 100%;
 	}
 
 	.connection-banner {
@@ -696,35 +686,6 @@ import { openSearch } from '$lib/stores/search.svelte.js';
 
 	.connection-banner.reconnecting {
 		background: var(--warning, #f39c12);
-	}
-
-	.sidebar-header {
-		padding: 1rem;
-		border-bottom: 1px solid var(--border);
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-	}
-
-	.sidebar-header h2 {
-		font-size: 1.1rem;
-		margin: 0;
-	}
-
-	.search-btn {
-		background: none;
-		border: none;
-		color: var(--text-muted);
-		cursor: pointer;
-		padding: 0.25rem;
-		border-radius: 4px;
-		display: flex;
-		align-items: center;
-	}
-
-	.search-btn:hover {
-		color: var(--text);
-		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
 	}
 
 	.channel-list {

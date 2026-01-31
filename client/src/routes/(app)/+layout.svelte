@@ -1,16 +1,19 @@
 <script lang="ts">
-import { logout } from '$lib/api/auth.js';
-	import { reset, getServerName } from '$lib/stores/auth.svelte.js';
-	import { disconnect } from '$lib/stores/ws.svelte.js';
+	import { getServerName } from '$lib/stores/auth.svelte.js';
 	import { isSearchOpen, closeSearch, toggleSearch } from '$lib/stores/search.svelte.js';
 	import { getChannels, getTotalMentionCount } from '$lib/stores/channels.svelte.js';
 	import { getActiveChannelId } from '$lib/stores/messages.svelte.js';
 	import { isShortcutHelpOpen, closeShortcutHelp, toggleShortcutHelp } from '$lib/stores/shortcuts.svelte.js';
 	import { isPttEnabled, getPttKey, pttKeyDown, pttKeyUp } from '$lib/stores/voice.svelte.js';
+	import { isNotificationPanelOpen } from '$lib/stores/notifications.svelte.js';
 	import { goto } from '$app/navigation';
 	import Sidebar from '$lib/components/Sidebar.svelte';
+	import TopBar from '$lib/components/TopBar.svelte';
 	import SearchModal from '$lib/components/SearchModal.svelte';
 	import ShortcutHelpModal from '$lib/components/ShortcutHelpModal.svelte';
+	import NotificationPanel from '$lib/components/NotificationPanel.svelte';
+	import MembersPanel from '$lib/components/MembersPanel.svelte';
+	import { isMembersPanelOpen } from '$lib/stores/membersPanel.svelte.js';
 
 	let { children } = $props();
 
@@ -19,17 +22,6 @@ import { logout } from '$lib/api/auth.js';
 		const name = getServerName();
 		document.title = count > 0 ? `(${count}) ${name}` : name;
 	});
-
-	async function handleLogout() {
-		disconnect();
-		try {
-			await logout();
-		} catch {
-			// ignore
-		}
-		reset();
-		goto('/login');
-	}
 
 	function isTyping(e: KeyboardEvent): boolean {
 		const tag = (e.target as HTMLElement)?.tagName;
@@ -115,10 +107,19 @@ import { logout } from '$lib/api/auth.js';
 <svelte:window onkeydown={onKeydown} onkeyup={onKeyup} />
 
 <div class="app-shell">
-	<Sidebar />
-	<main class="main-content">
-		{@render children()}
-	</main>
+	<TopBar />
+	<div class="app-body">
+		<Sidebar />
+		<main class="main-content">
+			{@render children()}
+		</main>
+		{#if isNotificationPanelOpen()}
+			<NotificationPanel />
+		{/if}
+		{#if isMembersPanelOpen()}
+			<MembersPanel />
+		{/if}
+	</div>
 </div>
 
 <SearchModal />
@@ -127,8 +128,15 @@ import { logout } from '$lib/api/auth.js';
 <style>
 	.app-shell {
 		display: flex;
+		flex-direction: column;
 		height: 100vh;
 		overflow: hidden;
+	}
+
+	.app-body {
+		flex: 1;
+		display: flex;
+		min-height: 0;
 	}
 
 	.main-content {

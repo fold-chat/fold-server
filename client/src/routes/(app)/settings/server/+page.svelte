@@ -111,7 +111,6 @@
 	<div class="settings-card">
 		<div class="header-row">
 			<h1>Server Settings</h1>
-			<p><a href="/">&larr; Back</a></p>
 		</div>
 
 		{#if error}

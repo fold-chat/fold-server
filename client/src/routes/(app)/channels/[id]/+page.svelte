@@ -255,7 +255,7 @@ import VoiceChannelView from '$lib/components/VoiceChannelView.svelte';
 		flex: 1;
 		display: flex;
 		flex-direction: row;
-		height: 100vh;
+		height: 100%;
 		min-width: 0;
 	}
 
