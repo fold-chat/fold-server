@@ -83,9 +83,11 @@ import type { Message } from '$lib/api/messages.js';
 	$effect(() => {
 		if (messages.length > 0 && shouldAutoScroll && !highlightMessageId && scrollContainer) {
 			tick().then(() => {
-				if (scrollContainer) {
-					scrollContainer.scrollTop = scrollContainer.scrollHeight;
-				}
+				requestAnimationFrame(() => {
+					if (scrollContainer) {
+						scrollContainer.scrollTop = scrollContainer.scrollHeight;
+					}
+				});
 			});
 		}
 	});
