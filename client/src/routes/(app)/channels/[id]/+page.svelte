@@ -15,6 +15,7 @@ import { getThreads } from '$lib/api/threads.js';
 	import ThreadPanel from '$lib/components/ThreadPanel.svelte';
 import ForumView from '$lib/components/ForumView.svelte';
 import VoiceChannelView from '$lib/components/VoiceChannelView.svelte';
+import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 
 	let channelId = $derived(page.params.id!);
 	let aroundMessageId = $derived(page.url.searchParams.get('around'));
@@ -35,6 +36,9 @@ import VoiceChannelView from '$lib/components/VoiceChannelView.svelte';
 	let activeThread = $derived(getActiveThread());
 	let pendingThread = $derived(getPendingThread());
 	let highlightMessageId = $state<string | null>(null);
+	let deleteConfirmOpen = $state(false);
+	let pendingDeleteId = $state<string | null>(null);
+	let deleteConfirmMessage = $state('Are you sure you want to delete this message? This cannot be undone.');
 
 	$effect(() => {
 		const chId = channelId;
@@ -161,12 +165,28 @@ import VoiceChannelView from '$lib/components/VoiceChannelView.svelte';
 		}
 	}
 
-	async function handleDelete(id: string) {
-		try {
-			await deleteMessage(id);
-		} catch {
-			// handle error
+	function handleDelete(id: string) {
+		pendingDeleteId = id;
+		const thread = findThreadByParentMessage(id);
+		if (thread) {
+			const count = thread.reply_count ?? 0;
+			deleteConfirmMessage = `This message has a thread with ${count} ${count === 1 ? 'reply' : 'replies'}. Deleting this message will also permanently delete the thread and all its messages.`;
+		} else {
+			deleteConfirmMessage = 'Are you sure you want to delete this message? This cannot be undone.';
 		}
+		deleteConfirmOpen = true;
+	}
+
+	async function confirmDelete() {
+		deleteConfirmOpen = false;
+		if (!pendingDeleteId) return;
+		try { await deleteMessage(pendingDeleteId); } catch { /* */ }
+		pendingDeleteId = null;
+	}
+
+	function cancelDelete() {
+		deleteConfirmOpen = false;
+		pendingDeleteId = null;
 	}
 
 	function startEdit(id: string, content: string) {
@@ -249,6 +269,14 @@ import VoiceChannelView from '$lib/components/VoiceChannelView.svelte';
 	{/if}
 	</div>
 {/if}
+
+<ConfirmDialog
+	open={deleteConfirmOpen}
+	title="Delete Message"
+	message={deleteConfirmMessage}
+	onconfirm={confirmDelete}
+	oncancel={cancelDelete}
+/>
 
 <style>
 	.channel-view {

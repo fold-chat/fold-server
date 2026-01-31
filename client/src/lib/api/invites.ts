@@ -7,6 +7,7 @@ export interface Invite {
 	max_uses: number | null;
 	use_count: number;
 	expires_at: string | null;
+	revoked_at: string | null;
 	created_at: string;
 }
 
@@ -28,7 +29,11 @@ export function getInvites() {
 }
 
 export function revokeInvite(code: string) {
-	return api<void>(`/invites/${code}`, { method: 'DELETE' });
+	return api<Invite>(`/invites/${code}`, { method: 'DELETE' });
+}
+
+export function reinstateInvite(code: string) {
+	return api<Invite>(`/invites/${code}/reinstate`, { method: 'POST' });
 }
 
 export function getInviteInfo(code: string) {

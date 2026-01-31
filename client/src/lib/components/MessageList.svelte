@@ -244,7 +244,7 @@ import type { Message } from '$lib/api/messages.js';
 		<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id} class:highlighted={highlightMessageId === msg.id} data-message-id={msg.id}>
 				{#if newGroup}
 					<div class="message-header">
-						<span class="author">{msg.author_display_name || msg.author_username || 'Unknown'}</span>
+						<button class="author" onclick={() => openMemberProfile(msg.author_id)}>{ msg.author_display_name || msg.author_username || 'Unknown'}</button>
 						<span class="timestamp">{formatTimestamp(msg.created_at)}</span>
 					</div>
 				{/if}
@@ -330,10 +330,12 @@ import type { Message } from '$lib/api/messages.js';
 					{#if canCreateThreads && !msgThread && !msg.thread_id}
 						<button class="action-btn" onclick={() => onStartThread?.(msg.id)} title="Start Thread">💬</button>
 					{/if}
-					{#if (msg.author_id === currentUserId && canManageOwnMessages) || canManageMessages}
-						<button class="action-btn" onclick={() => onStartEdit?.(msg.id, msg.content)} title="Edit">✏️</button>
+				{#if (msg.author_id === currentUserId && canManageOwnMessages) || canManageMessages}
+					<button class="action-btn" onclick={() => onStartEdit?.(msg.id, msg.content)} title="Edit">✏️</button>
+					{#if !msgThread || canManageMessages}
 						<button class="action-btn" onclick={() => onDelete?.(msg.id)} title="Delete">🗑️</button>
 					{/if}
+				{/if}
 				</div>
 			{/if}
 			</div>
@@ -433,6 +435,16 @@ import type { Message } from '$lib/api/messages.js';
 	.author {
 		font-weight: 600;
 		font-size: 0.9rem;
+		background: none;
+		border: none;
+		padding: 0;
+		color: var(--text);
+		cursor: pointer;
+		font-family: inherit;
+	}
+
+	.author:hover {
+		text-decoration: underline;
 	}
 
 	.timestamp {

@@ -10,11 +10,14 @@
 	const canManageServer = $derived(hasServerPermission(PermissionName.MANAGE_SERVER));
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
 	const canBan = $derived(hasServerPermission(PermissionName.BAN_MEMBERS));
+	const canInvite = $derived(
+		hasServerPermission(PermissionName.CREATE_INVITES) || hasServerPermission(PermissionName.MANAGE_INVITES)
+	);
 	const canViewAudit = $derived(
 		hasServerPermission(PermissionName.ADMINISTRATOR) || hasServerPermission(PermissionName.MANAGE_SERVER)
 	);
 	const canVoice = $derived(canManageServer && isVoiceVideoEnabled());
-	const showServerGroup = $derived(canManageServer || canManageRoles || canBan || canViewAudit || canVoice);
+	const showServerGroup = $derived(canManageServer || canManageRoles || canBan || canInvite || canViewAudit || canVoice);
 
 	function isActive(path: string): boolean {
 		return page.url.pathname === path;
@@ -41,6 +44,9 @@
 				{/if}
 				{#if canManageRoles || canBan}
 					<a class="nav-item" class:active={isActive('/settings/members')} href="/settings/members">Members</a>
+				{/if}
+				{#if canInvite}
+					<a class="nav-item" class:active={isActive('/settings/invites')} href="/settings/invites">Invites</a>
 				{/if}
 				{#if canVoice}
 					<a class="nav-item" class:active={isActive('/settings/voice')} href="/settings/voice">Voice</a>

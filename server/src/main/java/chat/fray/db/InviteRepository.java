@@ -25,10 +25,11 @@ public class InviteRepository {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
     }
 
-    /** Find valid invite: not expired and not exhausted */
+    /** Find valid invite: not expired, not exhausted, not revoked */
     public Optional<Map<String, Object>> findValidByCode(String code) {
         var rows = db.query("""
                 SELECT * FROM invite WHERE code = ?
+                AND revoked_at IS NULL
                 AND (expires_at IS NULL OR expires_at > datetime('now'))
                 AND (max_uses IS NULL OR use_count < max_uses)
                 """, code);
@@ -39,11 +40,19 @@ public class InviteRepository {
         db.execute("UPDATE invite SET use_count = use_count + 1 WHERE code = ?", code);
     }
 
+    public void revoke(String code) {
+        db.execute("UPDATE invite SET revoked_at = datetime('now') WHERE code = ?", code);
+    }
+
+    public void reinstate(String code) {
+        db.execute("UPDATE invite SET revoked_at = NULL WHERE code = ?", code);
+    }
+
     public void delete(String code) {
         db.execute("DELETE FROM invite WHERE code = ?", code);
     }
 
-    public List<Map<String, Object>> listActive() {
+    public List<Map<String, Object>> listAll() {
         return db.query("""
                 SELECT * FROM invite
                 WHERE (expires_at IS NULL OR expires_at > datetime('now'))

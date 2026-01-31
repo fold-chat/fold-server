@@ -1,5 +1,10 @@
 const BASE = '/api/v0';
 
+const PUBLIC_PATHS = ['/login', '/register', '/setup', '/invite'];
+function isPublicPath(path: string): boolean {
+	return PUBLIC_PATHS.some((p) => path === p || path.startsWith(p + '/'));
+}
+
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -44,8 +49,8 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 			});
 			if (retry.ok) return retry.json();
 		}
-		// Refresh failed — redirect to login
-		if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+		// Refresh failed — redirect to login (skip for public routes)
+		if (typeof window !== 'undefined' && !isPublicPath(window.location.pathname)) {
 			window.location.href = '/login';
 		}
 		throw { error: 'authentication_required' } as ApiError;

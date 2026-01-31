@@ -16,6 +16,7 @@
 	import { send } from '$lib/stores/ws.svelte.js';
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 
 	let channelId = $derived(page.params.id!);
 	let threadId = $derived(page.params.threadId!);
@@ -48,6 +49,8 @@
 	let editContent = $state('');
 	let typingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 	let stopTypingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+	let deleteConfirmOpen = $state(false);
+	let pendingDeleteId = $state<string | null>(null);
 
 	$effect(() => {
 		const tId = threadId;
@@ -133,8 +136,21 @@
 		} catch { /* */ }
 	}
 
-	async function handleDelete(id: string) {
-		try { await deleteMessage(id); } catch { /* */ }
+	function handleDelete(id: string) {
+		pendingDeleteId = id;
+		deleteConfirmOpen = true;
+	}
+
+	async function confirmDelete() {
+		deleteConfirmOpen = false;
+		if (!pendingDeleteId) return;
+		try { await deleteMessage(pendingDeleteId); } catch { /* */ }
+		pendingDeleteId = null;
+	}
+
+	function cancelDelete() {
+		deleteConfirmOpen = false;
+		pendingDeleteId = null;
 	}
 
 	function startEdit(id: string, content: string) {
@@ -203,6 +219,14 @@
 		{/if}
 	{/if}
 </div>
+
+<ConfirmDialog
+	open={deleteConfirmOpen}
+	title="Delete Message"
+	message="Are you sure you want to delete this message? This cannot be undone."
+	onconfirm={confirmDelete}
+	oncancel={cancelDelete}
+/>
 
 <style>
 	.thread-detail {

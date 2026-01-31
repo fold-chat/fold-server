@@ -15,6 +15,7 @@
 	import { formatTimestamp, renderMarkdown } from '$lib/utils/markdown.js';
 	import MessageList from './MessageList.svelte';
 	import MessageCompose from './MessageCompose.svelte';
+	import ConfirmDialog from './ConfirmDialog.svelte';
 
 	let editingId = $state<string | null>(null);
 	let editContent = $state('');
@@ -22,6 +23,8 @@
 	let stopTypingTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 	let parentMessage = $state<Message | null>(null);
 	let parentMessageLoading = $state(false);
+	let deleteConfirmOpen = $state(false);
+	let pendingDeleteId = $state<string | null>(null);
 
 	let thread = $derived(getActiveThread());
 	let pending = $derived(getPendingThread());
@@ -160,8 +163,21 @@
 		} catch { /* */ }
 	}
 
-	async function handleDelete(id: string) {
-		try { await deleteMessage(id); } catch { /* */ }
+	function handleDelete(id: string) {
+		pendingDeleteId = id;
+		deleteConfirmOpen = true;
+	}
+
+	async function confirmDelete() {
+		deleteConfirmOpen = false;
+		if (!pendingDeleteId) return;
+		try { await deleteMessage(pendingDeleteId); } catch { /* */ }
+		pendingDeleteId = null;
+	}
+
+	function cancelDelete() {
+		deleteConfirmOpen = false;
+		pendingDeleteId = null;
 	}
 
 	function startEdit(id: string, content: string) {
@@ -244,6 +260,14 @@
 		{/if}
 	</div>
 {/if}
+
+<ConfirmDialog
+	open={deleteConfirmOpen}
+	title="Delete Message"
+	message="Are you sure you want to delete this message? This cannot be undone."
+	onconfirm={confirmDelete}
+	oncancel={cancelDelete}
+/>
 
 <style>
 	.thread-panel {

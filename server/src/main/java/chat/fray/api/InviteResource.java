@@ -44,7 +44,7 @@ public class InviteResource {
     @GET
     public Response list() {
         permissionService.requireServerPermission(sc().getUserId(), Permission.CREATE_INVITES);
-        return Response.ok(inviteRepo.listActive()).build();
+        return Response.ok(inviteRepo.listAll()).build();
     }
 
     @GET
@@ -73,9 +73,23 @@ public class InviteResource {
             return Response.status(404).entity(Map.of("error", "not_found")).build();
         }
         var inviteId = (String) invite.get().get("id");
-        inviteRepo.delete(code);
+        inviteRepo.revoke(code);
         auditLogService.log(sc().getUserId(), "INVITE_REVOKE", "invite", inviteId, Map.of("code", code));
-        return Response.noContent().build();
+        return Response.ok(inviteRepo.findByCode(code).orElse(Map.of())).build();
+    }
+
+    @POST
+    @Path("/{code}/reinstate")
+    public Response reinstate(@PathParam("code") String code) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_INVITES);
+        var invite = inviteRepo.findByCode(code);
+        if (invite.isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+        var inviteId = (String) invite.get().get("id");
+        inviteRepo.reinstate(code);
+        auditLogService.log(sc().getUserId(), "INVITE_REINSTATE", "invite", inviteId, Map.of("code", code));
+        return Response.ok(inviteRepo.findByCode(code).orElse(Map.of())).build();
     }
 
     // --- DTOs ---
@@ -98,6 +112,7 @@ public class InviteResource {
     }
 
     private static boolean isValid(Map<String, Object> invite) {
+        if (invite.get("revoked_at") != null) return false;
         var expiresAt = invite.get("expires_at");
         if (expiresAt != null && !expiresAt.toString().isEmpty()) {
             if (java.time.Instant.parse(expiresAt.toString()).isBefore(java.time.Instant.now())) {

@@ -5,8 +5,10 @@ import chat.fray.auth.FraySecurityContext;
 import chat.fray.auth.RateLimitFilter;
 import chat.fray.auth.RateLimitPolicy;
 import chat.fray.auth.RateLimitService;
+import chat.fray.db.DatabaseService;
 import chat.fray.db.MessageRepository;
 import chat.fray.db.ReactionRepository;
+import chat.fray.db.ThreadRepository;
 import chat.fray.event.*;
 import chat.fray.security.Permission;
 import chat.fray.security.PermissionService;
@@ -30,8 +32,10 @@ import java.util.UUID;
 @Consumes(MediaType.APPLICATION_JSON)
 public class MessageResource {
 
+    @Inject DatabaseService dbService;
     @Inject MessageRepository messageRepo;
     @Inject ReactionRepository reactionRepo;
+    @Inject ThreadRepository threadRepo;
     @Inject FileService fileService;
     @Inject RateLimitService rateLimitService;
     @Inject PermissionService permissionService;
@@ -106,7 +110,25 @@ public class MessageResource {
         }
 
         String channelId = (String) msgToDelete.get("channel_id");
-        messageRepo.delete(id);
+
+        // Check if message has an attached thread
+        var attachedThread = threadRepo.findByParentMessageId(id);
+        if (attachedThread.isPresent()) {
+            // Deleting a message with a thread requires MANAGE_MESSAGES (even if author)
+            // because the thread may contain other users' messages
+            permissionService.requirePermission(sc.getUserId(), channelId, Permission.MANAGE_MESSAGES);
+
+            String threadId = (String) attachedThread.get().get("id");
+            // Delete thread first (cascades to thread messages), then parent message
+            dbService.transactionVoid(tx -> {
+                tx.execute("DELETE FROM thread WHERE id = ?", threadId);
+                tx.execute("DELETE FROM message WHERE id = ?", id);
+            });
+            eventBus.publish(Event.of(EventType.THREAD_DELETE, Map.of("id", threadId, "channel_id", channelId), Scope.channel(channelId)));
+        } else {
+            messageRepo.delete(id);
+        }
+
         eventBus.publish(Event.of(EventType.MESSAGE_DELETE, Map.of("id", id, "channel_id", channelId), Scope.channel(channelId)));
         return Response.noContent().build();
     }
