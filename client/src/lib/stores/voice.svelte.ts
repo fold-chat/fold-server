@@ -14,6 +14,7 @@ import {
 	getLocalVideoTracks,
 	getParticipantVideoTrack as lkGetParticipantVideoTrack,
 	getParticipantScreenTrack as lkGetParticipantScreenTrack,
+	getSignalRtt,
 	type LiveKitCallbacks
 } from '$lib/voice/livekit.js';
 import { Track, ConnectionState } from 'livekit-client';
@@ -52,6 +53,10 @@ let videoTrackRevision = $state(0);
 let pttEnabled = $state(false);
 let pttKey = $state<string | null>(null);
 let pttActive = $state(false);
+
+// Latency polling
+let voiceLatencyMs = $state(0);
+let latencyInterval: ReturnType<typeof setInterval> | null = null;
 
 // --- Getters ---
 
@@ -141,6 +146,10 @@ export function getPttKey(): string | null {
 
 export function isPttActive(): boolean {
 	return pttActive;
+}
+
+export function getVoiceLatencyMs(): number {
+	return voiceLatencyMs;
 }
 
 export function isServerMuted(): boolean {
@@ -296,6 +305,7 @@ export async function joinVoice(channelId: string) {
 			makeLiveKitCallbacks()
 		);
 
+		startLatencyPolling();
 		return resp;
 	} catch (e: any) {
 		currentVoiceChannelId = null;
@@ -308,6 +318,7 @@ export async function joinVoice(channelId: string) {
 export async function leaveCurrentVoice() {
 	if (!currentVoiceChannelId) return;
 
+	stopLatencyPolling();
 	// Disconnect from LiveKit first
 	await disconnectFromRoom(false);
 	speakingUserIds = new Set();
@@ -410,6 +421,7 @@ export async function pttKeyUp() {
 }
 
 export function resetVoiceState() {
+	stopLatencyPolling();
 	voiceStates = new Map();
 	currentVoiceChannelId = null;
 	localAudioMuted = false;
@@ -433,6 +445,7 @@ export function resetVoiceState() {
 	pttEnabled = false;
 	pttKey = null;
 	pttActive = false;
+	voiceLatencyMs = 0;
 	disconnectFromRoom(false).catch(() => {});
 }
 
@@ -483,4 +496,22 @@ function updateVideoTrackState() {
 	const local = getLocalVideoTracks();
 	hasVideoTracks = remote.length > 0 || local.length > 0;
 	videoTrackRevision++;
+}
+
+// --- Latency polling ---
+
+function startLatencyPolling() {
+	stopLatencyPolling();
+	voiceLatencyMs = Math.round(getSignalRtt());
+	latencyInterval = setInterval(() => {
+		voiceLatencyMs = Math.round(getSignalRtt());
+	}, 2000);
+}
+
+function stopLatencyPolling() {
+	if (latencyInterval) {
+		clearInterval(latencyInterval);
+		latencyInterval = null;
+	}
+	voiceLatencyMs = 0;
 }

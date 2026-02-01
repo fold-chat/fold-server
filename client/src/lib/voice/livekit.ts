@@ -318,6 +318,12 @@ export function getParticipantScreenTrack(userId: string): RemoteTrack | LocalTr
 	return pub?.track ?? null;
 }
 
+// --- Latency ---
+
+export function getSignalRtt(): number {
+	return room?.engine?.client?.rtt ?? 0;
+}
+
 // --- Helpers ---
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {

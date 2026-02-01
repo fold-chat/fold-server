@@ -16,7 +16,8 @@
 		toggleDeafen,
 		toggleCamera,
 		toggleScreenShare,
-		leaveCurrentVoice
+		leaveCurrentVoice,
+		getVoiceLatencyMs
 	} from '$lib/stores/voice.svelte.js';
 	import { getRoom, getVideoTracks, getLocalVideoTracks } from '$lib/voice/livekit.js';
 	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
@@ -187,6 +188,9 @@
 	<div class="voice-header">
 		<span class="voice-icon">🔊</span>
 		<h2 class="voice-channel-name">{channelName}</h2>
+		{#if isConnected && getVoiceLatencyMs() > 0}
+			<span class="voice-latency" style="color: {getVoiceLatencyMs() <= 80 ? '#2ecc71' : getVoiceLatencyMs() <= 150 ? '#f39c12' : '#e74c3c'}">{getVoiceLatencyMs()}ms</span>
+		{/if}
 	</div>
 
 	{#if isConnected}
@@ -427,6 +431,12 @@
 		font-size: 0.9rem;
 		font-weight: 600;
 		margin: 0;
+	}
+
+	.voice-latency {
+		font-size: 0.7rem;
+		font-weight: 500;
+		margin-left: auto;
 	}
 
 	/* ── Connected view ── */

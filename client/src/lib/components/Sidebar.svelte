@@ -498,7 +498,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 				{#if getLivekitConnectionState() === 'reconnecting'}
 					<span class="voice-bar-label" style="color: #f39c12">Reconnecting…</span>
 				{:else}
-					<span class="voice-bar-label">Voice Connected</span>
+				<span class="voice-bar-label">Voice Connected</span>
 				{/if}
 				<span class="voice-bar-channel">🔊 {voiceChannelName}
 					{#if isE2eeCapability() && !isE2eeActive()}
@@ -1041,6 +1041,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
 	}
+
 
 	.voice-bar-channel {
 		font-size: 0.75rem;
