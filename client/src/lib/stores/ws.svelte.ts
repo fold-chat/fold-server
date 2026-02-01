@@ -9,6 +9,7 @@ import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeS
 import { setMembers, removeMember, updateMember, getMembers as getStoreMembers } from './members.svelte.js';
 import { getUser, setPermissions, setMediaSearchEnabled, setServerSettings } from './auth.svelte.js';
 import { hydrateVoiceStates, setVoiceVideoEnabled, handleVoiceStateUpdate, handleVoiceMove, handleVoiceKeyRotate } from './voice.svelte.js';
+import { setOnlineUserIds, setUserOnline, setUserOffline } from './presence.svelte.js';
 import { goto } from '$app/navigation';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
@@ -194,6 +195,9 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 		case 'VOICE_KEY_ROTATE':
 			if (msg.d) handleVoiceKeyRotate(msg.d);
 			break;
+		case 'PRESENCE_UPDATE':
+			if (msg.d) handlePresenceUpdate(msg.d);
+			break;
 	}
 }
 
@@ -207,6 +211,7 @@ interface HelloPayload {
 	unread_counts: Array<{ channel_id: string; unread_count: number }>;
 	thread_read_states: ThreadReadState[];
 	user_permissions: { server: string[]; channels: Record<string, string[]> };
+	online_user_ids?: string[];
 	heartbeat_interval_ms: number;
 	session_id: string;
 	media_search?: boolean;
@@ -247,6 +252,23 @@ function handleChannelPermissionsUpdate(data: Record<string, unknown>) {
 	}
 }
 
+function handlePresenceUpdate(data: Record<string, unknown>) {
+	const userId = data.user_id as string;
+	const status = data.status as string;
+	if (!userId) return;
+	if (status === 'online') {
+		setUserOnline(userId);
+	} else if (status === 'offline') {
+		setUserOffline(userId);
+		// Update last_seen_at on the member in store
+		const lastSeen = data.last_seen_at as string | null;
+		if (lastSeen) {
+			const existing = getStoreMembers().find(m => m.id === userId);
+			if (existing) updateMember({ ...existing, last_seen_at: lastSeen });
+		}
+	}
+}
+
 function handleHello(data: HelloPayload) {
 	sessionId = data.session_id;
 	setChannels(data.channels ?? []);
@@ -264,6 +286,7 @@ function handleHello(data: HelloPayload) {
 	}
 	setMediaSearchEnabled(data.media_search ?? false);
 	if (data.server_settings) setServerSettings(data.server_settings);
+	if (data.online_user_ids) setOnlineUserIds(data.online_user_ids);
 	// Server sends voice_states as { channelId: VoiceState[] } — flatten to array
 	const rawVs = data.voice_states;
 	let voiceArr: import('$lib/api/voice.js').VoiceState[] = [];

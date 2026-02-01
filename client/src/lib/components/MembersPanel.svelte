@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getMembers } from '$lib/stores/members.svelte.js';
 	import { getPendingUserId, clearPendingUserId } from '$lib/stores/membersPanel.svelte.js';
+	import { isUserOnline, getOnlineCount } from '$lib/stores/presence.svelte.js';
 	import type { Member, RoleBadge } from '$lib/api/users.js';
 
 	let selectedMember = $state<Member | null>(null);
@@ -62,11 +63,14 @@
 			group.members.push(m);
 		}
 
-		// Sort members within each group alphabetically
+		// Sort members within each group: online first, then alphabetically
 		for (const group of roleMap.values()) {
-			group.members.sort((a, b) =>
-				(a.display_name || a.username).localeCompare(b.display_name || b.username)
-			);
+			group.members.sort((a, b) => {
+				const aOnline = isUserOnline(a.id) ? 0 : 1;
+				const bOnline = isUserOnline(b.id) ? 0 : 1;
+				if (aOnline !== bOnline) return aOnline - bOnline;
+				return (a.display_name || a.username).localeCompare(b.display_name || b.username);
+			});
 		}
 
 		// Sort groups by role priority
@@ -91,6 +95,31 @@
 			return dateStr;
 		}
 	}
+
+	function relativeTime(dateStr: string | null): string {
+		if (!dateStr) return 'Unknown';
+		try {
+			const now = Date.now();
+			const then = new Date(dateStr + 'Z').getTime();
+			const diffSec = Math.floor((now - then) / 1000);
+			if (diffSec < 60) return 'Just now';
+			if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+			if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+			if (diffSec < 172800) return 'Yesterday';
+			return formatDate(dateStr);
+		} catch {
+			return dateStr;
+		}
+	}
+
+	const activeMembers = $derived(getMembers().filter(m => !m.banned_at));
+	const onlineCount = $derived.by(() => {
+		let count = 0;
+		for (const m of activeMembers) {
+			if (isUserOnline(m.id)) count++;
+		}
+		return count;
+	});
 </script>
 
 <aside class="members-panel">
@@ -109,6 +138,17 @@
 					{/if}
 					<span class="profile-username">@{selectedMember.username}</span>
 				</div>
+			</div>
+			<div class="profile-presence">
+				<span class="presence-dot" class:online={isUserOnline(selectedMember.id)} class:offline={!isUserOnline(selectedMember.id)}></span>
+				{#if isUserOnline(selectedMember.id)}
+					<span class="presence-label online">Online</span>
+				{:else}
+					<span class="presence-label offline">Offline</span>
+					{#if selectedMember.last_seen_at}
+						<span class="last-seen"> · Last seen {relativeTime(selectedMember.last_seen_at)}</span>
+					{/if}
+				{/if}
 			</div>
 			{#if selectedMember.status_text}
 				<div class="profile-field">
@@ -138,18 +178,21 @@
 			</div>
 		</div>
 	{:else}
-		<div class="members-header">Members — {getMembers().filter(m => !m.banned_at).length}</div>
+		<div class="members-header">Members — {onlineCount}/{activeMembers.length}</div>
 		<div class="members-list">
 			{#each groupedMembers as group}
 				<div class="role-group">
 					<div class="role-name" style:color={group.role.color || 'var(--text-muted)'}>{group.role.name} — {group.members.length}</div>
 					{#each group.members as member}
-						<button class="member-item" onclick={() => selectMember(member)}>
-							{#if member.avatar_url}
-								<img class="member-avatar" src={member.avatar_url} alt="" />
-							{:else}
-								<span class="member-avatar-placeholder">{(member.display_name || member.username).charAt(0).toUpperCase()}</span>
-							{/if}
+						<button class="member-item" class:offline={!isUserOnline(member.id)} onclick={() => selectMember(member)}>
+							<div class="avatar-wrapper">
+								{#if member.avatar_url}
+									<img class="member-avatar" src={member.avatar_url} alt="" />
+								{:else}
+									<span class="member-avatar-placeholder">{(member.display_name || member.username).charAt(0).toUpperCase()}</span>
+								{/if}
+								<span class="status-dot" class:online={isUserOnline(member.id)}></span>
+							</div>
 							<span class="member-name">{member.display_name || member.username}</span>
 							{#if member.status_text}
 								<span class="member-status">{member.status_text}</span>
@@ -223,12 +266,18 @@
 		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
 	}
 
+	.avatar-wrapper {
+		position: relative;
+		flex-shrink: 0;
+		width: 32px;
+		height: 32px;
+	}
+
 	.member-avatar {
 		width: 32px;
 		height: 32px;
 		border-radius: 50%;
 		object-fit: cover;
-		flex-shrink: 0;
 	}
 
 	.member-avatar-placeholder {
@@ -242,7 +291,29 @@
 		font-size: 0.75rem;
 		font-weight: 600;
 		color: white;
-		flex-shrink: 0;
+	}
+
+	.status-dot {
+		position: absolute;
+		bottom: -1px;
+		right: -1px;
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		border: 2px solid var(--bg-surface);
+		background: var(--text-muted);
+	}
+
+	.status-dot.online {
+		background: #23a55a;
+	}
+
+	.member-item.offline {
+		opacity: 0.5;
+	}
+
+	.member-item.offline:hover {
+		opacity: 0.8;
 	}
 
 	.member-name {
@@ -359,5 +430,43 @@
 		border: 1px solid currentColor;
 		border-radius: 4px;
 		opacity: 0.8;
+	}
+
+	/* Presence in profile detail */
+	.profile-presence {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.8rem;
+	}
+
+	.presence-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.presence-dot.online {
+		background: #23a55a;
+	}
+
+	.presence-dot.offline {
+		background: var(--text-muted);
+	}
+
+	.presence-label.online {
+		color: #23a55a;
+		font-weight: 600;
+	}
+
+	.presence-label.offline {
+		color: var(--text-muted);
+		font-weight: 600;
+	}
+
+	.last-seen {
+		color: var(--text-muted);
+		font-size: 0.75rem;
 	}
 </style>

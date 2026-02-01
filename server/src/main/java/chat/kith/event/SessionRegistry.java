@@ -20,7 +20,6 @@ public class SessionRegistry {
 
     public void register(String userId, String username, WebSocketConnection connection) {
         sessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(connection);
-        System.out.println(sessions.size());
         connectionToUser.put(connection.id(), userId);
         sessionMeta.put(connection.id(), new SessionMeta(userId, username, connection.id(), System.currentTimeMillis()));
     }

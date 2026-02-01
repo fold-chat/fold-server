@@ -12,7 +12,6 @@ import io.quarkus.websockets.next.*;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
-import java.net.HttpCookie;
 import java.util.*;
 
 @WebSocket(path = "/api/ws")
@@ -41,7 +40,6 @@ public class KithWebSocket {
 
     @OnOpen
     public String onOpen(WebSocketConnection connection) {
-        System.out.println("opened");
         // Parse cookie from handshake headers
         var cookieHeader = connection.handshakeRequest().header("Cookie");
         String token = parseCookie(cookieHeader, "kith_access");
@@ -63,8 +61,18 @@ public class KithWebSocket {
         String userId = c.getSubject();
         String username = (String) c.get("usr");
 
+        boolean wasOnline = registry.isOnline(userId);
         registry.register(userId, username, connection);
         LOG.debugf("WS connected: %s (%s)", username, connection.id());
+
+        // Broadcast presence if user just came online (0→1 connections)
+        if (!wasOnline) {
+            eventBus.publish(Event.of(
+                    EventType.PRESENCE_UPDATE,
+                    Map.of("user_id", userId, "status", "online"),
+                    Scope.server()
+            ));
+        }
 
         // Build HELLO payload
         return buildHello(userId);
@@ -95,6 +103,17 @@ public class KithWebSocket {
         registry.unregister(connection);
         if (meta != null) {
             LOG.debugf("WS disconnected: %s (%s)", meta.username(), connection.id());
+            // If user has no remaining connections, they went offline
+            if (!registry.isOnline(meta.userId())) {
+                userRepo.updateLastSeen(meta.userId());
+                var user = userRepo.findById(meta.userId());
+                String lastSeen = user.map(u -> (String) u.get("last_seen_at")).orElse(null);
+                var data = new LinkedHashMap<String, Object>();
+                data.put("user_id", meta.userId());
+                data.put("status", "offline");
+                data.put("last_seen_at", lastSeen);
+                eventBus.publish(Event.of(EventType.PRESENCE_UPDATE, data, Scope.server()));
+            }
         }
     }
 
@@ -207,6 +226,7 @@ var members = userRepo.listMembers(false);
             hello.put("unread_counts", filteredUnreadCounts);
             hello.put("thread_read_states", threadReadStates);
             hello.put("user_permissions", userPermissions);
+            hello.put("online_user_ids", registry.onlineUserIds());
             hello.put("heartbeat_interval_ms", 30000);
             hello.put("session_id", UUID.randomUUID().toString());
             hello.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
