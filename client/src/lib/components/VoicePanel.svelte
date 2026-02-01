@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getRoom, getVideoTracks, getLocalVideoTracks } from '$lib/voice/livekit.js';
 	import { Track } from 'livekit-client';
-	import { getCurrentVoiceChannelId, getHasVideoTracks, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isSpeaking } from '$lib/stores/voice.svelte.js';
+import { getCurrentVoiceChannelId, getHasVideoTracks, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isSpeaking, isE2eeCapability, isE2eeActive } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
 	import { hasChannelPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
@@ -82,7 +82,9 @@
 	<div class="voice-panel">
 		<div class="voice-panel-header">
 			<span class="voice-panel-title">🔊 {channel?.name ?? 'Voice'}</span>
-			<span class="e2ee-badge" title="End-to-end encrypted">🔒 E2EE</span>
+			{#if isE2eeCapability() && isE2eeActive()}
+				<span class="e2ee-badge" title="End-to-end encrypted">🔒 E2EE</span>
+			{/if}
 		</div>
 
 		<div class="video-grid" class:single={tiles.length === 1} class:duo={tiles.length === 2}>
@@ -103,7 +105,9 @@
 						{#if tile.isLocal}
 							<span class="tile-badge">You</span>
 						{/if}
+					{#if isE2eeCapability() && isE2eeActive()}
 						<span class="tile-e2ee" title="Encrypted">🔒</span>
+					{/if}
 					</div>
 				</div>
 			{/each}

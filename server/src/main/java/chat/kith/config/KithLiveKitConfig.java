@@ -61,4 +61,8 @@ public interface KithLiveKitConfig {
 
     /** Webhook secret (defaults to api-secret if not set) */
     Optional<String> webhookSecret();
+
+    /** Enable E2EE for voice/video (only needed with external LiveKit server) */
+    @WithDefault("false")
+    boolean e2ee();
 }

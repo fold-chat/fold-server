@@ -8,7 +8,7 @@ import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
 import { setMembers, removeMember, updateMember, getMembers as getStoreMembers } from './members.svelte.js';
 import { getUser, setPermissions, setMediaSearchEnabled, setServerSettings } from './auth.svelte.js';
-import { hydrateVoiceStates, setVoiceVideoEnabled, handleVoiceStateUpdate, handleVoiceMove, handleVoiceKeyRotate } from './voice.svelte.js';
+import { hydrateVoiceStates, setVoiceVideoEnabled, setE2eeCapability, handleVoiceStateUpdate, handleVoiceMove, handleVoiceKeyRotate } from './voice.svelte.js';
 import { setOnlineUserIds, setUserOnline, setUserOffline } from './presence.svelte.js';
 import { goto } from '$app/navigation';
 
@@ -217,7 +217,7 @@ interface HelloPayload {
 	media_search?: boolean;
 	server_settings?: { server_name?: string | null; server_icon?: string | null; server_description?: string | null };
 	voice_states?: Array<import('$lib/api/voice.js').VoiceState> | Record<string, Array<import('$lib/api/voice.js').VoiceState>>;
-	capabilities?: { voice_video?: boolean };
+	capabilities?: { voice_video?: boolean; e2ee?: boolean };
 }
 
 function handleUserStateUpdate(data: Record<string, unknown>) {
@@ -299,6 +299,7 @@ function handleHello(data: HelloPayload) {
 	}
 	hydrateVoiceStates(voiceArr);
 	setVoiceVideoEnabled(data.capabilities?.voice_video ?? false);
+	setE2eeCapability(data.capabilities?.e2ee ?? false);
 	startHeartbeat(data.heartbeat_interval_ms || 30000);
 }
 

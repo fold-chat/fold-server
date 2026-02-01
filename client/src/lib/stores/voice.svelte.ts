@@ -36,6 +36,7 @@ let serverDeafened = $state(false);
 
 // E2EE availability
 let e2eeActive = $state(false);
+let e2eeCapability = $state(false);
 
 // LiveKit integration state
 let speakingUserIds = $state<Set<string>>(new Set());
@@ -158,6 +159,14 @@ export function setE2eeActive(active: boolean) {
 	e2eeActive = active;
 }
 
+export function isE2eeCapability(): boolean {
+	return e2eeCapability;
+}
+
+export function setE2eeCapability(enabled: boolean) {
+	e2eeCapability = enabled;
+}
+
 // --- Setters / Hydration ---
 
 export function setVoiceVideoEnabled(enabled: boolean) {
@@ -240,7 +249,7 @@ export async function handleVoiceMove(data: Record<string, unknown>) {
 	}
 
 	// Reconnect to new LiveKit room if token provided
-	if (token && url && encryptionKey) {
+	if (token && url) {
 		try {
 			await connectToRoom(url, token, encryptionKey, keyIdx ?? 0, makeLiveKitCallbacks());
 			if (localAudioMuted) await setMicrophoneEnabled(false);
@@ -276,8 +285,8 @@ export async function joinVoice(channelId: string) {
 	try {
 		const resp = await getVoiceToken(channelId);
 		currentVoiceChannelId = channelId;
-		currentEncryptionKey = resp.encryption_key;
-		currentKeyIndex = resp.key_index;
+		currentEncryptionKey = resp.encryption_key ?? null;
+		currentKeyIndex = resp.key_index ?? 0;
 
 		await connectToRoom(
 			resp.url,
@@ -411,6 +420,7 @@ export function resetVoiceState() {
 	currentEncryptionKey = null;
 	currentKeyIndex = 0;
 	e2eeActive = false;
+	e2eeCapability = false;
 	lastJoinError = null;
 	speakingUserIds = new Set();
 	audioLevels = new Map();
@@ -463,6 +473,7 @@ function makeLiveKitCallbacks(): LiveKitCallbacks {
 		},
 		onE2EEStateChanged: (_identity, state) => {
 			e2eeActive = state === 'enabled';
+			// 'disabled' means server didn't send key — not a failure
 		}
 	};
 }

@@ -3,8 +3,8 @@ import { api } from './client.js';
 export interface VoiceTokenResponse {
 	token: string;
 	url: string;
-	encryption_key: string;
-	key_index: number;
+	encryption_key?: string;
+	key_index?: number;
 }
 
 export interface VoiceState {

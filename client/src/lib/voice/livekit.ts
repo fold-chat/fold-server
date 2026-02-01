@@ -44,18 +44,18 @@ export function isConnected(): boolean {
 }
 
 /**
- * Connect to a LiveKit room with E2EE.
+ * Connect to a LiveKit room, optionally with E2EE.
  * @param url LiveKit WS URL
  * @param token LiveKit access token
- * @param encryptionKey Base64-encoded AES-256 key
+ * @param encryptionKey Base64-encoded AES-256 key (omit to skip E2EE)
  * @param keyIndex Key index for ratcheting
  * @param cbs Event callbacks
  */
 export async function connectToRoom(
 	url: string,
 	token: string,
-	encryptionKey: string,
-	keyIndex: number,
+	encryptionKey: string | undefined,
+	keyIndex: number | undefined,
 	cbs: LiveKitCallbacks
 ): Promise<Room> {
 	// Disconnect existing room if any
@@ -65,22 +65,22 @@ export async function connectToRoom(
 
 	callbacks = cbs;
 
-	// Set up E2EE key provider
-	keyProvider = new ExternalE2EEKeyProvider();
-	const keyBytes = base64ToArrayBuffer(encryptionKey);
-	await keyProvider.setKey(keyBytes);
-
-	// Build E2EE options — worker from livekit-client dist
+	// Set up E2EE only when an encryption key is provided
 	let e2eeOptions: E2EEOptions | undefined;
-	try {
-		const workerUrl = new URL('livekit-client/e2ee-worker', import.meta.url);
-		e2eeOptions = {
-			keyProvider,
-			worker: new Worker(workerUrl, { type: 'module' })
-		};
-	} catch {
-		// E2EE not supported (e.g. Firefox) — connect without it
-		console.warn('[Voice] E2EE worker failed to load — connecting without encryption');
+	if (encryptionKey) {
+		keyProvider = new ExternalE2EEKeyProvider();
+		const keyBytes = base64ToArrayBuffer(encryptionKey);
+		await keyProvider.setKey(keyBytes);
+
+		try {
+			const workerUrl = new URL('livekit-client/e2ee-worker', import.meta.url);
+			e2eeOptions = {
+				keyProvider,
+				worker: new Worker(workerUrl, { type: 'module' })
+			};
+		} catch {
+			console.warn('[Voice] E2EE worker failed to load — connecting without encryption');
+		}
 	}
 
 	// Create and configure room
@@ -112,9 +112,12 @@ export async function connectToRoom(
 			console.warn('[Voice] Failed to enable E2EE');
 			callbacks?.onE2EEStateChanged?.('local', 'failed');
 		}
-	} else {
-		// E2EE not available (Firefox or worker load failure)
+	} else if (encryptionKey) {
+		// E2EE requested but worker failed (Firefox etc)
 		callbacks?.onE2EEStateChanged?.('local', 'unsupported');
+	} else {
+		// E2EE not enabled on server
+		callbacks?.onE2EEStateChanged?.('local', 'disabled');
 	}
 
 	// Enable microphone by default (user can mute after)

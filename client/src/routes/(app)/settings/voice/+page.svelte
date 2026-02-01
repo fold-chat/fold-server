@@ -3,7 +3,7 @@
 	import { PermissionName } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
 	import { getVoiceStats, rotateKey, type VoiceStats, type VoiceRoomStats } from '$lib/api/voice.js';
-	import { isVoiceVideoEnabled } from '$lib/stores/voice.svelte.js';
+import { isVoiceVideoEnabled, isE2eeCapability } from '$lib/stores/voice.svelte.js';
 	import { getChannels } from '$lib/stores/channels.svelte.js';
 
 	const canManageServer = $derived(hasServerPermission(PermissionName.MANAGE_SERVER));
@@ -94,7 +94,7 @@
 			<p class="muted">No stats loaded yet.</p>
 		{/if}
 
-		{#if voiceChannels.length > 0}
+		{#if voiceChannels.length > 0 && isE2eeCapability()}
 			<h3 class="subsection">E2EE Key Rotation</h3>
 			<p class="muted" style="margin-bottom: 0.5rem">Force-rotate the encryption key for a voice channel. All connected users will receive the new key automatically.</p>
 			<div class="key-rotation-list">

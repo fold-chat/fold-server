@@ -19,6 +19,7 @@ import chat.kith.security.Permission;
 import chat.kith.security.PermissionService;
 import chat.kith.db.VoiceKeyRepository;
 import chat.kith.db.VoiceStateRepository;
+import chat.kith.config.KithLiveKitConfig;
 import chat.kith.service.AuditLogService;
 import chat.kith.service.LiveKitService;
 import chat.kith.service.RoleService;
@@ -64,6 +65,7 @@ public class ChannelResource {
     @Inject AuditLogService auditLogService;
     @Inject VoiceKeyRepository voiceKeyRepo;
     @Inject VoiceStateRepository voiceStateRepo;
+    @Inject KithLiveKitConfig liveKitConfig;
     @Inject LiveKitService liveKitService;
     @Context ContainerRequestContext requestContext;
 
@@ -85,8 +87,8 @@ public class ChannelResource {
         String id = UUID.randomUUID().toString();
         int position = req.position() != null ? req.position() : channelRepo.nextPosition();
         channelRepo.create(id, req.name().trim(), type, req.category_id(), req.topic(), req.description(), position);
-        // Auto-generate E2EE key for voice channels
-        if ("VOICE".equals(type)) {
+        // Auto-generate E2EE key for voice channels (only when E2EE enabled)
+        if ("VOICE".equals(type) && liveKitConfig.e2ee()) {
             voiceKeyRepo.createKey(id);
         }
         var created = channelRepo.findById(id);

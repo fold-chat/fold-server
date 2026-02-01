@@ -7,6 +7,7 @@ import chat.kith.auth.RateLimitService;
 import chat.kith.db.ChannelRepository;
 import chat.kith.db.VoiceKeyRepository;
 import chat.kith.db.VoiceStateRepository;
+import chat.kith.config.KithLiveKitConfig;
 import chat.kith.event.*;
 import chat.kith.security.Permission;
 import chat.kith.security.PermissionService;
@@ -31,6 +32,7 @@ public class VoiceResource {
     private static final Logger LOG = Logger.getLogger(VoiceResource.class);
 
     @Inject LiveKitService liveKitService;
+    @Inject KithLiveKitConfig liveKitConfig;
     @Inject VoiceStateRepository voiceStateRepo;
     @Inject VoiceKeyRepository voiceKeyRepo;
     @Inject ChannelRepository channelRepo;
@@ -82,15 +84,6 @@ public class VoiceResource {
                 true, true // canPublish, canSubscribe
         );
 
-        // Fetch E2EE key
-        var keyOpt = voiceKeyRepo.getCurrentKey(req.channel_id());
-        if (keyOpt.isEmpty()) {
-            // Shouldn't happen — voice channels should always have a key
-            LOG.warnf("No E2EE key for voice channel %s, generating one", req.channel_id());
-            keyOpt = Optional.of(voiceKeyRepo.createKey(req.channel_id()));
-        }
-        var key = keyOpt.get();
-
         // Upsert voice state
         voiceStateRepo.upsert(sc.getUserId(), req.channel_id(), 0, 0);
 
@@ -100,9 +93,20 @@ public class VoiceResource {
         var result = new LinkedHashMap<String, Object>();
         result.put("token", token);
         result.put("url", liveKitService.getUrl());
-        result.put("encryption_key", Base64.getEncoder().encodeToString((byte[]) key.get("encryption_key")));
-        result.put("key_index", key.get("key_index"));
         result.put("can_video", canVideo);
+
+        // E2EE key — only when server-wide E2EE is enabled
+        if (liveKitConfig.e2ee()) {
+            var keyOpt = voiceKeyRepo.getCurrentKey(req.channel_id());
+            if (keyOpt.isEmpty()) {
+                LOG.warnf("No E2EE key for voice channel %s, generating one", req.channel_id());
+                keyOpt = Optional.of(voiceKeyRepo.createKey(req.channel_id()));
+            }
+            var key = keyOpt.get();
+            result.put("encryption_key", Base64.getEncoder().encodeToString((byte[]) key.get("encryption_key")));
+            result.put("key_index", key.get("key_index"));
+        }
+
         return Response.ok(result).build();
     }
 
@@ -276,15 +280,6 @@ public class VoiceResource {
         // Resolve username from session registry or DB — use userId as fallback
         String token = liveKitService.generateToken(userId, userId, req.target_channel_id(), true, true);
 
-        // Fetch E2EE key for target channel
-        var keyOpt = voiceKeyRepo.getCurrentKey(req.target_channel_id());
-        String encryptionKey = null;
-        long keyIndex = 0;
-        if (keyOpt.isPresent()) {
-            encryptionKey = Base64.getEncoder().encodeToString((byte[]) keyOpt.get().get("encryption_key"));
-            keyIndex = (Long) keyOpt.get().get("key_index");
-        }
-
         // Publish leave on old channel, join on new
         publishVoiceStates(channelId);
         publishVoiceStates(req.target_channel_id());
@@ -294,9 +289,14 @@ public class VoiceResource {
         moveData.put("channel_id", req.target_channel_id());
         moveData.put("token", token);
         moveData.put("url", liveKitService.getUrl());
-        if (encryptionKey != null) {
-            moveData.put("encryption_key", encryptionKey);
-            moveData.put("key_index", keyIndex);
+
+        // E2EE key for target channel — only when enabled
+        if (liveKitConfig.e2ee()) {
+            var keyOpt = voiceKeyRepo.getCurrentKey(req.target_channel_id());
+            if (keyOpt.isPresent()) {
+                moveData.put("encryption_key", Base64.getEncoder().encodeToString((byte[]) keyOpt.get().get("encryption_key")));
+                moveData.put("key_index", keyOpt.get().get("key_index"));
+            }
         }
         eventBus.publish(Event.of(EventType.VOICE_MOVE, moveData, Scope.user(userId)));
 
@@ -308,6 +308,9 @@ public class VoiceResource {
     @POST
     @Path("/{channelId}/rotate-key")
     public Response rotateKey(@PathParam("channelId") String channelId) {
+        if (!liveKitConfig.e2ee()) {
+            return Response.status(400).entity(Map.of("error", "e2ee_disabled", "message", "E2EE is not enabled")).build();
+        }
         var sc = sc();
         permissionService.requireServerPermission(sc.getUserId(), Permission.MANAGE_CHANNELS);
 

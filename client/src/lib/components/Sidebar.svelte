@@ -27,7 +27,7 @@ import {
 import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
 	import { cycleTheme, getThemePreference } from '$lib/stores/theme.svelte.js';
-	import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
+import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, isE2eeCapability, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
 	import { hasChannelPermission, getUser } from '$lib/stores/auth.svelte.js';
 	import { serverMute, serverUnmute, serverDeafen, serverUndeafen, disconnectUser, moveUser } from '$lib/api/voice.js';
@@ -501,7 +501,7 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 					<span class="voice-bar-label">Voice Connected</span>
 				{/if}
 				<span class="voice-bar-channel">🔊 {voiceChannelName}
-					{#if !isE2eeActive()}
+					{#if isE2eeCapability() && !isE2eeActive()}
 						<span class="e2ee-warn" title="E2EE unavailable — audio is not encrypted (browser may not support it)">⚠ No E2EE</span>
 					{/if}
 				</span>

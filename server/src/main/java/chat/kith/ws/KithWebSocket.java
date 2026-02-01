@@ -35,6 +35,7 @@ public class KithWebSocket {
     @Inject DatabaseService db;
     @Inject VoiceStateRepository voiceStateRepo;
     @Inject LiveKitService liveKitService;
+    @Inject chat.kith.config.KithLiveKitConfig liveKitConfig;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -245,6 +246,7 @@ var members = userRepo.listMembers(false);
             // Capabilities
             var capabilities = new LinkedHashMap<String, Object>();
             capabilities.put("voice_video", liveKitService.isEnabled());
+            capabilities.put("e2ee", liveKitConfig.e2ee());
             hello.put("capabilities", capabilities);
 
             // Server settings
