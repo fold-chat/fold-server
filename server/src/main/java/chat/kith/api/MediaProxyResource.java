@@ -32,10 +32,6 @@ import java.util.Set;
 public class MediaProxyResource {
 
     private static final String KLIPY_BASE = "https://api.klipy.com/v2";
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(5))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
     private static final Set<String> ALLOWED_DOMAINS = Set.of(
             "media.klipy.com", "klipy.com"
     );
@@ -46,6 +42,17 @@ public class MediaProxyResource {
     @Context ContainerRequestContext requestContext;
 
     private final ObjectMapper mapper = new ObjectMapper();
+    private volatile HttpClient httpClient;
+
+    private HttpClient httpClient() {
+        if (httpClient == null) {
+            httpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .followRedirects(HttpClient.Redirect.NORMAL)
+                    .build();
+        }
+        return httpClient;
+    }
 
     @GET
     @Path("/search")
@@ -134,7 +141,7 @@ public class MediaProxyResource {
                     .timeout(Duration.ofSeconds(15))
                     .GET()
                     .build();
-            var response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofByteArray());
+            var response = httpClient().send(request, HttpResponse.BodyHandlers.ofByteArray());
             if (response.statusCode() != 200) {
                 return Response.status(502).build();
             }
@@ -168,7 +175,7 @@ public class MediaProxyResource {
                     .GET()
                     .build();
 
-            var response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+            var response = httpClient().send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
                 return Response.status(502).entity(Map.of("error", "upstream_error")).build();
