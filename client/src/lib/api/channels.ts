@@ -10,6 +10,8 @@ export interface Channel {
 	position: number;
 	created_at: string;
 	settings: string | null;
+	icon: string | null;
+	icon_url: string | null;
 }
 
 export interface Category {
@@ -23,11 +25,11 @@ export function getChannels() {
 	return api<Channel[]>('/channels');
 }
 
-export function createChannel(data: { name: string; type?: string; category_id?: string | null; topic?: string; description?: string }) {
+export function createChannel(data: { name: string; type?: string; category_id?: string | null; topic?: string; description?: string; icon?: string | null; icon_url?: string | null }) {
 	return api<Channel>('/channels', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export function updateChannel(id: string, data: Partial<Pick<Channel, 'name' | 'topic' | 'description' | 'category_id' | 'position'>>) {
+export function updateChannel(id: string, data: Partial<Pick<Channel, 'name' | 'topic' | 'description' | 'category_id' | 'position' | 'icon' | 'icon_url'>>) {
 	return api<Channel>(`/channels/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
 

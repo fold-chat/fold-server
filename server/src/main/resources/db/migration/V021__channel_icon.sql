@@ -1,0 +1,2 @@
+ALTER TABLE channel ADD COLUMN icon TEXT;
+ALTER TABLE channel ADD COLUMN icon_url TEXT;

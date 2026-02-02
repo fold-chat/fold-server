@@ -13,10 +13,10 @@ public class ChannelRepository {
     @Inject
     DatabaseService db;
 
-    public void create(String id, String name, String type, String categoryId, String topic, String description, int position) {
+    public void create(String id, String name, String type, String categoryId, String topic, String description, int position, String icon, String iconUrl) {
         db.execute(
-                "INSERT INTO channel (id, name, type, category_id, topic, description, position) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                id, name, type, categoryId, topic, description, position
+                "INSERT INTO channel (id, name, type, category_id, topic, description, position, icon, icon_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                id, name, type, categoryId, topic, description, position, icon, iconUrl
         );
     }
 
@@ -29,10 +29,10 @@ public class ChannelRepository {
         return db.query("SELECT * FROM channel ORDER BY position, created_at");
     }
 
-    public void update(String id, String name, String topic, String description, String categoryId, Integer position) {
+    public void update(String id, String name, String topic, String description, String categoryId, Integer position, String icon, String iconUrl) {
         db.execute(
-                "UPDATE channel SET name = ?, topic = ?, description = ?, category_id = ?, position = ? WHERE id = ?",
-                name, topic, description, categoryId, position, id
+                "UPDATE channel SET name = ?, topic = ?, description = ?, category_id = ?, position = ?, icon = ?, icon_url = ? WHERE id = ?",
+                name, topic, description, categoryId, position, icon, iconUrl, id
         );
     }
 

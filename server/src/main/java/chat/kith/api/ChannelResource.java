@@ -86,7 +86,7 @@ public class ChannelResource {
         }
         String id = UUID.randomUUID().toString();
         int position = req.position() != null ? req.position() : channelRepo.nextPosition();
-        channelRepo.create(id, req.name().trim(), type, req.category_id(), req.topic(), req.description(), position);
+        channelRepo.create(id, req.name().trim(), type, req.category_id(), req.topic(), req.description(), position, req.icon(), req.icon_url());
         // Auto-generate E2EE key for voice channels (only when E2EE enabled)
         if ("VOICE".equals(type) && liveKitConfig.e2ee()) {
             voiceKeyRepo.createKey(id);
@@ -116,7 +116,9 @@ public class ChannelResource {
         // Allow explicitly setting category_id to null (uncategorized)
         String categoryId = req.category_id_set() ? req.category_id() : (String) ch.get("category_id");
         int position = req.position() != null ? req.position() : ((Long) ch.get("position")).intValue();
-        channelRepo.update(id, name, topic, description, categoryId, position);
+        String icon = req.icon_set() ? req.icon() : (String) ch.get("icon");
+        String iconUrl = req.icon_url_set() ? req.icon_url() : (String) ch.get("icon_url");
+        channelRepo.update(id, name, topic, description, categoryId, position, icon, iconUrl);
         var updated = channelRepo.findById(id);
         updated.ifPresent(c -> {
             eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, withCategory(c), Scope.server()));
@@ -370,7 +372,7 @@ public class ChannelResource {
 
     // --- DTOs ---
 
-    public record CreateChannelRequest(String name, String type, String category_id, String topic, String description, Integer position) {}
+    public record CreateChannelRequest(String name, String type, String category_id, String topic, String description, Integer position, String icon, String icon_url) {}
     public record OverrideRequest(List<String> allow, List<String> deny) {}
     public static class UpdateChannelRequest {
         public String name;
@@ -378,18 +380,34 @@ public class ChannelResource {
         public String description;
         public String category_id;
         public Integer position;
+        public String icon;
+        public String icon_url;
         private boolean category_id_set = false;
+        private boolean icon_set = false;
+        private boolean icon_url_set = false;
 
         public String name() { return name; }
         public String topic() { return topic; }
         public String description() { return description; }
         public String category_id() { return category_id; }
         public Integer position() { return position; }
+        public String icon() { return icon; }
+        public String icon_url() { return icon_url; }
         public boolean category_id_set() { return category_id_set; }
+        public boolean icon_set() { return icon_set; }
+        public boolean icon_url_set() { return icon_url_set; }
 
         public void setCategory_id(String v) {
             this.category_id = v;
             this.category_id_set = true;
+        }
+        public void setIcon(String v) {
+            this.icon = v;
+            this.icon_set = true;
+        }
+        public void setIcon_url(String v) {
+            this.icon_url = v;
+            this.icon_url_set = true;
         }
     }
     public record SendMessageRequest(String content, List<String> attachment_ids) {}
