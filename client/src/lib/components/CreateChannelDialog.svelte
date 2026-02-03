@@ -7,6 +7,8 @@
 	import { PermissionName, PERMISSION_GROUPS, isServerLevelPermission } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
 	import { isVoiceVideoEnabled } from '$lib/stores/voice.svelte.js';
+	import { ICON_GROUPS, DEFAULT_ICONS } from '$lib/icons.js';
+	import { uploadFile } from '$lib/api/upload.js';
 
 	let {
 		open = false,
@@ -30,6 +32,15 @@
 	let description = $state('');
 	let submitting = $state(false);
 	let error = $state('');
+
+	// Icon state
+	let iconMode = $state<'preset' | 'upload'>('preset');
+	let selectedIcon = $state<string | null>(null);
+	let customIconUrl = $state<string | null>(null);
+	let uploading = $state(false);
+
+	// Resolved icon = explicit selection or default for type
+	let effectiveIcon = $derived(selectedIcon ?? DEFAULT_ICONS[channelType] ?? 'tag');
 
 	// Tab state (General / Permissions) — only relevant in edit mode
 	let activeTab = $state<'general' | 'permissions'>('general');
@@ -65,6 +76,15 @@
 			name = channel.name;
 			topic = channel.topic ?? '';
 			description = channel.description ?? '';
+			if (channel.icon_url) {
+				iconMode = 'upload';
+				customIconUrl = channel.icon_url;
+				selectedIcon = null;
+			} else {
+				iconMode = 'preset';
+				selectedIcon = channel.icon;
+				customIconUrl = null;
+			}
 			activeTab = 'general';
 			selectedRoleId = null;
 			loadOverrides(channel.id);
@@ -81,10 +101,32 @@
 		description = '';
 		submitting = false;
 		error = '';
+		iconMode = 'preset';
+		selectedIcon = null;
+		customIconUrl = null;
+		uploading = false;
 		activeTab = 'general';
 		overrides = [];
 		selectedRoleId = null;
 		permError = '';
+	}
+
+	async function handleIconUpload(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		uploading = true;
+		error = '';
+		try {
+			const result = await uploadFile(file);
+			customIconUrl = result.url;
+			selectedIcon = null;
+		} catch (err: any) {
+			error = err?.message || 'Failed to upload icon';
+		} finally {
+			uploading = false;
+			input.value = '';
+		}
 	}
 
 	// --- Permissions helpers ---
@@ -167,13 +209,20 @@
 		}
 		submitting = true;
 		error = '';
+		// Resolve icon fields: custom upload takes precedence
+		const useCustom = iconMode === 'upload' && customIconUrl;
+		const iconValue = useCustom ? null : effectiveIcon;
+		const iconUrlValue = useCustom ? customIconUrl : null;
+
 		try {
 			let ch: Channel;
 			if (isEdit && channel) {
 				ch = await updateChannelApi(channel.id, {
 					name: trimmedName,
 					topic: topic.trim() || undefined,
-					description: description.trim() || undefined
+					description: description.trim() || undefined,
+					icon: iconValue,
+					icon_url: iconUrlValue
 				});
 			} else {
 				ch = await createChannelApi({
@@ -181,7 +230,9 @@
 					type: channelType,
 					category_id: categoryId,
 					topic: topic.trim() || undefined,
-					description: description.trim() || undefined
+					description: description.trim() || undefined,
+					icon: iconValue,
+					icon_url: iconUrlValue
 				});
 			}
 			reset();
@@ -273,6 +324,48 @@
 						</div>
 					</div>
 				{/if}
+
+				<!-- Icon Picker -->
+				<div class="field">
+					<label class="field-label">Icon</label>
+					<div class="icon-mode-tabs">
+						<button class="icon-mode-tab" class:active={iconMode === 'preset'} onclick={() => iconMode = 'preset'}>Preset</button>
+						<button class="icon-mode-tab" class:active={iconMode === 'upload'} onclick={() => iconMode = 'upload'}>Upload</button>
+					</div>
+
+					{#if iconMode === 'preset'}
+						<div class="icon-picker">
+							{#each ICON_GROUPS as group}
+								<div class="icon-group-label">{group.label}</div>
+								<div class="icon-grid">
+									{#each group.icons as icon}
+										<button
+											class="icon-btn"
+											class:selected={effectiveIcon === icon}
+											title={icon}
+											onclick={() => { selectedIcon = icon; customIconUrl = null; }}
+										>
+											<span class="material-symbols-outlined">{icon}</span>
+										</button>
+									{/each}
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<div class="icon-upload">
+							{#if customIconUrl}
+								<div class="icon-preview">
+									<img src={customIconUrl} alt="Custom icon" />
+									<button class="icon-remove" onclick={() => customIconUrl = null} title="Remove">✕</button>
+								</div>
+							{/if}
+							<label class="upload-btn">
+								{uploading ? 'Uploading...' : customIconUrl ? 'Replace image' : 'Upload image'}
+								<input type="file" accept="image/*" onchange={handleIconUpload} hidden disabled={uploading} />
+							</label>
+						</div>
+					{/if}
+				</div>
 
 				<div class="field">
 					<label class="field-label" for="channel-name">Name</label>
@@ -526,6 +619,145 @@
 	.type-desc {
 		font-size: 0.7rem;
 		color: var(--text-muted);
+	}
+
+	/* Icon picker */
+	.icon-mode-tabs {
+		display: flex;
+		gap: 0;
+		margin-bottom: 0.5rem;
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		overflow: hidden;
+	}
+
+	.icon-mode-tab {
+		flex: 1;
+		padding: 0.3rem 0.5rem;
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+
+	.icon-mode-tab:not(:last-child) {
+		border-right: 1px solid var(--border);
+	}
+
+	.icon-mode-tab.active {
+		background: var(--bg-active, rgba(255, 255, 255, 0.08));
+		color: var(--text);
+	}
+
+	.icon-picker {
+		max-height: 180px;
+		overflow-y: auto;
+		padding: 0.25rem;
+		background: var(--bg, #1e1f22);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+	}
+
+	.icon-group-label {
+		font-size: 0.6rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-muted);
+		padding: 0.3rem 0.2rem 0.15rem;
+	}
+
+	.icon-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 2px;
+	}
+
+	.icon-btn {
+		width: 34px;
+		height: 34px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 2px solid transparent;
+		border-radius: 6px;
+		background: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 0;
+	}
+
+	.icon-btn:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+		color: var(--text);
+	}
+
+	.icon-btn.selected {
+		border-color: var(--accent, #5865f2);
+		background: rgba(88, 101, 242, 0.15);
+		color: var(--accent, #5865f2);
+	}
+
+	.icon-btn .material-symbols-outlined {
+		font-size: 20px;
+	}
+
+	.icon-upload {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.5rem;
+		background: var(--bg, #1e1f22);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+	}
+
+	.icon-preview {
+		position: relative;
+		width: 40px;
+		height: 40px;
+		flex-shrink: 0;
+	}
+
+	.icon-preview img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: 6px;
+	}
+
+	.icon-remove {
+		position: absolute;
+		top: -6px;
+		right: -6px;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		background: var(--danger, #e74c3c);
+		color: white;
+		border: none;
+		font-size: 10px;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0;
+		line-height: 1;
+	}
+
+	.upload-btn {
+		padding: 0.35rem 0.75rem;
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		background: none;
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		cursor: pointer;
+	}
+
+	.upload-btn:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+		color: var(--text);
 	}
 
 	/* Error */
