@@ -11,6 +11,10 @@
 	--error: #e94560;
 	--border: #2a2a4a;
 	--radius: 8px;
+	--bg-hover: rgba(255, 255, 255, 0.05);
+	--bg-active: rgba(255, 255, 255, 0.08);
+	--primary: var(--accent);
+	--danger: #e74c3c;
 }
 
 [data-theme="light"] {
@@ -24,6 +28,10 @@
 	--success: #2e7d32;
 	--error: #e94560;
 	--border: #d0d0d0;
+	--bg-hover: rgba(0, 0, 0, 0.04);
+	--bg-active: rgba(0, 0, 0, 0.07);
+	--primary: var(--accent);
+	--danger: #c0392b;
 }
 
 * {

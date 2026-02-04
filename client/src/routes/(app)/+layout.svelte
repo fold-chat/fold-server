@@ -6,6 +6,7 @@
 	import { isShortcutHelpOpen, closeShortcutHelp, toggleShortcutHelp } from '$lib/stores/shortcuts.svelte.js';
 	import { isPttEnabled, getPttKey, pttKeyDown, pttKeyUp } from '$lib/stores/voice.svelte.js';
 	import { isNotificationPanelOpen } from '$lib/stores/notifications.svelte.js';
+	import { isNarrowScreen, isSidebarExpanded, closeSidebar } from '$lib/stores/sidebar.svelte.js';
 	import { goto } from '$app/navigation';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import TopBar from '$lib/components/TopBar.svelte';
@@ -107,18 +108,24 @@
 <svelte:window onkeydown={onKeydown} onkeyup={onKeyup} />
 
 <div class="app-shell">
-	<TopBar />
-	<div class="app-body">
-		<Sidebar />
-		<main class="main-content">
-			{@render children()}
-		</main>
-		{#if isNotificationPanelOpen()}
-			<NotificationPanel />
-		{/if}
-		{#if isMembersPanelOpen()}
-			<MembersPanel />
-		{/if}
+	<Sidebar />
+	{#if isNarrowScreen() && isSidebarExpanded()}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="sidebar-backdrop" onclick={closeSidebar} onkeydown={(e) => { if (e.key === 'Escape') closeSidebar(); }}></div>
+	{/if}
+	<div class="app-right">
+		<TopBar />
+		<div class="app-body">
+			<main class="main-content">
+				{@render children()}
+			</main>
+			{#if isNotificationPanelOpen()}
+				<NotificationPanel />
+			{/if}
+			{#if isMembersPanelOpen()}
+				<MembersPanel />
+			{/if}
+		</div>
 	</div>
 </div>
 
@@ -128,9 +135,15 @@
 <style>
 	.app-shell {
 		display: flex;
-		flex-direction: column;
 		height: 100vh;
 		overflow: hidden;
+	}
+
+	.app-right {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
 	}
 
 	.app-body {
@@ -144,5 +157,12 @@
 		display: flex;
 		flex-direction: column;
 		min-width: 0;
+	}
+
+	.sidebar-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.4);
+		z-index: 49;
 	}
 </style>
