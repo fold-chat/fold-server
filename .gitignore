@@ -26,5 +26,9 @@ Thumbs.db
 *.db-wal
 *.db-shm
 
+# Tools
+tools/kith-mcp/node_modules/
+tools/kith-mcp/dist/
+
 # Secrets file
 .env
