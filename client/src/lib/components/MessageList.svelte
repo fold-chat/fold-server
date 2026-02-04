@@ -5,6 +5,7 @@ import type { Message } from '$lib/api/messages.js';
 	import { renderMarkdown, formatTimestamp } from '$lib/utils/markdown.js';
 	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	import EmojiPicker from './EmojiPicker.svelte';
+	import CollapsibleContent from './CollapsibleContent.svelte';
 	import klipyLogo from '$lib/assets/klipy.svg';
 	import { tick } from 'svelte';
 
@@ -22,6 +23,7 @@ import type { Message } from '$lib/api/messages.js';
 		canAddReactions = false,
 		highlightMessageId = null,
 		threadLookup = undefined,
+		threadMode = false,
 		onLoadMore,
 		onStartEdit,
 		onCancelEdit,
@@ -43,6 +45,7 @@ import type { Message } from '$lib/api/messages.js';
 		canAddReactions?: boolean;
 		highlightMessageId?: string | null;
 		threadLookup?: (messageId: string) => Thread | undefined;
+		threadMode?: boolean;
 		onLoadMore?: () => void;
 		onStartEdit?: (id: string, content: string) => void;
 		onCancelEdit?: () => void;
@@ -223,7 +226,7 @@ import type { Message } from '$lib/api/messages.js';
 	}
 </script>
 
-<div class="message-list-container">
+<div class="message-list-container" class:thread-mode={threadMode}>
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="message-list" bind:this={scrollContainer} onscroll={handleScroll} onclick={handleContentClick}>
 		{#if loading && messages.length === 0}
@@ -239,11 +242,18 @@ import type { Message } from '$lib/api/messages.js';
 		{/if}
 
 	{#each messages as msg, i}
-			{@const newGroup = isNewGroup(msg, messages[i - 1])}
+			{@const newGroup = threadMode ? true : isNewGroup(msg, messages[i - 1])}
 			{@const msgThread = threadLookup?.(msg.id)}
-		<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id} class:highlighted={highlightMessageId === msg.id} data-message-id={msg.id}>
+		<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id} class:highlighted={highlightMessageId === msg.id} class:thread-msg={threadMode} data-message-id={msg.id}>
 				{#if newGroup}
 					<div class="message-header">
+						{#if threadMode}
+							{#if msg.author_avatar_url}
+								<img class="msg-avatar" src={msg.author_avatar_url} alt="" />
+							{:else}
+								<div class="msg-avatar msg-avatar-fallback">{(msg.author_display_name || msg.author_username || '?')[0].toUpperCase()}</div>
+							{/if}
+						{/if}
 						<button class="author" onclick={() => openMemberProfile(msg.author_id)}>{ msg.author_display_name || msg.author_username || 'Unknown'}</button>
 						<span class="timestamp">{formatTimestamp(msg.created_at)}</span>
 					</div>
@@ -268,32 +278,34 @@ import type { Message } from '$lib/api/messages.js';
 								<img src={klipyLogo} alt="KLIPY" class="klipy-watermark" />
 							</div>
 						{:else}
-							<div class="content">{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
-						{/if}
-						{#if msg.attachments && msg.attachments.length > 0}
-							<div class="attachments">
-								{#each msg.attachments as att}
-									{#if isImage(att.mime_type)}
-										<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-										<img
-											src={att.url}
-											alt={att.original_name}
-											class="attachment-image"
-											onclick={() => openLightbox(att.url, att.original_name)}
-											onkeydown={(e) => e.key === 'Enter' && openLightbox(att.url, att.original_name)}
-										/>
-									{:else}
-										<a href={att.url} class="attachment-file" download={att.original_name}>
-											<span class="file-icon">📄</span>
-											<span class="file-name">{att.original_name}</span>
-											<span class="file-size">{formatFileSize(att.size_bytes)}</span>
-										</a>
-									{/if}
-								{/each}
-							</div>
-						{/if}
-						{#if msg.edited_at}
-							<span class="edited">(edited)</span>
+							<CollapsibleContent>
+								<div class="content">{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
+								{#if msg.attachments && msg.attachments.length > 0}
+									<div class="attachments">
+										{#each msg.attachments as att}
+											{#if isImage(att.mime_type)}
+												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+												<img
+													src={att.url}
+													alt={att.original_name}
+													class="attachment-image"
+													onclick={() => openLightbox(att.url, att.original_name)}
+													onkeydown={(e) => e.key === 'Enter' && openLightbox(att.url, att.original_name)}
+												/>
+											{:else}
+												<a href={att.url} class="attachment-file" download={att.original_name}>
+													<span class="file-icon">📄</span>
+													<span class="file-name">{att.original_name}</span>
+													<span class="file-size">{formatFileSize(att.size_bytes)}</span>
+												</a>
+											{/if}
+										{/each}
+									</div>
+								{/if}
+								{#if msg.edited_at}
+									<span class="edited">(edited)</span>
+								{/if}
+							</CollapsibleContent>
 						{/if}
 					{/if}
 				</div>
@@ -456,6 +468,7 @@ import type { Message } from '$lib/api/messages.js';
 		font-size: 0.9rem;
 		line-height: 1.4;
 	}
+
 
 	.message-body :global(p) {
 		margin: 0 0 0.25rem;
@@ -762,5 +775,53 @@ import type { Message } from '$lib/api/messages.js';
 		font-size: 1.5rem;
 		cursor: pointer;
 		padding: 0.5rem;
+	}
+
+	/* ── Thread mode ── */
+	.message-list-container.thread-mode .message-list {
+		gap: 0.5rem;
+		padding: 1rem 1.5rem;
+	}
+
+	.message.thread-msg {
+		background: var(--bg-surface, rgba(255, 255, 255, 0.02));
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		padding: 0.75rem 1rem;
+	}
+
+	.message.thread-msg:not(.grouped) {
+		margin-top: 0;
+	}
+
+	.message.thread-msg:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+	}
+
+	.message.thread-msg .message-header {
+		align-items: center;
+	}
+
+	.msg-avatar {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		object-fit: cover;
+		flex-shrink: 0;
+	}
+
+	.msg-avatar-fallback {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--accent, #5865f2);
+		color: white;
+		font-size: 0.75rem;
+		font-weight: 600;
+	}
+
+	.message.thread-msg .message-actions {
+		top: 0.5rem;
+		right: 0.75rem;
 	}
 </style>

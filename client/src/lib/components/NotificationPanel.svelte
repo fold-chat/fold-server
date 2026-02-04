@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { getNotifications } from '$lib/stores/notifications.svelte.js';
+	import { contentPreview } from '$lib/utils/markdown.js';
 	import { goto } from '$app/navigation';
 
 	function handleClick(channelId: string, messageId: string) {
@@ -27,7 +28,7 @@
 					<span class="notif-channel">#{item.channelName}</span>
 					<span class="notif-time">{relativeTime(item.timestamp)}</span>
 				</div>
-				<div class="notif-preview">{item.message.content?.slice(0, 200) || '(attachment)'}</div>
+<div class="notif-preview">{contentPreview(item.message.content)}</div>
 			</button>
 		{:else}
 			<div class="notif-empty">No notifications yet. Mentions will appear here.</div>

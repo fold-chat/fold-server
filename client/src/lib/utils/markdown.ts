@@ -68,6 +68,16 @@ export function renderMarkdown(
 	});
 }
 
+const GIF_MSG_RE = /!\[GIF\]\([^)]+\)/g;
+
+/** Strip markdown artifacts from content for plain-text previews. */
+export function contentPreview(content: string | undefined | null, maxLen = 200): string {
+	if (!content) return '(attachment)';
+	const cleaned = content.replace(GIF_MSG_RE, '[GIF]').trim();
+	if (!cleaned) return '[GIF]';
+	return cleaned.length > maxLen ? cleaned.slice(0, maxLen) : cleaned;
+}
+
 export function formatTimestamp(dateStr: string): string {
 	const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
 	const now = new Date();

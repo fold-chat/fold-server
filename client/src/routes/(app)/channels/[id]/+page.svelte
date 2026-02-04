@@ -5,7 +5,7 @@
 import { getThreads } from '$lib/api/threads.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { getMessages, setMessages, prependMessages, setLoading, setHasMore, hasMore, isLoading, setActiveChannelId, getTypingUsers } from '$lib/stores/messages.svelte.js';
-	import { markChannelRead, getChannelById } from '$lib/stores/channels.svelte.js';
+import { markChannelRead, getChannelById, getCategories } from '$lib/stores/channels.svelte.js';
 	import { getActiveThread, setActiveThread, findThreadByParentMessage, getChannelThreads, setChannelThreads, getPendingThread, setPendingThread } from '$lib/stores/threads.svelte.js';
 	import { send } from '$lib/stores/ws.svelte.js';
 	import { getUser, hasChannelPermission, hasServerPermission } from '$lib/stores/auth.svelte.js';
@@ -22,6 +22,10 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	let channel = $derived(getChannelById(channelId));
 	let isForumChannel = $derived(channel?.type === 'THREAD_CHANNEL');
 	let isVoiceChannel = $derived(channel?.type === 'VOICE');
+	let categoryName = $derived.by(() => {
+		if (!channel?.category_id) return null;
+		return getCategories().find(c => c.id === channel!.category_id)?.name ?? null;
+	});
 	let canSend = $derived(hasChannelPermission(channelId, PermissionName.SEND_MESSAGES));
 	let canUploadFiles = $derived(hasChannelPermission(channelId, PermissionName.UPLOAD_FILES));
 	let canManageMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES));
@@ -39,6 +43,13 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	let deleteConfirmOpen = $state(false);
 	let pendingDeleteId = $state<string | null>(null);
 	let deleteConfirmMessage = $state('Are you sure you want to delete this message? This cannot be undone.');
+
+	// Clear thread panel when switching channels (separate effect so it only tracks channelId)
+	$effect(() => {
+		channelId;
+		setActiveThread(null);
+		setPendingThread(null);
+	});
 
 	$effect(() => {
 		const chId = channelId;
@@ -230,6 +241,10 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 		<div class="channel-main">
 		<div class="channel-header">
 				<div class="channel-header-info">
+					{#if categoryName}
+						<span class="breadcrumb-cat">{categoryName}</span>
+						<span class="breadcrumb-sep">›</span>
+					{/if}
 					<span class="channel-title"># {channel?.name ?? ''}</span>
 					{#if channel?.topic}
 						<span class="header-divider"></span>
@@ -300,8 +315,9 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 		justify-content: space-between;
 		padding: 0.5rem 1rem;
 		border-bottom: 1px solid var(--border);
-		min-height: 0;
+		min-height: 44px;
 		gap: 0.75rem;
+		flex-shrink: 0;
 	}
 
 	.channel-header-info {
@@ -310,6 +326,18 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 		gap: 0.5rem;
 		min-width: 0;
 		overflow: hidden;
+	}
+
+	.breadcrumb-cat {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		white-space: nowrap;
+	}
+
+	.breadcrumb-sep {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+		opacity: 0.5;
 	}
 
 	.channel-title {

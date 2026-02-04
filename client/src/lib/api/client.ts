@@ -47,7 +47,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 				},
 				...options
 			});
-			if (retry.ok) return retry.json();
+			if (retry.ok) {
+				if (retry.status === 204) return undefined as T;
+				return retry.json();
+			}
 		}
 		// Refresh failed — redirect to login (skip for public routes)
 		if (typeof window !== 'undefined' && !isPublicPath(window.location.pathname)) {

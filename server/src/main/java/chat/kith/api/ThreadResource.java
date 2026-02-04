@@ -93,7 +93,8 @@ public class ThreadResource {
         // Check locked
         long locked = t.get("locked") instanceof Long l ? l : 0;
         if (locked != 0) {
-            if (!permissionService.hasPermission(sc.getUserId(), channelId, Permission.SEND_IN_LOCKED_THREADS)) {
+            if (!permissionService.hasPermission(sc.getUserId(), channelId, Permission.SEND_IN_LOCKED_THREADS)
+                    && !permissionService.hasPermission(sc.getUserId(), channelId, Permission.MANAGE_THREADS)) {
                 return Response.status(403).entity(Map.of("error", "thread_locked", "message", "This thread is locked")).build();
             }
         }
@@ -148,12 +149,15 @@ public class ThreadResource {
         }
 
         // Non-author can't change title unless they have MANAGE_THREADS (already checked above)
-        // Only users with MANAGE_THREADS can lock/unlock
+        // Only users with MANAGE_THREADS can lock/unlock or pin/unpin
         if (req.locked() != null && isAuthor && !permissionService.hasPermission(sc.getUserId(), channelId, Permission.MANAGE_THREADS)) {
             return Response.status(403).entity(Map.of("error", "forbidden", "message", "Cannot lock/unlock threads")).build();
         }
+        if (req.pinned() != null && !permissionService.hasPermission(sc.getUserId(), channelId, Permission.MANAGE_THREADS)) {
+            return Response.status(403).entity(Map.of("error", "forbidden", "message", "Cannot pin/unpin threads")).build();
+        }
 
-        threadRepo.update(threadId, req.title(), req.locked());
+        threadRepo.update(threadId, req.title(), req.locked(), req.pinned());
         var updated = threadRepo.findByIdWithMeta(threadId);
         updated.ifPresent(u -> eventBus.publish(Event.of(EventType.THREAD_UPDATE, u, Scope.channel(channelId))));
         return updated
@@ -199,7 +203,7 @@ public class ThreadResource {
     // --- DTOs ---
 
     public record ReplyRequest(String content, List<String> attachment_ids) {}
-    public record UpdateThreadRequest(String title, Integer locked) {}
+    public record UpdateThreadRequest(String title, Integer locked, Integer pinned) {}
     public record ThreadReadStateRequest(String last_read_message_id) {}
 
     // --- Helpers ---

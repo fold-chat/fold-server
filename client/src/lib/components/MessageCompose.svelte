@@ -16,7 +16,7 @@
 		preview?: string;
 	}
 
-	let { onSend, onTyping, disabled = false, canUploadFiles = true, channelId = null }: { onSend: (content: string, attachmentIds?: string[]) => void; onTyping?: () => void; disabled?: boolean; canUploadFiles?: boolean; channelId?: string | null } = $props();
+	let { onSend, onTyping, disabled = false, canUploadFiles = true, channelId = null, forumMode = false }: { onSend: (content: string, attachmentIds?: string[]) => void; onTyping?: () => void; disabled?: boolean; canUploadFiles?: boolean; channelId?: string | null; forumMode?: boolean } = $props();
 
 	let content = $state('');
 	let textarea = $state<HTMLTextAreaElement | null>(null);
@@ -86,9 +86,16 @@
 			}
 		}
 		
-		if (e.key === 'Enter' && !e.shiftKey) {
-			e.preventDefault();
-			submit();
+	if (e.key === 'Enter') {
+			if (forumMode) {
+				if (e.ctrlKey || e.metaKey) {
+					e.preventDefault();
+					submit();
+				}
+			} else if (!e.shiftKey) {
+				e.preventDefault();
+				submit();
+			}
 		}
 	}
 
@@ -326,14 +333,15 @@
 					onSelect={insertMention}
 				/>
 			{/if}
-			<textarea
+		<textarea
 				class="compose-input"
+				class:forum-input={forumMode}
 			bind:this={textarea}
 			bind:value={content}
 			onkeydown={handleKeydown}
 			oninput={handleInput}
-			placeholder={disabled ? 'You do not have permission to send messages' : 'Send a message...'}
-			rows="1"
+			placeholder={disabled ? 'You do not have permission to send messages' : forumMode ? 'Write your post… (Ctrl+Enter to submit)' : 'Send a message...'}
+			rows={forumMode ? 4 : 1}
 				{disabled}
 			></textarea>
 		</div>
@@ -383,6 +391,10 @@
 
 	.compose-input::placeholder {
 		color: var(--text-muted);
+	}
+
+	.forum-input {
+		min-height: 6rem;
 	}
 
 	.compose-input:focus {

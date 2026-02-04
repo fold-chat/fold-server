@@ -13,6 +13,7 @@
 	import { PermissionName } from '$lib/permissions.js';
 	import { send } from '$lib/stores/ws.svelte.js';
 	import { formatTimestamp, renderMarkdown } from '$lib/utils/markdown.js';
+	import CollapsibleContent from './CollapsibleContent.svelte';
 	import MessageList from './MessageList.svelte';
 	import MessageCompose from './MessageCompose.svelte';
 	import ConfirmDialog from './ConfirmDialog.svelte';
@@ -221,12 +222,14 @@
 			<div class="parent-message">
 				{#if parentMessageLoading}
 					<div class="parent-loading">Loading original message...</div>
-				{:else if parentMessage}
+			{:else if parentMessage}
 					<div class="parent-header">
 						<span class="parent-author">{parentMessage.author_display_name || parentMessage.author_username || 'Unknown'}</span>
 						<span class="parent-time">{formatTimestamp(parentMessage.created_at)}</span>
 					</div>
-					<div class="parent-content">{@html renderMarkdown(parentMessage.content, { mentions: parentMessage.mentions, mention_roles: parentMessage.mention_roles, mention_everyone: parentMessage.mention_everyone })}</div>
+					<CollapsibleContent>
+						<div class="parent-content">{@html renderMarkdown(parentMessage.content, { mentions: parentMessage.mentions, mention_roles: parentMessage.mention_roles, mention_everyone: parentMessage.mention_everyone })}</div>
+					</CollapsibleContent>
 				{/if}
 			</div>
 		{/if}
@@ -276,7 +279,8 @@
 		max-width: 50%;
 		display: flex;
 		flex-direction: column;
-		height: 100vh;
+		height: 100%;
+		overflow: hidden;
 		border-left: 1px solid var(--border);
 		background: var(--bg);
 	}
@@ -325,9 +329,8 @@
 		border-bottom: 1px solid var(--border);
 		background: var(--bg-surface, rgba(255, 255, 255, 0.02));
 		flex-shrink: 0;
-		max-height: 200px;
-		overflow-y: auto;
 	}
+
 
 	.parent-header {
 		display: flex;

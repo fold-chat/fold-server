@@ -39,33 +39,47 @@ public class ThreadRepository {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
     }
 
-    /** Get thread with reply count and last message preview */
+    /** Get thread with reply count, content preview, and last replier */
     public Optional<Map<String, Object>> findByIdWithMeta(String id) {
         var rows = db.query("""
                 SELECT t.*,
                        u.username AS author_username, u.display_name AS author_display_name, u.avatar_url AS author_avatar_url,
-                       (SELECT COUNT(*) FROM message m WHERE m.thread_id = t.id) AS reply_count
+                       CASE WHEN t.parent_message_id IS NULL
+                            THEN MAX(0, (SELECT COUNT(*) FROM message m WHERE m.thread_id = t.id) - 1)
+                            ELSE (SELECT COUNT(*) FROM message m WHERE m.thread_id = t.id)
+                       END AS reply_count,
+                       (SELECT SUBSTR(m2.content, 1, 300) FROM message m2 WHERE m2.thread_id = t.id ORDER BY m2.id ASC LIMIT 1) AS first_message_content,
+                       (SELECT u2.username FROM message m3 JOIN user u2 ON m3.author_id = u2.id WHERE m3.thread_id = t.id ORDER BY m3.id DESC LIMIT 1) AS last_reply_username,
+                       (SELECT u3.avatar_url FROM message m4 JOIN user u3 ON m4.author_id = u3.id WHERE m4.thread_id = t.id ORDER BY m4.id DESC LIMIT 1) AS last_reply_avatar_url,
+                       (SELECT m5.created_at FROM message m5 WHERE m5.thread_id = t.id ORDER BY m5.id DESC LIMIT 1) AS last_reply_at
                 FROM thread t
                 JOIN user u ON t.author_id = u.id
                 WHERE t.id = ?""", id);
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
     }
 
-    /** Paginate threads in a channel by last_activity_at desc */
+    /** Paginate threads in a channel, pinned first, then by last_activity_at desc */
     public List<Map<String, Object>> findByChannelId(String channelId, String before, int limit) {
         String baseQuery = """
                 SELECT t.*,
                        u.username AS author_username, u.display_name AS author_display_name, u.avatar_url AS author_avatar_url,
-                       (SELECT COUNT(*) FROM message m WHERE m.thread_id = t.id) AS reply_count
+                       CASE WHEN t.parent_message_id IS NULL
+                            THEN MAX(0, (SELECT COUNT(*) FROM message m WHERE m.thread_id = t.id) - 1)
+                            ELSE (SELECT COUNT(*) FROM message m WHERE m.thread_id = t.id)
+                       END AS reply_count,
+                       (SELECT SUBSTR(m2.content, 1, 300) FROM message m2 WHERE m2.thread_id = t.id ORDER BY m2.id ASC LIMIT 1) AS first_message_content,
+                       (SELECT u2.username FROM message m3 JOIN user u2 ON m3.author_id = u2.id WHERE m3.thread_id = t.id ORDER BY m3.id DESC LIMIT 1) AS last_reply_username,
+                       (SELECT u3.avatar_url FROM message m4 JOIN user u3 ON m4.author_id = u3.id WHERE m4.thread_id = t.id ORDER BY m4.id DESC LIMIT 1) AS last_reply_avatar_url,
+                       (SELECT m5.created_at FROM message m5 WHERE m5.thread_id = t.id ORDER BY m5.id DESC LIMIT 1) AS last_reply_at
                 FROM thread t
                 JOIN user u ON t.author_id = u.id
                 WHERE t.channel_id = ?""";
 
         if (before != null) {
-            return db.query(baseQuery + " AND t.last_activity_at < ? ORDER BY t.last_activity_at DESC LIMIT ?",
+            return db.query(baseQuery + " AND t.last_activity_at < ? ORDER BY t.pinned DESC, t.last_activity_at DESC LIMIT ?",
                     channelId, before, limit);
         }
-        return db.query(baseQuery + " ORDER BY t.last_activity_at DESC LIMIT ?",
+        return db.query(baseQuery + " ORDER BY t.pinned DESC, t.last_activity_at DESC LIMIT ?",
                 channelId, limit);
     }
 
@@ -74,15 +88,15 @@ public class ThreadRepository {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
     }
 
-    public long update(String id, String title, Integer locked) {
-        if (title != null && locked != null) {
-            return db.execute("UPDATE thread SET title = ?, locked = ? WHERE id = ?", title, locked, id);
-        } else if (title != null) {
-            return db.execute("UPDATE thread SET title = ? WHERE id = ?", title, id);
-        } else if (locked != null) {
-            return db.execute("UPDATE thread SET locked = ? WHERE id = ?", locked, id);
-        }
-        return 0;
+    public long update(String id, String title, Integer locked, Integer pinned) {
+        var sets = new java.util.ArrayList<String>();
+        var params = new java.util.ArrayList<Object>();
+        if (title != null) { sets.add("title = ?"); params.add(title); }
+        if (locked != null) { sets.add("locked = ?"); params.add(locked); }
+        if (pinned != null) { sets.add("pinned = ?"); params.add(pinned); }
+        if (sets.isEmpty()) return 0;
+        params.add(id);
+        return db.execute("UPDATE thread SET " + String.join(", ", sets) + " WHERE id = ?", params.toArray());
     }
 
     public long delete(String id) {

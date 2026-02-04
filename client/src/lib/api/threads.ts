@@ -10,11 +10,16 @@ export interface Thread {
 	created_at: string;
 	last_activity_at: string;
 	locked: number;
+	pinned: number;
 	author_username?: string;
 	author_display_name?: string;
 	author_avatar_url?: string;
 	reply_count?: number;
 	first_message?: Message;
+	first_message_content?: string;
+	last_reply_username?: string;
+	last_reply_avatar_url?: string;
+	last_reply_at?: string;
 }
 
 export interface ThreadReadState {
@@ -56,7 +61,7 @@ export function replyToThread(threadId: string, content: string, attachmentIds?:
 	});
 }
 
-export function updateThread(threadId: string, data: { title?: string; locked?: number }) {
+export function updateThread(threadId: string, data: { title?: string; locked?: number; pinned?: number }) {
 	return api<Thread>(`/threads/${threadId}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
 

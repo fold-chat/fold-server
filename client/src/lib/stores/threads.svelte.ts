@@ -136,10 +136,13 @@ export function addChannelThread(thread: Thread) {
 export function updateChannelThread(thread: Thread) {
 	threadsByChannel = new Map(threadsByChannel);
 	const existing = threadsByChannel.get(thread.channel_id) ?? [];
-	threadsByChannel.set(
-		thread.channel_id,
-		existing.map((t) => (t.id === thread.id ? thread : t))
-	);
+	const updated = existing.map((t) => (t.id === thread.id ? thread : t));
+	// Re-sort: pinned first, then by last_activity_at desc
+	updated.sort((a, b) => {
+		if ((b.pinned ?? 0) !== (a.pinned ?? 0)) return (b.pinned ?? 0) - (a.pinned ?? 0);
+		return (b.last_activity_at ?? '').localeCompare(a.last_activity_at ?? '');
+	});
+	threadsByChannel.set(thread.channel_id, updated);
 	// Also update active thread if it's the one being updated
 	if (activeThread && activeThread.id === thread.id) {
 		activeThread = thread;

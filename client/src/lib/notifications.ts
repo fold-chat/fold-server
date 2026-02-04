@@ -1,4 +1,5 @@
 import type { Message } from '$lib/api/messages.js';
+import { contentPreview } from '$lib/utils/markdown.js';
 
 let permissionRequested = false;
 
@@ -21,7 +22,7 @@ export function showMentionNotification(msg: Message, channelName?: string) {
 
 	const author = msg.author_display_name || msg.author_username || 'Someone';
 	const title = channelName ? `#${channelName}` : 'New mention';
-	const body = `${author}: ${msg.content?.slice(0, 200) || '(attachment)'}`;
+	const body = `${author}: ${contentPreview(msg.content)}`;
 
 	const n = new Notification(title, { body, tag: `mention-${msg.id}` });
 	n.onclick = () => {
