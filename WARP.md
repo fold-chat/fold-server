@@ -21,6 +21,11 @@ Open-source, self-hostable community platform. Discord alternative for small, pr
 - Bitmask roles (owner/admin/moderator/member). Channel overrides planned.
 - libSQL loaded via FFM. `LibSqlNativeFeature` for GraalVM native image.
 
+## Agent Pipeline
+- `dispatcher/` — CF Worker receives Linear webhooks, dispatches Oz agents per ticket state change
+- `.warp/skills/` — individual agent skills (dev, reviewer, tester, security, etc.)
+- See `docs/agent-workflow.md` for full pipeline docs
+
 ## Running Locally
 - Server: `./gradlew quarkusDev` from `server/`
 - Client: `pnpm dev` from `client/`
