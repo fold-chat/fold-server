@@ -1,0 +1,176 @@
+name: Preview Deploy
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: fray-chat/fray-app
+
+jobs:
+  # --- Deploy preview on PR open/update ---
+  deploy:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Rust + libsql
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server/libsql-c
+      - name: Build liblibsql
+        run: |
+          [ -f server/libsql-c/Cargo.toml ] || (rm -rf server/libsql-c && git clone --depth 1 https://github.com/tursodatabase/libsql-c.git server/libsql-c)
+          cd server/libsql-c
+          cargo build --release
+          mkdir -p ../native/linux-amd64
+          cp target/release/liblibsql.so ../native/linux-amd64/
+
+      # Client
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+      - name: Build client
+        run: |
+          cd client
+          pnpm install --frozen-lockfile
+          pnpm build
+          cp -r build/ ../server/src/main/resources/META-INF/resources/
+
+      # Server
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build server uber-jar
+        run: |
+          cd server
+          ./gradlew quarkusBuild -Dquarkus.package.jar.type=uber-jar
+
+      # Docker image
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.preview
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
+
+      # Deploy to Nomad
+      - name: Deploy to Nomad
+        env:
+          NOMAD_SSH_KEY: ${{ secrets.NOMAD_SSH_KEY }}
+          NOMAD_HOST: ${{ secrets.NOMAD_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$NOMAD_SSH_KEY" > ~/.ssh/nomad_key
+          chmod 600 ~/.ssh/nomad_key
+          ssh-keyscan -H "$NOMAD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${PR_NUMBER}"
+
+          scp -i ~/.ssh/nomad_key deploy/nomad/kith-preview.nomad.hcl root@${NOMAD_HOST}:/tmp/kith-preview.nomad.hcl
+
+          ssh -i ~/.ssh/nomad_key root@${NOMAD_HOST} \
+            "nomad job run -var='pr_number=${PR_NUMBER}' -var='image_tag=${IMAGE}' /tmp/kith-preview.nomad.hcl"
+
+      # Comment on PR
+      - name: Comment preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const url = `https://pr-${prNumber}.preview.fold.chat`;
+            const body = `🚀 Preview deployed: ${url}\n\nLogin: \`admin\` / \`preview-admin-pw\``;
+
+            // Find existing bot comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            const botComment = comments.data.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Preview deployed')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: body,
+              });
+            }
+
+  # --- Teardown on PR close ---
+  teardown:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Stop Nomad job
+        env:
+          NOMAD_SSH_KEY: ${{ secrets.NOMAD_SSH_KEY }}
+          NOMAD_HOST: ${{ secrets.NOMAD_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$NOMAD_SSH_KEY" > ~/.ssh/nomad_key
+          chmod 600 ~/.ssh/nomad_key
+          ssh-keyscan -H "$NOMAD_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          PR_NUMBER=${{ github.event.pull_request.number }}
+          ssh -i ~/.ssh/nomad_key root@${NOMAD_HOST} \
+            "nomad job stop -purge kith-pr-${PR_NUMBER}" || true
+
+      - name: Update PR comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            const botComment = comments.data.find(c =>
+              c.user.type === 'Bot' && c.body.includes('Preview deployed')
+            );
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: '🛑 Preview environment torn down.',
+              });
+            }

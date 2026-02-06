@@ -1,0 +1,17 @@
+FROM eclipse-temurin:25-jre
+
+WORKDIR /app
+
+COPY server/build/kith-runner.jar /app/kith.jar
+COPY deploy/entrypoint-preview.sh /app/entrypoint.sh
+
+# Optional: copy seed DB if it exists (build will not fail if missing)
+COPY deploy/seed-db/ /app/seed/
+
+RUN chmod +x /app/entrypoint.sh
+
+EXPOSE 8080
+
+ENV JAVA_OPTS="--enable-native-access=ALL-UNNAMED"
+
+ENTRYPOINT ["/app/entrypoint.sh"]
