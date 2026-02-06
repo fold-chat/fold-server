@@ -4,10 +4,20 @@ import type { Message } from '$lib/api/messages.js';
 	import { addReaction, removeReaction } from '$lib/api/reactions.js';
 	import { renderMarkdown, formatTimestamp } from '$lib/utils/markdown.js';
 	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
+	import { findCustomEmojiByName } from '$lib/stores/emoji.svelte.js';
 	import EmojiPicker from './EmojiPicker.svelte';
 	import CollapsibleContent from './CollapsibleContent.svelte';
 	import klipyLogo from '$lib/assets/klipy.svg';
 	import { tick } from 'svelte';
+
+	const CUSTOM_EMOJI_RE = /^:([a-zA-Z0-9_]{2,32}):$/;
+
+	function getCustomEmojiUrl(emoji: string): string | null {
+		const match = emoji.match(CUSTOM_EMOJI_RE);
+		if (!match) return null;
+		const ce = findCustomEmojiByName(match[1].toLowerCase());
+		return ce?.url ?? null;
+	}
 
 	let {
 		messages,
@@ -312,13 +322,18 @@ import type { Message } from '$lib/api/messages.js';
 				{#if (msg.reactions && msg.reactions.length > 0) || emojiPickerMessageId === msg.id}
 					<div class="reactions">
 						{#each msg.reactions ?? [] as reaction}
+							{@const customUrl = getCustomEmojiUrl(reaction.emoji)}
 							<button
 								class="reaction-pill"
 								class:me={reaction.me}
 								onclick={() => toggleReaction(msg.id, reaction.emoji, reaction.me)}
 								title={reaction.users.join(', ')}
 							>
-								<span class="reaction-emoji">{reaction.emoji}</span>
+								{#if customUrl}
+									<img src={customUrl} alt={reaction.emoji} class="reaction-custom-emoji" />
+								{:else}
+									<span class="reaction-emoji">{reaction.emoji}</span>
+								{/if}
 								<span class="reaction-count">{reaction.count}</span>
 							</button>
 						{/each}
@@ -639,6 +654,13 @@ import type { Message } from '$lib/api/messages.js';
 
 	.reaction-emoji {
 		font-size: 0.9rem;
+	}
+
+	.reaction-custom-emoji {
+		width: 18px;
+		height: 18px;
+		object-fit: contain;
+		vertical-align: middle;
 	}
 
 	.reaction-count {

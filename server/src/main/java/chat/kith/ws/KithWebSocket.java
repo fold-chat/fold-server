@@ -36,6 +36,7 @@ public class KithWebSocket {
     @Inject VoiceStateRepository voiceStateRepo;
     @Inject LiveKitService liveKitService;
     @Inject chat.kith.config.KithLiveKitConfig liveKitConfig;
+    @Inject EmojiRepository emojiRepo;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -256,6 +257,17 @@ var members = userRepo.listMembers(false);
                 serverSettings.put((String) row.get("key"), row.get("value"));
             }
             hello.put("server_settings", serverSettings);
+
+            // Custom emoji
+            var customEmoji = emojiRepo.listAll().stream().map(e -> {
+                var em = new LinkedHashMap<String, Object>();
+                em.put("id", e.get("id"));
+                em.put("name", e.get("name"));
+                em.put("url", "/api/v0/files/" + e.get("stored_name"));
+                em.put("uploader_id", e.get("uploader_id"));
+                return (Map<String, Object>) em;
+            }).toList();
+            hello.put("custom_emoji", customEmoji);
 
             return mapper.writeValueAsString(Map.of("op", "HELLO", "d", hello));
         } catch (Exception e) {

@@ -1,6 +1,7 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import type { MentionedUser, MentionedRole } from '$lib/api/messages.js';
+import { findCustomEmojiByName } from '$lib/stores/emoji.svelte.js';
 
 // Configure marked
 marked.setOptions({
@@ -42,6 +43,13 @@ function processMentions(
 
 	// @everyone stays as-is (server already validated permission)
 
+	// Replace custom emoji shortcodes: :name: -> <img class="custom-emoji" ...>
+	processed = processed.replace(/:([a-zA-Z0-9_]{2,32}):/g, (match, name) => {
+		const emoji = findCustomEmojiByName(name.toLowerCase());
+		if (!emoji) return match; // Not a known custom emoji, leave as-is
+		return `<img class="custom-emoji" src="${emoji.url}" alt=":${emoji.name}:" title=":${emoji.name}:">`;
+	});
+
 	return processed;
 }
 
@@ -63,7 +71,7 @@ export function renderMarkdown(
 			'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 			'hr', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span'
 		],
-		ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel', 'data-user-id', 'data-role-id', 'style'],
+		ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel', 'data-user-id', 'data-role-id', 'style', 'data-emoji-name'],
 		ADD_ATTR: ['target']
 	});
 }

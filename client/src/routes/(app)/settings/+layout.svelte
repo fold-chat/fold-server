@@ -48,6 +48,9 @@
 				{#if canInvite}
 					<a class="nav-item" class:active={isActive('/settings/invites')} href="/settings/invites">Invites</a>
 				{/if}
+				{#if canManageServer}
+					<a class="nav-item" class:active={isActive('/settings/emoji')} href="/settings/emoji">Emoji</a>
+				{/if}
 				{#if canVoice}
 					<a class="nav-item" class:active={isActive('/settings/voice')} href="/settings/voice">Voice</a>
 				{/if}

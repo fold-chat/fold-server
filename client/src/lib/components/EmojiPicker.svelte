@@ -1,15 +1,18 @@
 <script lang="ts">
 	import { categories, searchEmoji, type Emoji } from '$lib/data/emoji.js';
+	import { getCustomEmoji, searchCustomEmoji } from '$lib/stores/emoji.svelte.js';
 	import { tick } from 'svelte';
 
 	let { onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void } = $props();
 
 	let query = $state('');
-	let activeCategory = $state(categories[0].id);
+	let activeCategory = $state(getCustomEmoji().length > 0 ? 'custom' : categories[0].id);
 	let searchInput = $state<HTMLInputElement | null>(null);
 	let pickerEl = $state<HTMLDivElement | null>(null);
 
+	let customEmojiList = $derived(getCustomEmoji());
 	let searchResults = $derived(query ? searchEmoji(query) : null);
+	let customSearchResults = $derived(query ? searchCustomEmoji(query) : null);
 
 	$effect(() => {
 		tick().then(() => searchInput?.focus());
@@ -37,6 +40,11 @@
 		onClose();
 	}
 
+	function selectCustom(name: string) {
+		onSelect(`:${name}:`);
+		onClose();
+	}
+
 	function scrollToCategory(id: string) {
 		activeCategory = id;
 		query = '';
@@ -57,6 +65,14 @@
 		/>
 	</div>
 	<div class="category-tabs">
+		{#if customEmojiList.length > 0}
+			<button
+				class="cat-tab"
+				class:active={activeCategory === 'custom' && !searchResults}
+				onclick={() => scrollToCategory('custom')}
+				title="Custom"
+			>⭐</button>
+		{/if}
 		{#each categories as cat}
 			<button
 				class="cat-tab"
@@ -68,16 +84,42 @@
 	</div>
 	<div class="emoji-grid-container">
 		{#if searchResults}
-			{#if searchResults.length === 0}
+			{@const hasCustom = customSearchResults && customSearchResults.length > 0}
+			{@const hasUnicode = searchResults.length > 0}
+			{#if !hasCustom && !hasUnicode}
 				<div class="no-results">No emoji found</div>
 			{:else}
-				<div class="emoji-grid">
-					{#each searchResults.slice(0, 80) as e}
-						<button class="emoji-btn" onclick={() => select(e.emoji)} title={e.name}>{e.emoji}</button>
-					{/each}
-				</div>
+				{#if hasCustom}
+					<div class="category-label">Custom</div>
+					<div class="emoji-grid">
+						{#each customSearchResults as ce}
+							<button class="emoji-btn custom-emoji-btn" onclick={() => selectCustom(ce.name)} title={`:${ce.name}:`}>
+								<img src={ce.url} alt={ce.name} class="custom-emoji-img" />
+							</button>
+						{/each}
+					</div>
+				{/if}
+				{#if hasUnicode}
+					<div class="emoji-grid">
+						{#each searchResults.slice(0, 80) as e}
+							<button class="emoji-btn" onclick={() => select(e.emoji)} title={e.name}>{e.emoji}</button>
+						{/each}
+					</div>
+				{/if}
 			{/if}
 		{:else}
+			{#if customEmojiList.length > 0}
+				<div data-category="custom">
+					<div class="category-label">Custom</div>
+					<div class="emoji-grid">
+						{#each customEmojiList as ce}
+							<button class="emoji-btn custom-emoji-btn" onclick={() => selectCustom(ce.name)} title={`:${ce.name}:`}>
+								<img src={ce.url} alt={ce.name} class="custom-emoji-img" />
+							</button>
+						{/each}
+					</div>
+				</div>
+			{/if}
 			{#each categories as cat}
 				<div data-category={cat.id}>
 					<div class="category-label">{cat.name}</div>
@@ -203,5 +245,17 @@
 		color: var(--text-muted);
 		padding: 2rem;
 		font-size: 0.8rem;
+	}
+
+	.custom-emoji-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.custom-emoji-img {
+		width: 22px;
+		height: 22px;
+		object-fit: contain;
 	}
 </style>

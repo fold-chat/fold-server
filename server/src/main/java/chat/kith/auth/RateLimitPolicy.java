@@ -24,6 +24,8 @@ public record RateLimitPolicy(int maxTokens, Duration window) {
     public static final RateLimitPolicy VOICE_TOKEN = new RateLimitPolicy(5, Duration.ofMinutes(1));
     public static final RateLimitPolicy VOICE_STATE = new RateLimitPolicy(10, Duration.ofSeconds(10));
     public static final RateLimitPolicy VOICE_MODERATION = new RateLimitPolicy(10, Duration.ofMinutes(1));
+    public static final RateLimitPolicy EMOJI_UPLOAD = new RateLimitPolicy(5, Duration.ofMinutes(1));
+    public static final RateLimitPolicy EMOJI_DELETE = new RateLimitPolicy(5, Duration.ofMinutes(1));
 
     /** Parse from string format "count/windowSeconds", e.g. "5/60" */
     public static RateLimitPolicy parse(String spec) {

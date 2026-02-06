@@ -10,6 +10,8 @@ import { setMembers, removeMember, updateMember, getMembers as getStoreMembers }
 import { getUser, setPermissions, setMediaSearchEnabled, setServerSettings } from './auth.svelte.js';
 import { hydrateVoiceStates, setVoiceVideoEnabled, setE2eeCapability, handleVoiceStateUpdate, handleVoiceMove, handleVoiceKeyRotate } from './voice.svelte.js';
 import { setOnlineUserIds, setUserOnline, setUserOffline } from './presence.svelte.js';
+import { setCustomEmoji, addCustomEmoji, removeCustomEmoji } from './emoji.svelte.js';
+import type { CustomEmoji } from '$lib/api/emoji.js';
 import { goto } from '$app/navigation';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
@@ -198,6 +200,12 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 		case 'PRESENCE_UPDATE':
 			if (msg.d) handlePresenceUpdate(msg.d);
 			break;
+		case 'EMOJI_CREATE':
+			if (msg.d) addCustomEmoji(msg.d as unknown as CustomEmoji);
+			break;
+		case 'EMOJI_DELETE':
+			if (msg.d?.id) removeCustomEmoji(msg.d.id as string);
+			break;
 	}
 }
 
@@ -218,6 +226,7 @@ interface HelloPayload {
 	server_settings?: { server_name?: string | null; server_icon?: string | null; server_description?: string | null };
 	voice_states?: Array<import('$lib/api/voice.js').VoiceState> | Record<string, Array<import('$lib/api/voice.js').VoiceState>>;
 	capabilities?: { voice_video?: boolean; e2ee?: boolean };
+	custom_emoji?: CustomEmoji[];
 }
 
 function handleUserStateUpdate(data: Record<string, unknown>) {
@@ -287,6 +296,7 @@ function handleHello(data: HelloPayload) {
 	setMediaSearchEnabled(data.media_search ?? false);
 	if (data.server_settings) setServerSettings(data.server_settings);
 	if (data.online_user_ids) setOnlineUserIds(data.online_user_ids);
+	setCustomEmoji(data.custom_emoji ?? []);
 	// Server sends voice_states as { channelId: VoiceState[] } — flatten to array
 	const rawVs = data.voice_states;
 	let voiceArr: import('$lib/api/voice.js').VoiceState[] = [];
