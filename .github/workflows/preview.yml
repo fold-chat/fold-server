@@ -49,7 +49,8 @@ jobs:
           cd client
           pnpm install --frozen-lockfile
           pnpm build
-          cp -r build/ ../server/src/main/resources/META-INF/resources/
+          mkdir -p ../server/src/main/resources/META-INF/resources
+          cp -r build/* ../server/src/main/resources/META-INF/resources/
 
       # Server
       - uses: actions/setup-java@v4
