@@ -46,8 +46,9 @@ job "kith-pr-__PR_NUMBER__" {
       }
 
       service {
-        name = "kith-pr-__PR_NUMBER__"
-        port = "http"
+        provider = "nomad"
+        name     = "kith-pr-__PR_NUMBER__"
+        port     = "http"
 
         tags = [
           "traefik.enable=true",
