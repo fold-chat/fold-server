@@ -34,6 +34,8 @@ jobs:
           cargo build --release
           mkdir -p ../native/linux-amd64
           cp target/release/liblibsql.so ../native/linux-amd64/
+          mkdir -p ../src/main/resources/native/linux-amd64
+          cp target/release/liblibsql.so ../src/main/resources/native/linux-amd64/
 
       # Client
       - uses: pnpm/action-setup@v4
