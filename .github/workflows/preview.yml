@@ -94,10 +94,14 @@ jobs:
           PR_NUMBER=${{ github.event.pull_request.number }}
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pr-${PR_NUMBER}"
 
-          scp $SSH_OPTS deploy/nomad/kith-preview.nomad.hcl root@${NOMAD_HOST}:/tmp/kith-preview.nomad.hcl
+          sed -e "s|__PR_NUMBER__|${PR_NUMBER}|g" \
+              -e "s|__IMAGE_TAG__|${IMAGE}|g" \
+              deploy/nomad/kith-preview.nomad.hcl > /tmp/kith-pr-${PR_NUMBER}.nomad.hcl
+
+          scp $SSH_OPTS /tmp/kith-pr-${PR_NUMBER}.nomad.hcl root@${NOMAD_HOST}:/tmp/kith-pr-${PR_NUMBER}.nomad.hcl
 
           ssh $SSH_OPTS root@${NOMAD_HOST} \
-            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run -var='pr_number=${PR_NUMBER}' -var='image_tag=${IMAGE}' /tmp/kith-preview.nomad.hcl"
+            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run /tmp/kith-pr-${PR_NUMBER}.nomad.hcl"
 
       # Comment on PR
       - name: Comment preview URL

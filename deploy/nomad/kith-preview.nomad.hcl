@@ -1,27 +1,9 @@
-variable "pr_number" {
-  type = string
-}
-
-variable "image_tag" {
-  type    = string
-  default = ""
-}
-
-variable "domain" {
-  type    = string
-  default = "fold.chat"
-}
-
-locals {
-  image = var.image_tag != "" ? var.image_tag : "ghcr.io/fray-chat/fray-app:pr-${var.pr_number}"
-}
-
-job "kith-pr-${var.pr_number}" {
+job "kith-pr-__PR_NUMBER__" {
   datacenters = ["dc1"]
   type        = "service"
 
   meta {
-    pr_number = var.pr_number
+    pr_number = "__PR_NUMBER__"
   }
 
   group "kith" {
@@ -34,7 +16,7 @@ job "kith-pr-${var.pr_number}" {
     }
 
     ephemeral_disk {
-      size    = 500  # MB
+      size    = 500
       migrate = false
       sticky  = false
     }
@@ -43,14 +25,14 @@ job "kith-pr-${var.pr_number}" {
       driver = "docker"
 
       config {
-        image = local.image
+        image = "__IMAGE_TAG__"
         ports = ["http"]
       }
 
       env {
         KITH_DB_PATH        = "/alloc/data/kith.db"
         KITH_DATA_DIR       = "/alloc/data"
-        KITH_BASE_URL       = "https://pr-${var.pr_number}.preview.${var.domain}"
+        KITH_BASE_URL       = "https://pr-__PR_NUMBER__.preview.fold.chat"
         KITH_DEV            = "false"
         KITH_ADMIN_USERNAME = "admin"
         KITH_ADMIN_PASSWORD = "preview-admin-pw"
@@ -64,14 +46,14 @@ job "kith-pr-${var.pr_number}" {
       }
 
       service {
-        name = "kith-pr-${var.pr_number}"
+        name = "kith-pr-__PR_NUMBER__"
         port = "http"
 
         tags = [
           "traefik.enable=true",
-          "traefik.http.routers.kith-pr-${var.pr_number}.rule=Host(`pr-${var.pr_number}.preview.${var.domain}`)",
-          "traefik.http.routers.kith-pr-${var.pr_number}.entrypoints=websecure",
-          "traefik.http.routers.kith-pr-${var.pr_number}.tls=true",
+          "traefik.http.routers.kith-pr-__PR_NUMBER__.rule=Host(`pr-__PR_NUMBER__.preview.fold.chat`)",
+          "traefik.http.routers.kith-pr-__PR_NUMBER__.entrypoints=websecure",
+          "traefik.http.routers.kith-pr-__PR_NUMBER__.tls=true",
         ]
 
         check {
