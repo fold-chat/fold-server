@@ -32,11 +32,12 @@ job "kith-pr-__PR_NUMBER__" {
       env {
         KITH_DB_PATH        = "/alloc/data/kith.db"
         KITH_DATA_DIR       = "/alloc/data"
-        KITH_BASE_URL       = "https://pr-__PR_NUMBER__.preview.fold.chat"
+        KITH_BASE_URL       = "https://pr-__PR_NUMBER__-preview.fold.chat"
         KITH_DEV            = "false"
         KITH_ADMIN_USERNAME = "admin"
         KITH_ADMIN_PASSWORD = "preview-admin-pw"
         KITH_PORT           = "8080"
+        KITH_LIVEKIT_MODE   = "embedded"
         JAVA_OPTS           = "--enable-native-access=ALL-UNNAMED"
       }
 
@@ -52,7 +53,7 @@ job "kith-pr-__PR_NUMBER__" {
 
         tags = [
           "traefik.enable=true",
-          "traefik.http.routers.kith-pr-__PR_NUMBER__.rule=Host(`pr-__PR_NUMBER__.preview.fold.chat`)",
+          "traefik.http.routers.kith-pr-__PR_NUMBER__.rule=Host(`pr-__PR_NUMBER__-preview.fold.chat`)",
           "traefik.http.routers.kith-pr-__PR_NUMBER__.entrypoints=websecure",
           "traefik.http.routers.kith-pr-__PR_NUMBER__.tls=true",
         ]

@@ -111,7 +111,7 @@ jobs:
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
-            const url = `https://pr-${prNumber}.preview.fold.chat`;
+            const url = `https://pr-${prNumber}-preview.fold.chat`;
             const body = `🚀 Preview deployed: ${url}\n\nLogin: \`admin\` / \`preview-admin-pw\``;
 
             // Find existing bot comment
