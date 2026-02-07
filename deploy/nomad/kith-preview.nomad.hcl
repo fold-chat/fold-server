@@ -64,9 +64,8 @@ job "kith-pr-__PR_NUMBER__" {
           timeout  = "5s"
 
           check_restart {
-            limit           = 3
-            grace           = "60s"
-            ignore_warnings = true
+            limit = 3
+            grace = "60s"
           }
         }
       }
