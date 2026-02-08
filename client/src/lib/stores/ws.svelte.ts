@@ -6,7 +6,7 @@ import { setChannels, getChannels, setCategories, addChannel, updateChannel, rem
 import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './messages.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
-import { setMembers, removeMember, updateMember, getMembers as getStoreMembers } from './members.svelte.js';
+import { setMembers, addMember, removeMember, updateMember, getMembers as getStoreMembers } from './members.svelte.js';
 import { getUser, setPermissions, setMediaSearchEnabled, setServerSettings } from './auth.svelte.js';
 import { hydrateVoiceStates, setVoiceVideoEnabled, setE2eeCapability, handleVoiceStateUpdate, handleVoiceMove, handleVoiceKeyRotate } from './voice.svelte.js';
 import { setOnlineUserIds, setUserOnline, setUserOffline } from './presence.svelte.js';
@@ -153,6 +153,9 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 		case 'REACTION_ADD':
 		case 'REACTION_REMOVE':
 			handleReactionEvent(msg.op, msg.d);
+			break;
+		case 'MEMBER_JOIN':
+			if (msg.d) addMember(msg.d as unknown as Member);
 			break;
 		case 'MEMBER_BAN':
 			if (msg.d?.user_id) {

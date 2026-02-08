@@ -1,6 +1,11 @@
 package chat.kith.api;
 
 import chat.kith.auth.*;
+import chat.kith.db.UserRepository;
+import chat.kith.event.Event;
+import chat.kith.event.EventBus;
+import chat.kith.event.EventType;
+import chat.kith.event.Scope;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -18,6 +23,8 @@ public class AuthResource {
 
     @Inject AuthService authService;
     @Inject RateLimitService rateLimitService;
+    @Inject UserRepository userRepo;
+    @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
     @POST
@@ -35,6 +42,11 @@ public class AuthResource {
 
         try {
             var result = authService.register(req);
+
+            // Publish MEMBER_JOIN event so connected clients see the new member
+            userRepo.findMemberById(result.userId()).ifPresent(member ->
+                    eventBus.publish(Event.of(EventType.MEMBER_JOIN, member, Scope.server()))
+            );
 
             // Auto-login after registration
             var loginResult = authService.login(new AuthService.LoginRequest(req.username(), req.password()));
