@@ -12,6 +12,7 @@ export interface ApiError {
 	error: string;
 	message?: string;
 	retry_after?: number;
+	status?: number;
 }
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -26,6 +27,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 
 	if (res.status === 403) {
 		const body = await res.json().catch(() => ({ error: 'forbidden' })) as ApiError;
+		body.status = res.status;
 		if (body.error === 'banned') {
 			if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
 				window.location.href = '/login?reason=banned';
@@ -56,11 +58,12 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 		if (typeof window !== 'undefined' && !isPublicPath(window.location.pathname)) {
 			window.location.href = '/login';
 		}
-		throw { error: 'authentication_required' } as ApiError;
+		throw { error: 'authentication_required', status: 401 } as ApiError;
 	}
 
 	if (!res.ok) {
 		const err = (await res.json().catch(() => ({ error: 'unknown' }))) as ApiError;
+		err.status = res.status;
 		throw err;
 	}
 

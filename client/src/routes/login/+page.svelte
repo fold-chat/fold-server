@@ -27,13 +27,19 @@
 			setUser(user);
 			goto('/');
 		} catch (err) {
-			const apiErr = err as ApiError;
-			if (apiErr.error === 'banned') {
-				error = 'You have been banned from this server.';
-			} else if (apiErr.error === 'account_locked') {
-				error = `Account locked. Try again in ${apiErr.retry_after} seconds.`;
+			if (err instanceof TypeError) {
+				error = 'Unable to reach server. Please try again later.';
 			} else {
-				error = apiErr.message || 'Invalid username or password';
+				const apiErr = err as ApiError;
+				if (apiErr.error === 'banned') {
+					error = 'You have been banned from this server.';
+				} else if (apiErr.error === 'account_locked') {
+					error = `Account locked. Try again in ${apiErr.retry_after} seconds.`;
+				} else if (apiErr.status && apiErr.status >= 500) {
+					error = 'Server error. Please try again later.';
+				} else {
+					error = apiErr.message || 'Invalid username or password.';
+				}
 			}
 		} finally {
 			loading = false;
