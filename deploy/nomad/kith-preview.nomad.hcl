@@ -33,6 +33,7 @@ job "kith-pr-__PR_NUMBER__" {
         KITH_DB_PATH        = "/alloc/data/kith.db"
         KITH_DATA_DIR       = "/alloc/data"
         KITH_BASE_URL       = "https://pr-__PR_NUMBER__-preview.fold.chat"
+        KITH_CORS_ORIGINS   = "https://pr-__PR_NUMBER__-preview.fold.chat"
         KITH_DEV            = "false"
         KITH_ADMIN_USERNAME = "admin"
         KITH_ADMIN_PASSWORD = "preview-admin-pw"
