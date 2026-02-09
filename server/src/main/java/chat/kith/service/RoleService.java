@@ -69,6 +69,13 @@ public class RoleService {
         var updated = roleRepo.findById(roleId).orElseThrow();
         var serialized = serializeRole(updated);
         eventBus.publish(Event.of(EventType.ROLE_UPDATE, serialized, Scope.server()));
+
+        // If permissions changed, broadcast updated user state to affected online users
+        long oldPerms = (Long) existing.get("permissions");
+        if (newPerms != oldPerms) {
+            broadcastPermissionChange(roleId);
+        }
+
         return serialized;
     }
 

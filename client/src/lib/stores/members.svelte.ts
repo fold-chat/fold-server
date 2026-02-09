@@ -21,3 +21,15 @@ export function updateMember(m: Member) {
 export function removeMember(id: string) {
 	members = members.filter(m => m.id !== id);
 }
+
+/** Update a role badge (name/color) across all members who have that role */
+export function updateMemberRoleBadge(roleId: string, name: string, color: string | null) {
+	members = members.map(m => {
+		const hasRole = m.roles.some(r => r.id === roleId);
+		if (!hasRole) return m;
+		return {
+			...m,
+			roles: m.roles.map(r => r.id === roleId ? { ...r, name, color } : r)
+		};
+	});
+}

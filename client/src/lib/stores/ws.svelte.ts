@@ -6,7 +6,7 @@ import { setChannels, getChannels, setCategories, addChannel, updateChannel, rem
 import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './messages.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
-import { setMembers, addMember, removeMember, updateMember, getMembers as getStoreMembers } from './members.svelte.js';
+import { setMembers, addMember, removeMember, updateMember, getMembers as getStoreMembers, updateMemberRoleBadge } from './members.svelte.js';
 import { getUser, setPermissions, setMediaSearchEnabled, setServerSettings } from './auth.svelte.js';
 import { hydrateVoiceStates, setVoiceVideoEnabled, setE2eeCapability, handleVoiceStateUpdate, handleVoiceMove, handleVoiceKeyRotate } from './voice.svelte.js';
 import { setOnlineUserIds, setUserOnline, setUserOffline } from './presence.svelte.js';
@@ -138,14 +138,18 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 			if (msg.d) addRole(msg.d as unknown as Role);
 			break;
 		case 'ROLE_UPDATE':
-			if (msg.d) updateStoreRole(msg.d as unknown as Role);
+			if (msg.d) {
+				const updatedRole = msg.d as unknown as Role;
+				updateStoreRole(updatedRole);
+				updateMemberRoleBadge(updatedRole.id, updatedRole.name, updatedRole.color);
+			}
 			break;
 		case 'ROLE_DELETE':
 			if (msg.d?.id) removeStoreRole(msg.d.id as string);
 			break;
 		case 'MEMBER_ROLE_ASSIGNED':
 		case 'MEMBER_ROLE_REMOVED':
-			if (msg.d) handleMemberRoleUpdate(msg.d);
+			if (msg.d) handleMemberRoleUpdate(msg.op, msg.d);
 			break;
 		case 'CHANNEL_PERMISSIONS_UPDATE':
 			if (msg.d) handleChannelPermissionsUpdate(msg.d);
@@ -250,9 +254,28 @@ function handleUserStateUpdate(data: Record<string, unknown>) {
 	}
 }
 
-function handleMemberRoleUpdate(data: Record<string, unknown>) {
+function handleMemberRoleUpdate(op: string, data: Record<string, unknown>) {
+	const userId = data.user_id as string;
+	if (!userId) return;
+
+	// Update member's role badges in the members store for ALL users
+	const existing = getStoreMembers().find(m => m.id === userId);
+	if (existing) {
+		const role = data.role as { id: string; name: string; color: string | null } | undefined;
+		const roleId = data.role_id as string;
+		if (op === 'MEMBER_ROLE_ASSIGNED' && role) {
+			const badge = { id: role.id, name: role.name, color: role.color };
+			if (!existing.roles.some(r => r.id === badge.id)) {
+				updateMember({ ...existing, roles: [...existing.roles, badge] });
+			}
+		} else if (op === 'MEMBER_ROLE_REMOVED' && roleId) {
+			updateMember({ ...existing, roles: existing.roles.filter(r => r.id !== roleId) });
+		}
+	}
+
+	// For the current user, also update permissions/channels/categories
 	const currentUser = getUser();
-	if (currentUser && data.user_id === currentUser.id) {
+	if (currentUser && userId === currentUser.id) {
 		handleUserStateUpdate(data);
 	}
 }
