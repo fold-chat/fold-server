@@ -2,7 +2,7 @@
 import type { Message } from '$lib/api/messages.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { addReaction, removeReaction } from '$lib/api/reactions.js';
-	import { renderMarkdown, formatTimestamp } from '$lib/utils/markdown.js';
+import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdown.js';
 	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	import { findCustomEmojiByName } from '$lib/stores/emoji.svelte.js';
 	import EmojiPicker from './EmojiPicker.svelte';
@@ -289,7 +289,7 @@ import type { Message } from '$lib/api/messages.js';
 							</div>
 						{:else}
 							<CollapsibleContent>
-								<div class="content">{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
+							<div class="content" class:emoji-only={isEmojiOnly(msg.content)}>{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
 								{#if msg.attachments && msg.attachments.length > 0}
 									<div class="attachments">
 										{#each msg.attachments as att}
@@ -524,6 +524,25 @@ import type { Message } from '$lib/api/messages.js';
 		color: var(--accent, #5865f2);
 	}
 
+	.message-body :global(.custom-emoji) {
+		width: 1.75em;
+		height: 1.75em;
+		object-fit: contain;
+		vertical-align: middle;
+		margin: 0 0.05em;
+	}
+
+	.message-body :global(.unicode-emoji) {
+		font-size: 1.4em;
+		line-height: 1;
+		vertical-align: middle;
+	}
+
+	.content.emoji-only {
+		font-size: 2.5rem;
+		line-height: 1.2;
+	}
+
 	.edited {
 		font-size: 0.7rem;
 		color: var(--text-muted);
@@ -653,12 +672,12 @@ import type { Message } from '$lib/api/messages.js';
 	}
 
 	.reaction-emoji {
-		font-size: 0.9rem;
+		font-size: 1.15rem;
 	}
 
 	.reaction-custom-emoji {
-		width: 18px;
-		height: 18px;
+		width: 22px;
+		height: 22px;
 		object-fit: contain;
 		vertical-align: middle;
 	}

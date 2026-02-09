@@ -50,7 +50,25 @@ function processMentions(
 		return `<img class="custom-emoji" src="${emoji.url}" alt=":${emoji.name}:" title=":${emoji.name}:">`;
 	});
 
+	// Wrap unicode emoji in styled spans so they can be sized independently from text
+	processed = processed.replace(
+		/[\p{Emoji_Presentation}\p{Extended_Pictographic}][\u{FE0F}\u{20E3}\u{1F3FB}-\u{1F3FF}\u{200D}\p{Emoji_Presentation}\p{Extended_Pictographic}]*/gu,
+		(match) => `<span class="unicode-emoji">${match}</span>`
+	);
+
 	return processed;
+}
+
+/** True when raw content is exclusively emoji (unicode and/or custom shortcodes). */
+export function isEmojiOnly(content: string): boolean {
+	let stripped = content;
+	// Strip validated custom emoji shortcodes
+	stripped = stripped.replace(/:([a-zA-Z0-9_]{2,32}):/g, (match, name) => {
+		return findCustomEmojiByName(name.toLowerCase()) ? '' : match;
+	});
+	// Strip unicode emoji (incl. ZWJ sequences, skin tones, variation selectors)
+	stripped = stripped.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}][\u{FE0F}\u{20E3}\u{1F3FB}-\u{1F3FF}\u{200D}\p{Emoji_Presentation}\p{Extended_Pictographic}]*/gu, '');
+	return stripped.trim() === '' && content.trim().length > 0;
 }
 
 export function renderMarkdown(

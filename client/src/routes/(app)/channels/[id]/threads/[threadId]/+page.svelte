@@ -13,7 +13,7 @@ import { editMessage, deleteMessage } from '$lib/api/messages.js';
 	import { getChannelById, getCategories } from '$lib/stores/channels.svelte.js';
 	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
 import { PermissionName } from '$lib/permissions.js';
-import { renderMarkdown, contentPreview } from '$lib/utils/markdown.js';
+import { renderMarkdown, contentPreview, isEmojiOnly } from '$lib/utils/markdown.js';
 	import CollapsibleContent from '$lib/components/CollapsibleContent.svelte';
 	import { send } from '$lib/stores/ws.svelte.js';
 	import MessageList from '$lib/components/MessageList.svelte';
@@ -292,7 +292,7 @@ import { renderMarkdown, contentPreview } from '$lib/utils/markdown.js';
 			<h1 class="thread-title">{thread.title || 'Thread'}</h1>
 			{#if originalPost}
 				<CollapsibleContent>
-					<div class="op-content">{@html renderMarkdown(originalPost.content, { mentions: originalPost.mentions, mention_roles: originalPost.mention_roles, mention_everyone: originalPost.mention_everyone })}</div>
+				<div class="op-content" class:emoji-only={isEmojiOnly(originalPost.content)}>{@html renderMarkdown(originalPost.content, { mentions: originalPost.mentions, mention_roles: originalPost.mention_roles, mention_everyone: originalPost.mention_everyone })}</div>
 					{#if originalPost.attachments?.length}
 						<div class="op-attachments">
 							{#each originalPost.attachments as att}
@@ -544,6 +544,25 @@ import { renderMarkdown, contentPreview } from '$lib/utils/markdown.js';
 
 	.op-content :global(a) {
 		color: var(--accent, #5865f2);
+	}
+
+	.op-content :global(.custom-emoji) {
+		width: 1.75em;
+		height: 1.75em;
+		object-fit: contain;
+		vertical-align: middle;
+		margin: 0 0.05em;
+	}
+
+	.op-content :global(.unicode-emoji) {
+		font-size: 1.4em;
+		line-height: 1;
+		vertical-align: middle;
+	}
+
+	.op-content.emoji-only {
+		font-size: 2.5rem;
+		line-height: 1.2;
 	}
 
 	.op-attachments {

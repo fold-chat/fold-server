@@ -12,7 +12,7 @@
 	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { send } from '$lib/stores/ws.svelte.js';
-	import { formatTimestamp, renderMarkdown } from '$lib/utils/markdown.js';
+import { formatTimestamp, renderMarkdown, isEmojiOnly } from '$lib/utils/markdown.js';
 	import CollapsibleContent from './CollapsibleContent.svelte';
 	import MessageList from './MessageList.svelte';
 	import MessageCompose from './MessageCompose.svelte';
@@ -228,7 +228,7 @@
 						<span class="parent-time">{formatTimestamp(parentMessage.created_at)}</span>
 					</div>
 					<CollapsibleContent>
-						<div class="parent-content">{@html renderMarkdown(parentMessage.content, { mentions: parentMessage.mentions, mention_roles: parentMessage.mention_roles, mention_everyone: parentMessage.mention_everyone })}</div>
+					<div class="parent-content" class:emoji-only={isEmojiOnly(parentMessage.content)}>{@html renderMarkdown(parentMessage.content, { mentions: parentMessage.mentions, mention_roles: parentMessage.mention_roles, mention_everyone: parentMessage.mention_everyone })}</div>
 					</CollapsibleContent>
 				{/if}
 			</div>
@@ -358,6 +358,25 @@
 
 	.parent-content :global(p) {
 		margin: 0;
+	}
+
+	.parent-content :global(.custom-emoji) {
+		width: 1.75em;
+		height: 1.75em;
+		object-fit: contain;
+		vertical-align: middle;
+		margin: 0 0.05em;
+	}
+
+	.parent-content :global(.unicode-emoji) {
+		font-size: 1.4em;
+		line-height: 1;
+		vertical-align: middle;
+	}
+
+	.parent-content.emoji-only {
+		font-size: 2.5rem;
+		line-height: 1.2;
 	}
 
 	.parent-loading {
