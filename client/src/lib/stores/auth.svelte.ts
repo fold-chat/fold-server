@@ -11,6 +11,7 @@ let user = $state<User | null>(null);
 let setupRequired = $state(false);
 let initialized = $state(false);
 let permissions = $state<UserPermissions>({ server: [], channels: new Map() });
+let permissionsLoaded = $state(false);
 let mediaSearchEnabled = $state(false);
 let serverSettings = $state<{ server_name: string | null; server_icon: string | null; server_description: string | null }>({
 	server_name: 'Kith',
@@ -68,6 +69,7 @@ export function setPermissions(server: string[], channels: Record<string, string
 		server,
 		channels: new Map(Object.entries(channels))
 	};
+	permissionsLoaded = true;
 }
 
 export function updateChannelPermissions(channelId: string, perms: string[]) {
@@ -80,6 +82,10 @@ export function updateChannelPermissions(channelId: string, perms: string[]) {
 
 export function hasServerPermission(perm: Permission): boolean {
 	return permissions.server.includes(perm);
+}
+
+export function arePermissionsLoaded(): boolean {
+	return permissionsLoaded;
 }
 
 export function hasChannelPermission(channelId: string, perm: Permission): boolean {
@@ -114,6 +120,7 @@ export function reset() {
 	initialized = false;
 	setupRequired = false;
 	permissions = { server: [], channels: new Map() };
+	permissionsLoaded = false;
 	mediaSearchEnabled = false;
 	serverSettings = { server_name: 'Kith', server_icon: null, server_description: null };
 }

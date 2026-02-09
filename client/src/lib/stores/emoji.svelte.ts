@@ -11,6 +11,7 @@ export function setCustomEmoji(emoji: CustomEmoji[]) {
 }
 
 export function addCustomEmoji(emoji: CustomEmoji) {
+	if (customEmoji.some((e) => e.id === emoji.id)) return;
 	customEmoji = [...customEmoji, emoji];
 }
 

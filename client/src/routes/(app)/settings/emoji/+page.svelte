@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { hasServerPermission, arePermissionsLoaded } from '$lib/stores/auth.svelte.js';
 	import { getCustomEmoji, addCustomEmoji, removeCustomEmoji as removeEmojiFromStore } from '$lib/stores/emoji.svelte.js';
 	import { uploadEmoji, deleteEmoji } from '$lib/api/emoji.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
 
+	const loaded = $derived(arePermissionsLoaded());
 	const canManageServer = $derived(hasServerPermission(PermissionName.MANAGE_SERVER));
 	let emojiList = $derived(getCustomEmoji());
 
@@ -102,7 +103,9 @@
 		<div class="success-message">{success}</div>
 	{/if}
 
-	{#if !canManageServer}
+	{#if !loaded}
+		<p class="muted">Loading…</p>
+	{:else if !canManageServer}
 		<p class="muted">You don't have permission to manage emoji.</p>
 
 		{#if emojiList.length > 0}

@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { getServerSettings, setServerSettings } from '$lib/stores/auth.svelte.js';
-	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { getServerSettings, setServerSettings, hasServerPermission, arePermissionsLoaded } from '$lib/stores/auth.svelte.js';
 	import { updateServerSettings, type ServerSettings } from '$lib/api/settings.js';
 	import { uploadFile } from '$lib/api/upload.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
 
+	const loaded = $derived(arePermissionsLoaded());
 	const canManageServer = $derived(hasServerPermission(PermissionName.MANAGE_SERVER));
 
 	let formName = $state(getServerSettings().server_name || '');
@@ -81,7 +81,9 @@
 			<div class="success-message">{success}</div>
 		{/if}
 
-		{#if !canManageServer}
+		{#if !loaded}
+			<p class="muted">Loading…</p>
+		{:else if !canManageServer}
 			<p class="muted">You don't have permission to manage server settings.</p>
 		{:else}
 			<div class="form-section">

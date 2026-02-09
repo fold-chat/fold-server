@@ -54,7 +54,7 @@ public class EmojiResource {
         var rl = checkRate("emoji_upload", sc.getUserId(), RateLimitPolicy.EMOJI_UPLOAD);
         if (rl != null) return rl;
 
-        permissionService.requirePermission(sc.getUserId(), null, Permission.MANAGE_SERVER);
+        permissionService.requireServerPermission(sc.getUserId(), Permission.MANAGE_SERVER);
 
         // Validate name
         if (name == null || name.isBlank()) {
@@ -121,7 +121,7 @@ public class EmojiResource {
         var rl = checkRate("emoji_delete", sc.getUserId(), RateLimitPolicy.EMOJI_DELETE);
         if (rl != null) return rl;
 
-        permissionService.requirePermission(sc.getUserId(), null, Permission.MANAGE_SERVER);
+        permissionService.requireServerPermission(sc.getUserId(), Permission.MANAGE_SERVER);
 
         var existing = emojiRepo.findById(id);
         if (existing.isEmpty()) {
