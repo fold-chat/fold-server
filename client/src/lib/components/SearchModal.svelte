@@ -145,7 +145,14 @@
 					<div class="status">Searching…</div>
 				{:else if error}
 					<div class="status error">{error}</div>
-				{:else if query.trim() && results.length === 0}
+				{:else if !query.trim()}
+					<div class="status">
+						<svg viewBox="0 0 20 20" fill="currentColor" width="32" height="32" class="empty-icon">
+							<path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.45 4.39l4.26 4.26a.75.75 0 11-1.06 1.06l-4.26-4.26A7 7 0 012 9z" clip-rule="evenodd" />
+						</svg>
+						<p>Search messages across all channels</p>
+					</div>
+				{:else if results.length === 0}
 					<div class="status">No results found</div>
 				{:else}
 					{#each results as result}
@@ -304,6 +311,18 @@
 		padding: 2rem 1rem;
 		color: var(--text-muted);
 		font-size: 0.85rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.status p {
+		margin: 0;
+	}
+
+	.empty-icon {
+		opacity: 0.3;
 	}
 
 	.status.error {

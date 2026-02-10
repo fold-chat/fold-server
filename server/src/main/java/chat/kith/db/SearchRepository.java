@@ -63,9 +63,8 @@ public class SearchRepository {
         }
 
         // has:file — messages that have at least one attachment
-        String fileJoin = "";
         if (hasFile) {
-            fileJoin = " JOIN file fi ON fi.message_id = m.id AND fi.deleted_at IS NULL";
+            conditions.add("EXISTS (SELECT 1 FROM file fi WHERE fi.message_id = m.id AND fi.deleted_at IS NULL)");
         }
 
         params.add(limit);
@@ -76,7 +75,6 @@ public class SearchRepository {
                 FROM message_fts f
                 JOIN message m ON m.rowid = f.rowid
                 JOIN user u ON m.author_id = u.id"""
-                + fileJoin
                 + " WHERE " + String.join(" AND ", conditions)
                 + " ORDER BY f.rank LIMIT ?";
 
