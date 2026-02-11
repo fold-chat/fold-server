@@ -130,12 +130,8 @@ import { formatTimestamp, renderMarkdown, isEmojiOnly } from '$lib/utils/markdow
 			return;
 		}
 		if (!threadId) return;
-		try {
-			await replyToThread(threadId, content, attachmentIds);
-			doMarkRead(threadId);
-		} catch {
-			// handle error
-		}
+		await replyToThread(threadId, content, attachmentIds);
+		doMarkRead(threadId);
 	}
 
 	function handleTyping() {

@@ -133,11 +133,7 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 
 	async function handleSend(content: string, attachmentIds?: string[]) {
 		stopTyping();
-		try {
-			await sendMessage(channelId, content, attachmentIds);
-		} catch {
-			// handle error
-		}
+		await sendMessage(channelId, content, attachmentIds);
 	}
 
 	function handleTyping() {

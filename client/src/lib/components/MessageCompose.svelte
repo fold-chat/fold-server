@@ -16,7 +16,7 @@
 		preview?: string;
 	}
 
-	let { onSend, onTyping, disabled = false, canUploadFiles = true, channelId = null, forumMode = false }: { onSend: (content: string, attachmentIds?: string[]) => void; onTyping?: () => void; disabled?: boolean; canUploadFiles?: boolean; channelId?: string | null; forumMode?: boolean } = $props();
+	let { onSend, onTyping, disabled = false, canUploadFiles = true, channelId = null, forumMode = false }: { onSend: (content: string, attachmentIds?: string[]) => Promise<void> | void; onTyping?: () => void; disabled?: boolean; canUploadFiles?: boolean; channelId?: string | null; forumMode?: boolean } = $props();
 
 	let content = $state('');
 	let textarea = $state<HTMLTextAreaElement | null>(null);
@@ -28,7 +28,10 @@
 	let mentionQuery = $state<string | null>(null);
 	let mentionStartPos = $state<number>(0);
 	let mentionSelectedIndex = $state(0);
-	let canSend = $derived(content.trim().length > 0 || pendingFiles.length > 0);
+	let rateLimitSeconds = $state(0);
+	let rateLimitTimer: ReturnType<typeof setInterval> | null = null;
+	let rateLimited = $derived(rateLimitSeconds > 0);
+	let canSend = $derived((content.trim().length > 0 || pendingFiles.length > 0) && !rateLimited);
 	let showMentionEveryone = $derived(channelId ? hasChannelPermission(channelId, 'MENTION_EVERYONE') : false);
 
 	interface MentionItem {
@@ -158,17 +161,34 @@
 		});
 	}
 
+	function startRateLimit(seconds: number) {
+		rateLimitSeconds = Math.ceil(seconds);
+		if (rateLimitTimer) clearInterval(rateLimitTimer);
+		rateLimitTimer = setInterval(() => {
+			rateLimitSeconds--;
+			if (rateLimitSeconds <= 0) {
+				if (rateLimitTimer) { clearInterval(rateLimitTimer); rateLimitTimer = null; }
+			}
+		}, 1000);
+	}
+
 	async function submit() {
 		const trimmed = content.trim();
 		const uploading = pendingFiles.some(f => f.uploading);
 		if (!trimmed && pendingFiles.length === 0) return;
-		if (uploading) return;
+		if (uploading || rateLimited) return;
 
 		const ids = pendingFiles.filter(f => f.id).map(f => f.id!);
-	onSend(trimmed, ids.length > 0 ? ids : undefined);
-		content = '';
-		pendingFiles = [];
-		if (textarea) textarea.style.height = 'auto';
+		try {
+			await onSend(trimmed, ids.length > 0 ? ids : undefined);
+			content = '';
+			pendingFiles = [];
+			if (textarea) textarea.style.height = 'auto';
+		} catch (err: any) {
+			if (err?.status === 429) {
+				startRateLimit(err.retry_after ?? 10);
+			}
+		}
 	}
 
 	function autoResize() {
@@ -344,16 +364,20 @@
 					onSelect={insertMention}
 				/>
 			{/if}
+			{#if rateLimited}
+				<div class="rate-limit-banner">Slow down! You can send again in {rateLimitSeconds}s</div>
+			{/if}
 		<textarea
 				class="compose-input"
 				class:forum-input={forumMode}
+				class:rate-limited={rateLimited}
 			bind:this={textarea}
 			bind:value={content}
 			onkeydown={handleKeydown}
 			oninput={handleInput}
 			placeholder={disabled ? 'You do not have permission to send messages' : forumMode ? 'Write your post… (Ctrl+Enter to submit)' : 'Send a message...'}
 			rows={forumMode ? 4 : 1}
-				{disabled}
+				disabled={disabled || rateLimited}
 			></textarea>
 		</div>
 		<button class="send-btn" onclick={submit} disabled={!canSend || disabled}>Send</button>
@@ -411,6 +435,24 @@
 	.compose-input:focus {
 		outline: none;
 		border-color: var(--accent, #5865f2);
+	}
+
+	.compose-input.rate-limited {
+		border-color: #e74c3c;
+		opacity: 0.6;
+	}
+
+	.rate-limit-banner {
+		position: absolute;
+		bottom: calc(100% + 4px);
+		left: 0;
+		right: 0;
+		background: #e74c3c;
+		color: white;
+		font-size: 0.78rem;
+		padding: 0.3rem 0.6rem;
+		border-radius: 4px;
+		z-index: 5;
 	}
 
 	.attach-btn {
