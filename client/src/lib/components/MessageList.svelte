@@ -138,20 +138,35 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 		}
 	}
 
-	let lightboxUrl = $state<string | null>(null);
-	let lightboxName = $state('');
+	let lightboxImages = $state<{ url: string; name: string }[]>([]);
+	let lightboxIndex = $state(0);
+	let lightboxUrl = $derived(lightboxImages.length > 0 ? lightboxImages[lightboxIndex]?.url ?? null : null);
+	let lightboxName = $derived(lightboxImages.length > 0 ? lightboxImages[lightboxIndex]?.name ?? '' : '');
 
-	function openLightbox(url: string, name: string) {
-		lightboxUrl = url;
-		lightboxName = name;
+	function openLightbox(images: { url: string; name: string }[], index: number) {
+		lightboxImages = images;
+		lightboxIndex = index;
 	}
 
 	function closeLightbox() {
-		lightboxUrl = null;
+		lightboxImages = [];
+		lightboxIndex = 0;
 	}
 
 	function handleLightboxKey(e: KeyboardEvent) {
 		if (e.key === 'Escape') closeLightbox();
+		if (e.key === 'ArrowRight' && lightboxIndex < lightboxImages.length - 1) {
+			e.stopPropagation();
+			lightboxIndex++;
+		}
+		if (e.key === 'ArrowLeft' && lightboxIndex > 0) {
+			e.stopPropagation();
+			lightboxIndex--;
+		}
+	}
+
+	function autoFocus(node: HTMLElement) {
+		node.focus();
 	}
 
 	function isImage(mime: string): boolean {
@@ -294,15 +309,16 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 									{@const imageAtts = msg.attachments.filter(a => isImage(a.mime_type))}
 									{@const fileAtts = msg.attachments.filter(a => !isImage(a.mime_type))}
 									{#if imageAtts.length > 0}
+										{@const lbImages = imageAtts.map(a => ({ url: a.url, name: a.original_name }))}
 										<div class="image-attachments" class:multi={imageAtts.length > 1}>
-											{#each imageAtts as att}
+											{#each imageAtts as att, idx}
 												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 												<img
 													src={att.url}
 													alt={att.original_name}
 													class="attachment-image"
-													onclick={() => openLightbox(att.url, att.original_name)}
-													onkeydown={(e) => e.key === 'Enter' && openLightbox(att.url, att.original_name)}
+													onclick={() => openLightbox(lbImages, idx)}
+													onkeydown={(e) => e.key === 'Enter' && openLightbox(lbImages, idx)}
 												/>
 											{/each}
 										</div>
@@ -389,9 +405,22 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 
 {#if lightboxUrl}
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="lightbox" onclick={closeLightbox} onkeydown={handleLightboxKey}>
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+	<div class="lightbox" tabindex="0" use:autoFocus onclick={closeLightbox} onkeydown={handleLightboxKey}>
 		<button class="lightbox-close" onclick={closeLightbox}>✕</button>
-		<img src={lightboxUrl} alt={lightboxName} class="lightbox-img" />
+		{#if lightboxImages.length > 1}
+			{#if lightboxIndex > 0}
+				<button class="lightbox-nav lightbox-prev" onclick={(e) => { e.stopPropagation(); lightboxIndex--; }}>‹</button>
+			{/if}
+		{/if}
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<img src={lightboxUrl} alt={lightboxName} class="lightbox-img" onclick={(e) => e.stopPropagation()} />
+		{#if lightboxImages.length > 1}
+			{#if lightboxIndex < lightboxImages.length - 1}
+				<button class="lightbox-nav lightbox-next" onclick={(e) => { e.stopPropagation(); lightboxIndex++; }}>›</button>
+			{/if}
+			<div class="lightbox-counter">{lightboxIndex + 1} / {lightboxImages.length}</div>
+		{/if}
 	</div>
 {/if}
 
@@ -817,6 +846,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 		align-items: center;
 		justify-content: center;
 		z-index: 1000;
+		outline: none;
 	}
 
 	.lightbox-img {
@@ -836,6 +866,41 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 		font-size: 1.5rem;
 		cursor: pointer;
 		padding: 0.5rem;
+	}
+
+	.lightbox-nav {
+		position: absolute;
+		top: 50%;
+		transform: translateY(-50%);
+		background: rgba(0, 0, 0, 0.5);
+		border: none;
+		color: white;
+		font-size: 2.5rem;
+		cursor: pointer;
+		padding: 0.5rem 0.75rem;
+		border-radius: 4px;
+		line-height: 1;
+	}
+
+	.lightbox-nav:hover {
+		background: rgba(0, 0, 0, 0.7);
+	}
+
+	.lightbox-prev {
+		left: 1rem;
+	}
+
+	.lightbox-next {
+		right: 1rem;
+	}
+
+	.lightbox-counter {
+		position: absolute;
+		bottom: 1rem;
+		left: 50%;
+		transform: translateX(-50%);
+		color: rgba(255, 255, 255, 0.7);
+		font-size: 0.85rem;
 	}
 
 	/* ── Thread mode ── */
