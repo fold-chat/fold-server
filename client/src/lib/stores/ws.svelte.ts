@@ -1,5 +1,5 @@
 import type { Channel, Category } from '$lib/api/channels.js';
-import type { Member } from '$lib/api/users.js';
+import type { Member, RoleBadge } from '$lib/api/users.js';
 import type { Role } from '$lib/api/roles.js';
 import type { ThreadReadState } from '$lib/api/threads.js';
 import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates, setUnreadCounts, markChannelRead } from './channels.svelte.js';
@@ -15,6 +15,24 @@ import type { CustomEmoji } from '$lib/api/emoji.js';
 import { goto } from '$app/navigation';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+
+/** Roles arrive as JSON string from DB; parse to array */
+function parseRoleBadges(raw: unknown): RoleBadge[] {
+	if (Array.isArray(raw)) return raw.filter(r => r && r.id != null);
+	if (typeof raw === 'string') {
+		try {
+			const parsed = JSON.parse(raw);
+			return Array.isArray(parsed) ? parsed.filter((r: RoleBadge) => r.id != null) : [];
+		} catch {
+			return [];
+		}
+	}
+	return [];
+}
+
+function normalizeMember(m: Member): Member {
+	return { ...m, roles: parseRoleBadges(m.roles) };
+}
 
 let ws = $state<WebSocket | null>(null);
 let connectionState = $state<ConnectionState>('disconnected');
@@ -159,7 +177,7 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 			handleReactionEvent(msg.op, msg.d);
 			break;
 		case 'MEMBER_JOIN':
-			if (msg.d) addMember(msg.d as unknown as Member);
+			if (msg.d) addMember(normalizeMember(msg.d as unknown as Member));
 			break;
 		case 'MEMBER_BAN':
 			if (msg.d?.user_id) {
@@ -312,7 +330,7 @@ function handleHello(data: HelloPayload) {
 	setUnreadCounts(data.unread_counts ?? []);
 	setThreadReadStates(data.thread_read_states ?? []);
 	if (data.roles) setRoles(data.roles);
-	if (data.members) setMembers(data.members);
+	if (data.members) setMembers(data.members.map(normalizeMember));
 	if (data.user_permissions) {
 		setPermissions(
 			data.user_permissions.server ?? [],
