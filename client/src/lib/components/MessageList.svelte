@@ -291,9 +291,11 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 							<CollapsibleContent>
 							<div class="content" class:emoji-only={isEmojiOnly(msg.content)}>{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
 								{#if msg.attachments && msg.attachments.length > 0}
-									<div class="attachments">
-										{#each msg.attachments as att}
-											{#if isImage(att.mime_type)}
+									{@const imageAtts = msg.attachments.filter(a => isImage(a.mime_type))}
+									{@const fileAtts = msg.attachments.filter(a => !isImage(a.mime_type))}
+									{#if imageAtts.length > 0}
+										<div class="image-attachments" class:multi={imageAtts.length > 1}>
+											{#each imageAtts as att}
 												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 												<img
 													src={att.url}
@@ -302,15 +304,20 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 													onclick={() => openLightbox(att.url, att.original_name)}
 													onkeydown={(e) => e.key === 'Enter' && openLightbox(att.url, att.original_name)}
 												/>
-											{:else}
+											{/each}
+										</div>
+									{/if}
+									{#if fileAtts.length > 0}
+										<div class="attachments">
+											{#each fileAtts as att}
 												<a href={att.url} class="attachment-file" download={att.original_name}>
 													<span class="file-icon">📄</span>
 													<span class="file-name">{att.original_name}</span>
 													<span class="file-size">{formatFileSize(att.size_bytes)}</span>
 												</a>
-											{/if}
-										{/each}
-									</div>
+											{/each}
+										</div>
+									{/if}
 								{/if}
 								{#if msg.edited_at}
 									<span class="edited">(edited)</span>
@@ -714,6 +721,19 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 		flex-direction: column;
 		gap: 0.5rem;
 		margin-top: 0.25rem;
+	}
+
+	.image-attachments {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.25rem;
+	}
+
+	.image-attachments.multi .attachment-image {
+		max-width: 150px;
+		max-height: 150px;
+		object-fit: cover;
 	}
 
 	.gif-message {

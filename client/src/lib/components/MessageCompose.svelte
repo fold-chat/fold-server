@@ -178,32 +178,43 @@
 	}
 
 	function addFiles(files: FileList | File[]) {
+		const batch: PendingFile[] = [];
 		for (const file of files) {
 			const pf: PendingFile = { file, uploading: true };
 			if (file.type.startsWith('image/')) {
 				pf.preview = URL.createObjectURL(file);
 			}
-			pendingFiles = [...pendingFiles, pf];
-			uploadPending(pf);
+			batch.push(pf);
+		}
+		pendingFiles = [...pendingFiles, ...batch];
+		uploadSequentially(batch);
+	}
+
+	async function uploadSequentially(batch: PendingFile[]) {
+		for (const pf of batch) {
+			const file = pf.file;
+			try {
+				const result = await uploadFile(file);
+				pendingFiles = pendingFiles.map(f =>
+					f.file === file && f.uploading
+						? { ...f, id: result.id, url: result.url, uploading: false }
+						: f
+				);
+			} catch {
+				pendingFiles = pendingFiles.map(f =>
+					f.file === file && f.uploading
+						? { ...f, error: 'Upload failed', uploading: false }
+						: f
+				);
+			}
 		}
 	}
 
-	async function uploadPending(pf: PendingFile) {
-		const file = pf.file;
-		try {
-			const result = await uploadFile(file);
-			pendingFiles = pendingFiles.map(f =>
-				f.file === file && f.uploading
-					? { ...f, id: result.id, url: result.url, uploading: false }
-					: f
-			);
-		} catch {
-			pendingFiles = pendingFiles.map(f =>
-				f.file === file && f.uploading
-					? { ...f, error: 'Upload failed', uploading: false }
-					: f
-			);
-		}
+	function retryFile(idx: number) {
+		pendingFiles = pendingFiles.map((f, i) =>
+			i === idx ? { ...f, uploading: true, error: undefined } : f
+		);
+		uploadSequentially([pendingFiles[idx]]);
 	}
 
 	function removeFile(idx: number) {
@@ -295,7 +306,7 @@
 					{#if pf.uploading}
 						<span class="preview-status">⏳</span>
 					{:else if pf.error}
-						<span class="preview-status error-text">{pf.error}</span>
+						<button class="retry-btn" onclick={() => retryFile(i)} title="Retry upload">⟳</button>
 					{:else}
 						<span class="preview-status">✓</span>
 					{/if}
@@ -500,6 +511,21 @@
 
 	.error-text {
 		color: #e74c3c;
+	}
+
+	.retry-btn {
+		background: none;
+		border: none;
+		cursor: pointer;
+		color: #e74c3c;
+		font-size: 1rem;
+		padding: 0.15rem 0.3rem;
+		border-radius: 3px;
+	}
+
+	.retry-btn:hover {
+		color: #ff6b5a;
+		background: var(--bg-hover, rgba(255, 255, 255, 0.1));
 	}
 
 	.remove-btn {
