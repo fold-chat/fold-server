@@ -24,7 +24,7 @@
 		{#each getNotifications() as item}
 			<button class="notif-item" onclick={() => handleClick(item.message.channel_id, item.message.id)}>
 				<div class="notif-meta">
-					<span class="notif-author">{item.message.author_display_name || item.message.author_username || 'Unknown'}</span>
+				<span class="notif-author">{item.authorName}</span>
 					<span class="notif-channel">#{item.channelName}</span>
 					<span class="notif-time">{relativeTime(item.timestamp)}</span>
 				</div>
