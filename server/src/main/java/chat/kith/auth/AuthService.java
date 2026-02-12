@@ -59,11 +59,13 @@ public class AuthService {
         // Validate invite or server password
         boolean usedInvite = false;
         String inviteCode = null;
+        String inviteId = null;
         if (req.invite_code() != null && !req.invite_code().isBlank()) {
             var invite = inviteRepo.findValidByCode(req.invite_code())
                     .orElseThrow(() -> new AuthException("invalid_invite", "Invalid or expired invite code"));
             usedInvite = true;
             inviteCode = req.invite_code();
+            inviteId = (String) invite.get("id");
         } else if (req.server_password() != null && !req.server_password().isBlank()) {
             var joinPw = authConfig.joinPassword()
                     .filter(s -> !s.isBlank())
@@ -83,9 +85,12 @@ public class AuthService {
         String defaultRoleId = defaultRole.map(r -> (String) r.get("id")).orElse("member");
         userRepo.assignRole(userId, defaultRoleId);
 
-        // Increment invite use count
+        // Track join method and increment invite use count
         if (usedInvite) {
+            userRepo.updateJoinMethod(userId, "invite", inviteId);
             inviteRepo.incrementUseCount(inviteCode);
+        } else {
+            userRepo.updateJoinMethod(userId, "registration", null);
         }
 
         return new RegisterResult(userId, req.username());

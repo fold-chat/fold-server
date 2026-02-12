@@ -30,6 +30,8 @@ export interface Member {
 	created_at: string;
 	last_seen_at: string | null;
 	roles: RoleBadge[];
+	join_method: string | null;
+	invite_description: string | null;
 	banned_at: string | null;
 	banned_by: string | null;
 	ban_reason: string | null;

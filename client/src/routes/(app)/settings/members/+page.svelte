@@ -73,6 +73,23 @@
 		return member.banned_at != null;
 	}
 
+	function joinMethodLabel(method: string | null): string {
+		switch (method) {
+			case 'invite': return 'Invite';
+			case 'registration': return 'Registration';
+			case 'setup': return 'Setup';
+			default: return 'Unknown';
+		}
+	}
+
+	function joinMethodTooltip(member: Member): string {
+		const label = joinMethodLabel(member.join_method);
+		if (member.join_method === 'invite' && member.invite_description) {
+			return `Joined via ${label}: ${member.invite_description}`;
+		}
+		return `Joined via ${label}`;
+	}
+
 	function banTooltip(member: Member): string {
 		const parts = ['Banned'];
 		if (member.banned_by_username) parts.push(`by ${member.banned_by_username}`);
@@ -141,9 +158,12 @@
 										<span class="banned-badge">Banned</span>
 									{/if}
 								</span>
-								{#if member.display_name}
-									<span class="member-username">@{member.username}</span>
-								{/if}
+							{#if member.display_name}
+								<span class="member-username">@{member.username}</span>
+							{/if}
+							<span class="join-badge" class:join-invite={member.join_method === 'invite'} class:join-setup={member.join_method === 'setup'} title={joinMethodTooltip(member)}>
+								{joinMethodLabel(member.join_method)}
+							</span>
 							</div>
 							{#if !isBanned(member)}
 								<div class="member-roles">
@@ -412,6 +432,27 @@
 		border-radius: 3px;
 		margin-left: 0.35rem;
 		font-weight: 500;
+	}
+
+	.join-badge {
+		font-size: 0.6rem;
+		color: var(--text-muted);
+		background: rgba(255, 255, 255, 0.05);
+		padding: 0.05rem 0.35rem;
+		border-radius: 3px;
+		margin-left: 0.35rem;
+		font-weight: 500;
+		cursor: default;
+	}
+
+	.join-badge.join-invite {
+		color: #3498db;
+		background: rgba(52, 152, 219, 0.12);
+	}
+
+	.join-badge.join-setup {
+		color: #f39c12;
+		background: rgba(243, 156, 18, 0.12);
 	}
 
 </style>

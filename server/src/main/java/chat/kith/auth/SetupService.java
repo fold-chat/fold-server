@@ -46,6 +46,7 @@ public class SetupService {
         String userId = UUID.randomUUID().toString();
         String hash = passwordService.hash(password);
         userRepo.create(userId, username, username, hash);
+        userRepo.updateJoinMethod(userId, "setup", null);
         userRepo.assignRole(userId, "owner");
 
         LOG.infof("Admin user '%s' created", username);

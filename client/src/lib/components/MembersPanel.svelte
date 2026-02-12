@@ -2,6 +2,8 @@
 	import { getMembers } from '$lib/stores/members.svelte.js';
 	import { getPendingUserId, clearPendingUserId } from '$lib/stores/membersPanel.svelte.js';
 	import { isUserOnline, getOnlineCount } from '$lib/stores/presence.svelte.js';
+	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { PermissionName } from '$lib/permissions.js';
 	import type { Member, RoleBadge } from '$lib/api/users.js';
 
 	let selectedMember = $state<Member | null>(null);
@@ -112,6 +114,17 @@
 		}
 	}
 
+	const canManageInvites = $derived(hasServerPermission(PermissionName.MANAGE_INVITES));
+
+	function joinMethodLabel(method: string | null): string {
+		switch (method) {
+			case 'invite': return 'Invite';
+			case 'registration': return 'Registration';
+			case 'setup': return 'Setup';
+			default: return 'Unknown';
+		}
+	}
+
 	const activeMembers = $derived(getMembers().filter(m => !m.banned_at));
 	const onlineCount = $derived.by(() => {
 		let count = 0;
@@ -176,6 +189,17 @@
 				<span class="field-label">Joined</span>
 				<span class="field-value">{formatDate(selectedMember.created_at)}</span>
 			</div>
+		{#if canManageInvites && selectedMember.join_method}
+			<div class="profile-field">
+				<span class="field-label">Joined via</span>
+				<span class="field-value">
+					{joinMethodLabel(selectedMember.join_method)}
+					{#if selectedMember.join_method === 'invite' && selectedMember.invite_description}
+						<span class="join-detail"> — {selectedMember.invite_description}</span>
+					{/if}
+				</span>
+			</div>
+		{/if}
 		</div>
 	{:else}
 		<div class="members-header">Members — {onlineCount}/{activeMembers.length}</div>
@@ -468,5 +492,10 @@
 	.last-seen {
 		color: var(--text-muted);
 		font-size: 0.75rem;
+	}
+
+	.join-detail {
+		color: var(--text-muted);
+		font-size: 0.8rem;
 	}
 </style>

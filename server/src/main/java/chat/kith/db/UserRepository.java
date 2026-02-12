@@ -81,6 +81,11 @@ public class UserRepository {
         return db.query("SELECT * FROM user WHERE deleted_at IS NULL ORDER BY created_at");
     }
 
+    public void updateJoinMethod(String userId, String joinMethod, String inviteId) {
+        db.execute("UPDATE user SET join_method = ?, joined_via_invite_id = ? WHERE id = ?",
+                joinMethod, inviteId, userId);
+    }
+
     public void assignRole(String userId, String roleId) {
         db.execute("INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, ?)", userId, roleId);
     }
@@ -121,11 +126,13 @@ public class UserRepository {
                 SELECT u.id, u.username, u.display_name, u.avatar_url, u.status_preference,
                        u.status_text, u.bio, u.created_at, u.last_seen_at,
                        u.banned_at, u.banned_by, u.ban_reason,
+                       u.join_method, i.description AS invite_description,
                        (SELECT u2.username FROM user u2 WHERE u2.id = u.banned_by) AS banned_by_username,
                        JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles
                 FROM user u
                 LEFT JOIN user_role ur ON u.id = ur.user_id
                 LEFT JOIN role r ON ur.role_id = r.id
+                LEFT JOIN invite i ON u.joined_via_invite_id = i.id
                 WHERE u.id = ? AND u.deleted_at IS NULL
                 GROUP BY u.id
                 """, userId);
@@ -139,11 +146,13 @@ public class UserRepository {
                 SELECT u.id, u.username, u.display_name, u.avatar_url, u.status_preference,
                        u.status_text, u.bio, u.created_at, u.last_seen_at,
                        u.banned_at, u.banned_by, u.ban_reason,
+                       u.join_method, i.description AS invite_description,
                        (SELECT u2.username FROM user u2 WHERE u2.id = u.banned_by) AS banned_by_username,
                        JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles
                 FROM user u
                 LEFT JOIN user_role ur ON u.id = ur.user_id
                 LEFT JOIN role r ON ur.role_id = r.id
+                LEFT JOIN invite i ON u.joined_via_invite_id = i.id
                 WHERE u.deleted_at IS NULL %s
                 GROUP BY u.id
                 ORDER BY u.banned_at IS NOT NULL, u.created_at
