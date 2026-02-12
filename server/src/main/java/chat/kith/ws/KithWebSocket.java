@@ -47,15 +47,13 @@ public class KithWebSocket {
         String token = parseCookie(cookieHeader, "kith_access");
 
         if (token == null) {
-            LOG.debug("WS connect rejected: no kith_access cookie");
-            connection.close().subscribe().with(v -> {}, e -> {});
+            rejectAuth(connection, "no kith_access cookie");
             return null;
         }
 
         var claims = jwtService.verify(token);
         if (claims.isEmpty()) {
-            LOG.debug("WS connect rejected: invalid token");
-            connection.close().subscribe().with(v -> {}, e -> {});
+            rejectAuth(connection, "invalid token");
             return null;
         }
 
@@ -286,6 +284,14 @@ var members = userRepo.listMembers(false);
         safe.put("status_text", user.get("status_text"));
         safe.put("bio", user.get("bio"));
         return safe;
+    }
+
+    private void rejectAuth(WebSocketConnection connection, String reason) {
+        LOG.debug("WS connect rejected: " + reason);
+        connection.sendText("{\"op\":\"AUTH_FAILED\"}").subscribe().with(
+            v -> connection.close().subscribe().with(v2 -> {}, e2 -> {}),
+            e -> connection.close().subscribe().with(v2 -> {}, e2 -> {})
+        );
     }
 
     private static String parseCookie(String cookieHeader, String name) {

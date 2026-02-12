@@ -40,6 +40,7 @@ let heartbeatInterval = $state<ReturnType<typeof setInterval> | null>(null);
 let reconnectTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 let reconnectAttempts = $state(0);
 let sessionId = $state<string | null>(null);
+let authFailed = $state(false);
 
 const MAX_RECONNECT_DELAY = 30_000;
 
@@ -79,7 +80,12 @@ export function connect() {
 	ws.onclose = () => {
 		connectionState = 'disconnected';
 		stopHeartbeat();
-		scheduleReconnect();
+		if (authFailed) {
+			authFailed = false;
+			tryRefreshAndReconnect();
+		} else {
+			scheduleReconnect();
+		}
 	};
 
 	ws.onerror = () => {
@@ -112,6 +118,9 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 	switch (msg.op) {
 		case 'HELLO':
 			if (msg.d) handleHello(msg.d as unknown as HelloPayload);
+			break;
+		case 'AUTH_FAILED':
+			authFailed = true;
 			break;
 		case 'HEARTBEAT_ACK':
 			break;
@@ -366,6 +375,26 @@ function stopHeartbeat() {
 	if (heartbeatInterval) {
 		clearInterval(heartbeatInterval);
 		heartbeatInterval = null;
+	}
+}
+
+async function tryRefreshAndReconnect() {
+	try {
+		const res = await fetch('/api/v0/auth/refresh', {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: { 'Content-Type': 'application/json' }
+		});
+		if (res.ok) {
+			reconnectAttempts = 0;
+			connect();
+			return;
+		}
+	} catch {
+		// refresh failed
+	}
+	if (typeof window !== 'undefined') {
+		window.location.href = '/login';
 	}
 }
 
