@@ -13,10 +13,10 @@ public class InviteRepository {
     @Inject
     DatabaseService db;
 
-    public void create(String id, String code, String creatorId, Long maxUses, String expiresAt) {
+    public void create(String id, String code, String creatorId, String description, Long maxUses, String expiresAt) {
         db.execute(
-                "INSERT INTO invite (id, code, creator_id, max_uses, expires_at) VALUES (?, ?, ?, ?, ?)",
-                id, code, creatorId, maxUses, expiresAt
+                "INSERT INTO invite (id, code, creator_id, description, max_uses, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+                id, code, creatorId, description, maxUses, expiresAt
         );
     }
 

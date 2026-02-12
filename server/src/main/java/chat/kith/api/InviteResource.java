@@ -35,7 +35,11 @@ public class InviteResource {
         String id = UUID.randomUUID().toString();
         String code = generateCode(8);
 
-        inviteRepo.create(id, code, sc.getUserId(), req.max_uses(), req.expires_at());
+        if (req.description() == null || req.description().isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", "description_required")).build();
+        }
+        inviteRepo.create(id, code, sc.getUserId(), req.description().strip(), req.max_uses(), req.expires_at());
         var invite = inviteRepo.findByCode(code);
         auditLogService.log(sc.getUserId(), "INVITE_CREATE", "invite", id, Map.of("code", code));
         return Response.status(Response.Status.CREATED).entity(invite.orElse(Map.of())).build();
@@ -94,7 +98,7 @@ public class InviteResource {
 
     // --- DTOs ---
 
-    public record CreateInviteRequest(Long max_uses, String expires_at) {}
+    public record CreateInviteRequest(String description, Long max_uses, String expires_at) {}
 
     // --- Helpers ---
 

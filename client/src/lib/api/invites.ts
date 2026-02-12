@@ -4,6 +4,7 @@ export interface Invite {
 	id: string;
 	code: string;
 	creator_id: string;
+	description: string;
 	max_uses: number | null;
 	use_count: number;
 	expires_at: string | null;
@@ -17,7 +18,7 @@ export interface InviteInfo {
 	expires_at: string;
 }
 
-export function createInvite(data: { max_uses?: number; expires_at?: string }) {
+export function createInvite(data: { description: string; max_uses?: number; expires_at?: string }) {
 	return api<Invite>('/invites', {
 		method: 'POST',
 		body: JSON.stringify(data)

@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { createInvite, getInvites, revokeInvite, reinstateInvite, type Invite } from '$lib/api/invites.js';
+import { createInvite, getInvites, revokeInvite, reinstateInvite, type Invite } from '$lib/api/invites.js';
 	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { getMembers } from '$lib/stores/members.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
 	import { onMount } from 'svelte';
@@ -12,6 +13,7 @@
 	let creating = $state(false);
 
 	// Create form
+	let description = $state('');
 	let maxUses = $state<number | undefined>(undefined);
 	let expiresIn = $state('never');
 
@@ -57,11 +59,12 @@
 		success = '';
 		creating = true;
 		try {
-			const data: { max_uses?: number; expires_at?: string } = {};
+		const data: { description: string; max_uses?: number; expires_at?: string } = { description };
 			if (maxUses && maxUses > 0) data.max_uses = maxUses;
 			const exp = computeExpiresAt();
 			if (exp) data.expires_at = exp;
 			await createInvite(data);
+			description = '';
 			maxUses = undefined;
 			expiresIn = 'never';
 			await loadInvites();
@@ -111,6 +114,11 @@
 		});
 	}
 
+	function creatorName(creatorId: string): string {
+		const member = getMembers().find(m => m.id === creatorId);
+		return member?.display_name || member?.username || 'Unknown';
+	}
+
 	function formatExpiry(iso: string | null): string {
 		if (!iso) return 'Never';
 		const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
@@ -135,6 +143,10 @@
 		<div class="create-section">
 			<h2>Create Invite</h2>
 			<div class="create-form">
+				<div class="form-group form-group-desc">
+					<label for="description">Description <span class="required">*</span></label>
+					<input id="description" type="text" placeholder="e.g. Facebook Group" bind:value={description} required />
+				</div>
 				<div class="form-group">
 					<label for="max-uses">Max Uses</label>
 					<input id="max-uses" type="number" min="1" placeholder="Unlimited" bind:value={maxUses} />
@@ -149,7 +161,7 @@
 				</div>
 				<div class="form-group">
 					<label>&nbsp;</label>
-					<button class="btn-primary" onclick={handleCreate} disabled={creating}>
+				<button class="btn-primary" onclick={handleCreate} disabled={creating || !description.trim()}>
 						{creating ? 'Creating...' : 'Create'}
 					</button>
 				</div>
@@ -167,14 +179,16 @@
 				{@const revoked = invite.revoked_at != null}
 				<div class="invite-item" class:revoked>
 					<div class="invite-info">
-						<span class="invite-code">
-							{invite.code}
-							{#if revoked}<span class="revoked-badge">Revoked</span>{/if}
-						</span>
-						<span class="invite-meta">
+					<span class="invite-code">
+						{invite.code}
+						{#if revoked}<span class="revoked-badge">Revoked</span>{/if}
+					</span>
+					{#if invite.description}<span class="invite-desc">{invite.description}</span>{/if}
+					<span class="invite-meta">
 							{invite.use_count}{invite.max_uses != null ? `/${invite.max_uses}` : ''} uses
 							&middot; Expires: {formatExpiry(invite.expires_at)}
-							&middot; Created {formatDate(invite.created_at)}
+							&middot; By {creatorName(invite.creator_id)}
+							&middot; {formatDate(invite.created_at)}
 						</span>
 					</div>
 					<div class="invite-actions">
@@ -244,6 +258,14 @@
 		height: 2.125rem;
 	}
 
+	.form-group-desc input {
+		width: 220px;
+	}
+
+	.required {
+		color: #e74c3c;
+	}
+
 	.create-form .btn-primary {
 		height: 2.125rem;
 		box-sizing: border-box;
@@ -279,6 +301,11 @@
 		font-family: monospace;
 		font-size: 0.9rem;
 		font-weight: 600;
+	}
+
+	.invite-desc {
+		font-size: 0.8rem;
+		color: var(--text-muted);
 	}
 
 	.invite-meta {
