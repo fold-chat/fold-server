@@ -19,7 +19,7 @@ Open-source, self-hostable community platform. Discord alternative for small, pr
 - WebSocket for real-time, REST for CRUD.
 - SQL-first — no ORM, custom MigrationRunner, repos return `Map<String, Object>`.
 - Bitmask roles (owner/admin/moderator/member). Channel overrides planned.
-- libSQL loaded via FFM. `LibSqlNativeFeature` for GraalVM native image.
+- libSQL loaded via FFM. External `io.github.conorrr:libsql-java` dependency. `LibSqlNativeFeature` for GraalVM native image.
 
 ## Agent Pipeline
 - `dispatcher/` — CF Worker receives Linear webhooks, dispatches Oz agents per ticket state change

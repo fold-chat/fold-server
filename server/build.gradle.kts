@@ -4,7 +4,15 @@ plugins {
 }
 
 repositories {
+    mavenLocal()
     mavenCentral()
+    maven {
+        url = uri("https://maven.pkg.github.com/Conorrr/libsql-java")
+        credentials {
+            username = project.findProperty("gpr.user") as String? ?: System.getenv("GITHUB_ACTOR") ?: "token"
+            password = project.findProperty("gpr.key") as String? ?: System.getenv("GITHUB_TOKEN") ?: System.getenv("GH_TOKEN") ?: ""
+        }
+    }
 }
 
 val quarkusPlatformGroupId: String by project
@@ -25,6 +33,7 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
     implementation("org.bouncycastle:bcprov-jdk18on:1.80")
     implementation("io.livekit:livekit-server:0.12.0")
+    implementation("io.github.conorrr:libsql-java:0.2.1")
     compileOnly("org.graalvm.sdk:nativeimage:24.2.0")
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")
@@ -53,34 +62,19 @@ tasks.withType<JavaExec> {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
 }
 
-// --- libsql native library build ---
-val libsqlDir = layout.projectDirectory.dir("libsql-c")
-val nativeDir = layout.projectDirectory.dir("native")
-
-fun osArch(): String {
-    val os = System.getProperty("os.name").lowercase().let {
-        when {
-            it.contains("mac") || it.contains("darwin") -> "darwin"
-            it.contains("win") -> "windows"
-            else -> "linux"
+// --- Extract native library from libsql-java dependency (for native image distribution) ---
+tasks.register("extractNativeLib") {
+    description = "Extract platform-specific native library from libsql-java dependency"
+    doLast {
+        val libsqlJar = configurations["runtimeClasspath"].resolvedConfiguration.resolvedArtifacts
+            .map { it.file }
+            .first { it.name.startsWith("libsql-java") }
+        project.copy {
+            from(zipTree(libsqlJar)) {
+                include("native/**")
+            }
+            into(layout.buildDirectory.dir("extracted-native"))
         }
-    }
-    val arch = System.getProperty("os.arch").let {
-        when (it) {
-            "aarch64" -> "aarch64"
-            "amd64", "x86_64" -> "amd64"
-            else -> it
-        }
-    }
-    return "$os-$arch"
-}
-
-fun libName(): String {
-    val os = System.getProperty("os.name").lowercase()
-    return when {
-        os.contains("mac") || os.contains("darwin") -> "liblibsql.dylib"
-        os.contains("win") -> "libsql.dll"
-        else -> "liblibsql.so"
     }
 }
 
@@ -103,23 +97,3 @@ tasks.register("buildClient") {
     }
 }
 
-tasks.register<Exec>("cloneLibsql") {
-    description = "Clone libsql-c repo if not present"
-    onlyIf { !libsqlDir.asFile.exists() }
-    commandLine("git", "clone", "--depth", "1", "https://github.com/tursodatabase/libsql-c.git", libsqlDir.asFile.absolutePath)
-}
-
-tasks.register<Exec>("buildLibsql") {
-    description = "Build liblibsql native library from source"
-    dependsOn("cloneLibsql")
-    val outputFile = nativeDir.dir(osArch()).file(libName())
-    onlyIf { !outputFile.asFile.exists() }
-    workingDir(libsqlDir)
-    commandLine("cargo", "build", "--release")
-    doLast {
-        val targetLib = libsqlDir.dir("target/release").file(libName()).asFile
-        val destDir = nativeDir.dir(osArch()).asFile
-        destDir.mkdirs()
-        targetLib.copyTo(destDir.resolve(libName()), overwrite = true)
-    }
-}

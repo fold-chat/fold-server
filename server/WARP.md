@@ -33,4 +33,4 @@ Quarkus (Java 25). Full patterns reference: `docs/server-patterns.md`.
 
 ## GraalVM Gotchas
 - New `SecureRandom`/native lib usage in `@PostConstruct` → add to `--initialize-at-run-time`.
-- New FFM `FunctionDescriptor` in `LibSql` → mirror in `LibSqlNativeFeature.duringSetup()`.
+- libsql-java FFM bindings and `LibSqlNativeFeature` provided by external `io.github.conorrr:libsql-java` dependency.

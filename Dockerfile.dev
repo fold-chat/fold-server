@@ -1,6 +1,6 @@
 # Oz cloud agent dev environment for fray-app
 # Base: Warp dev-java (includes agent CLIs)
-# Adds: GraalVM 25, Rust (for libsql-c), Node.js 22 + pnpm
+# Adds: GraalVM 25, Node.js 22 + pnpm
 FROM warpdotdev/dev-java:21-agents
 
 # GraalVM 25 (replaces Java 21)
@@ -17,10 +17,6 @@ ENV PATH="$JAVA_HOME/bin:$PATH"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential zlib1g-dev && \
     rm -rf /var/lib/apt/lists/*
-
-# Rust (for building libsql-c native library)
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:$PATH"
 
 # Node.js 22 (base already has pnpm; upgrade to Node 22)
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \

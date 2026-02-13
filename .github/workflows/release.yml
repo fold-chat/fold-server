@@ -13,41 +13,7 @@ env:
   IMAGE_NAME: kith-chat/kith
 
 jobs:
-  # 1. Build liblibsql per platform
-  build-libsql:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: linux-amd64
-            lib: liblibsql.so
-          - os: ubuntu-24.04-arm
-            target: linux-aarch64
-            lib: liblibsql.so
-          - os: macos-14
-            target: darwin-aarch64
-            lib: liblibsql.dylib
-          - os: windows-latest
-            target: windows-amd64
-            lib: libsql.dll
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: server/libsql-c
-      - name: Clone & build libsql-c
-        run: |
-          git clone --depth 1 https://github.com/tursodatabase/libsql-c.git server/libsql-c
-          cd server/libsql-c
-          cargo build --release
-      - uses: actions/upload-artifact@v4
-        with:
-          name: libsql-${{ matrix.target }}
-          path: server/libsql-c/target/release/${{ matrix.lib }}
-
-  # 2. Build SvelteKit client
+  # 1. Build SvelteKit client
   build-client:
     runs-on: ubuntu-latest
     steps:
@@ -69,9 +35,9 @@ jobs:
           name: client-build
           path: client/build/
 
-  # 3. Fat JAR (all platforms bundled)
+  # 2. Fat JAR (native libs bundled in dependency JAR)
   fat-jar:
-    needs: [build-libsql, build-client]
+    needs: [build-client]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,20 +46,6 @@ jobs:
           distribution: zulu
           java-version: 25
       - uses: gradle/actions/setup-gradle@v4
-      # Download all libsql artifacts
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: libsql-*
-          path: server/src/main/resources/native/
-      - name: Arrange native libs
-        run: |
-          cd server/src/main/resources/native
-          for dir in libsql-*/; do
-            target=$(echo "$dir" | sed 's/libsql-//' | sed 's/\///')
-            mkdir -p "$target"
-            mv "$dir"/* "$target/"
-            rmdir "$dir"
-          done
       # Download client
       - uses: actions/download-artifact@v4
         with:
@@ -107,9 +59,9 @@ jobs:
           name: kith-jar
           path: server/build/kith-runner.jar
 
-  # 4–7. Native image builds
+  # 3–6. Native image builds (native lib extracted from libsql-java dependency)
   native-linux-amd64:
-    needs: [build-libsql, build-client]
+    needs: [build-client]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -120,24 +72,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - uses: actions/download-artifact@v4
         with:
-          name: libsql-linux-amd64
-          path: server/native/linux-amd64/
-      - uses: actions/download-artifact@v4
-        with:
           name: client-build
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
           ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false
+          ./gradlew extractNativeLib
       - uses: actions/upload-artifact@v4
         with:
           name: native-linux-amd64
           path: |
             server/build/kith-runner
-            server/native/linux-amd64/liblibsql.so
+            server/build/extracted-native/native/linux-amd64/liblibsql.so
 
   native-linux-arm64:
-    needs: [build-libsql, build-client]
+    needs: [build-client]
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -148,24 +97,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - uses: actions/download-artifact@v4
         with:
-          name: libsql-linux-aarch64
-          path: server/native/linux-aarch64/
-      - uses: actions/download-artifact@v4
-        with:
           name: client-build
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
           ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false
+          ./gradlew extractNativeLib
       - uses: actions/upload-artifact@v4
         with:
           name: native-linux-arm64
           path: |
             server/build/kith-runner
-            server/native/linux-aarch64/liblibsql.so
+            server/build/extracted-native/native/linux-aarch64/liblibsql.so
 
   native-macos-arm64:
-    needs: [build-libsql, build-client]
+    needs: [build-client]
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
@@ -176,24 +122,21 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - uses: actions/download-artifact@v4
         with:
-          name: libsql-darwin-aarch64
-          path: server/native/darwin-aarch64/
-      - uses: actions/download-artifact@v4
-        with:
           name: client-build
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
           ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false
+          ./gradlew extractNativeLib
       - uses: actions/upload-artifact@v4
         with:
           name: native-macos-arm64
           path: |
             server/build/kith-runner
-            server/native/darwin-aarch64/liblibsql.dylib
+            server/build/extracted-native/native/darwin-aarch64/liblibsql.dylib
 
   native-windows-amd64:
-    needs: [build-libsql, build-client]
+    needs: [build-client]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -204,22 +147,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - uses: actions/download-artifact@v4
         with:
-          name: libsql-windows-amd64
-          path: server/native/windows-amd64/
-      - uses: actions/download-artifact@v4
-        with:
           name: client-build
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
           ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false
+          ./gradlew extractNativeLib
         shell: bash
       - uses: actions/upload-artifact@v4
         with:
           name: native-windows-amd64
           path: |
             server/build/kith-runner.exe
-            server/native/windows-amd64/libsql.dll
+            server/build/extracted-native/native/windows-amd64/libsql.dll
 
   # 8. Docker multi-arch
   docker:
@@ -250,7 +190,7 @@ jobs:
           FROM gcr.io/distroless/base-nossl-debian12
           WORKDIR /app
           COPY build/kith-runner /app/kith
-          COPY native/linux-amd64/liblibsql.so /app/liblibsql.so
+          COPY extracted-native/native/linux-amd64/liblibsql.so /app/liblibsql.so
           EXPOSE 8080
           ENTRYPOINT ["/app/kith"]
           EOF
@@ -259,7 +199,7 @@ jobs:
           FROM gcr.io/distroless/base-nossl-debian12
           WORKDIR /app
           COPY build/kith-runner /app/kith
-          COPY native/linux-aarch64/liblibsql.so /app/liblibsql.so
+          COPY extracted-native/native/linux-aarch64/liblibsql.so /app/liblibsql.so
           EXPOSE 8080
           ENTRYPOINT ["/app/kith"]
           EOF
@@ -305,16 +245,16 @@ jobs:
           cp artifacts/kith-jar/kith-runner.jar release/kith.jar
           # Linux amd64
           cp artifacts/native-linux-amd64/build/kith-runner release/kith-linux-amd64
-          cp artifacts/native-linux-amd64/native/linux-amd64/liblibsql.so release/liblibsql-linux-amd64.so
+          cp artifacts/native-linux-amd64/extracted-native/native/linux-amd64/liblibsql.so release/liblibsql-linux-amd64.so
           # Linux arm64
           cp artifacts/native-linux-arm64/build/kith-runner release/kith-linux-arm64
-          cp artifacts/native-linux-arm64/native/linux-aarch64/liblibsql.so release/liblibsql-linux-arm64.so
+          cp artifacts/native-linux-arm64/extracted-native/native/linux-aarch64/liblibsql.so release/liblibsql-linux-arm64.so
           # macOS arm64
           cp artifacts/native-macos-arm64/build/kith-runner release/kith-darwin-arm64
-          cp artifacts/native-macos-arm64/native/darwin-aarch64/liblibsql.dylib release/liblibsql-darwin-arm64.dylib
+          cp artifacts/native-macos-arm64/extracted-native/native/darwin-aarch64/liblibsql.dylib release/liblibsql-darwin-arm64.dylib
           # Windows amd64
           cp artifacts/native-windows-amd64/build/kith-runner.exe release/kith-windows-amd64.exe
-          cp artifacts/native-windows-amd64/native/windows-amd64/libsql.dll release/libsql-windows-amd64.dll
+          cp artifacts/native-windows-amd64/extracted-native/native/windows-amd64/libsql.dll release/libsql-windows-amd64.dll
       - uses: softprops/action-gh-release@v2
         with:
           files: release/*

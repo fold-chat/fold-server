@@ -57,7 +57,6 @@ kith-server/
 - Java 25+
 - Node.js 24+
 - pnpm
-- Rust (for libsql wrapper development)
 
 ### Running Locally
 

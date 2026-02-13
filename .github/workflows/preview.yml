@@ -22,21 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Rust + libsql
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: server/libsql-c
-      - name: Build liblibsql
-        run: |
-          [ -f server/libsql-c/Cargo.toml ] || (rm -rf server/libsql-c && git clone --depth 1 https://github.com/tursodatabase/libsql-c.git server/libsql-c)
-          cd server/libsql-c
-          cargo build --release
-          mkdir -p ../native/linux-amd64
-          cp target/release/liblibsql.so ../native/linux-amd64/
-          mkdir -p ../src/main/resources/native/linux-amd64
-          cp target/release/liblibsql.so ../src/main/resources/native/linux-amd64/
-
       # Client
       - uses: pnpm/action-setup@v4
         with:

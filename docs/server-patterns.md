@@ -67,11 +67,10 @@ Custom `MigrationRunner` (`@Startup`). Scans `db/migration/V###__name.sql` from 
 - Resources publish events after successful CRUD ops: `eventBus.publish(Event.of(EventType.X, data, Scope.y()))`.
 
 ## GraalVM Native Image
-- `LibSqlNativeFeature implements Feature` registers all FFM downcall descriptors at build time. Struct layouts duplicated from `LibSql` (must stay in sync).
+- `LibSqlNativeFeature` (from external `io.github.conorrr:libsql-java` dependency) registers all FFM downcall descriptors at build time.
 - `application.properties` native config:
   - `--enable-native-access=ALL-UNNAMED`
   - `--initialize-at-run-time=` for classes that load native libs or use SecureRandom at init.
-  - `--features=chat.kith.db.LibSqlNativeFeature`
+  - `--features=uk.co.rstl.libsql.LibSqlNativeFeature`
   - `@RegisterForReflection` on `JwtService` for JJWT internal classes.
 - Any new class using `SecureRandom`, native libs, or runtime-only resources in `@PostConstruct` must be added to `--initialize-at-run-time`.
-- Any new FFM `FunctionDescriptor` in `LibSql` must be mirrored in `LibSqlNativeFeature.duringSetup()`.
