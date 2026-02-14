@@ -8,6 +8,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: fray-chat/fray-app
+  GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
 jobs:
   # --- Deploy preview on PR open/update ---

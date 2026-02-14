@@ -11,6 +11,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: kith-chat/kith
+  GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
 jobs:
   # 1. Build SvelteKit client
