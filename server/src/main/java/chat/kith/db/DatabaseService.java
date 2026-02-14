@@ -35,7 +35,10 @@ public class DatabaseService {
 
     @PostConstruct
     void init() {
-        var builder = Database.builder(config.path());
+        var builder = Database.builder(config.path())
+                .journalMode("WAL")
+                .busyTimeout(5000)
+                .foreignKeys(true);
         config.url().ifPresent(builder::url);
         config.authToken().ifPresent(builder::authToken);
         builder.syncInterval(config.syncInterval());
