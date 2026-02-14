@@ -1,6 +1,7 @@
 package chat.kith.api;
 
 import chat.kith.auth.*;
+import chat.kith.db.ReadStateRepository;
 import chat.kith.db.UserRepository;
 import chat.kith.event.Event;
 import chat.kith.event.EventBus;
@@ -24,6 +25,7 @@ public class AuthResource {
     @Inject AuthService authService;
     @Inject RateLimitService rateLimitService;
     @Inject UserRepository userRepo;
+    @Inject ReadStateRepository readStateRepo;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
@@ -42,6 +44,9 @@ public class AuthResource {
 
         try {
             var result = authService.register(req);
+
+            // Initialize read states so new user starts with 0 unread
+            readStateRepo.initializeForUser(result.userId());
 
             // Publish MEMBER_JOIN event so connected clients see the new member
             userRepo.findMemberById(result.userId()).ifPresent(member ->

@@ -1,5 +1,6 @@
 import type { Message, ReactionGroup } from '$lib/api/messages.js';
-import { incrementUnread, incrementMentionCount, getChannelById } from './channels.svelte.js';
+import { updateReadState } from '$lib/api/messages.js';
+import { incrementUnread, incrementMentionCount, markChannelRead, getChannelById } from './channels.svelte.js';
 import { handleThreadMessageEvent, handleThreadReactionEvent } from './threads.svelte.js';
 import { getUser } from './auth.svelte.js';
 import { getMembers } from './members.svelte.js';
@@ -127,6 +128,9 @@ export function handleMessageEvent(op: string, data: Record<string, unknown> | u
 			if (msg.author_id) clearTyping(msg.channel_id, msg.author_id as string);
 			if (msg.channel_id !== activeChannelId) {
 				incrementUnread(msg.channel_id);
+			} else {
+				markChannelRead(msg.channel_id, msg.id);
+				updateReadState(msg.channel_id, msg.id).catch(() => {});
 			}
 			// Mention detection
 			if (isMentioned(msg)) {

@@ -208,6 +208,9 @@ public class ChannelResource {
             }
         }
 
+        // Update sender's read state so their own messages don't appear unread
+        readStateRepo.upsert(sc.getUserId(), channelId, id);
+
         var created = messageRepo.findByIdWithAuthor(id).map(m -> withAttachmentsAndMentions(m, sc.getUserId()));
         created.ifPresent(m -> {
             eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId)));

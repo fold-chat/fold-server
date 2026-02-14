@@ -39,6 +39,20 @@ public class ReadStateRepository {
         );
     }
 
+    /** Initialize read states for all channels so a new user starts with 0 unread. */
+    public void initializeForUser(String userId) {
+        db.execute("""
+                INSERT INTO channel_read_state (user_id, channel_id, last_read_message_id, mention_count, updated_at)
+                SELECT ?, c.id,
+                    (SELECT m.id FROM message m WHERE m.channel_id = c.id AND m.thread_id IS NULL ORDER BY m.id DESC LIMIT 1),
+                    0, datetime('now')
+                FROM channel c
+                ON CONFLICT DO NOTHING
+                """,
+                userId
+        );
+    }
+
     public Optional<Map<String, Object>> find(String userId, String channelId) {
         var rows = db.query(
                 "SELECT * FROM channel_read_state WHERE user_id = ? AND channel_id = ?",
