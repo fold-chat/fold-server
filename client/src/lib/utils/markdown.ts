@@ -97,10 +97,17 @@ export function renderMarkdown(
 const GIF_MSG_RE = /!\[GIF\]\([^)]+\)/g;
 
 /** Strip markdown artifacts from content for plain-text previews. */
-export function contentPreview(content: string | undefined | null, maxLen = 200): string {
+export function contentPreview(content: string | undefined | null, maxLen = 200, mentions?: MentionedUser[]): string {
 	if (!content) return '(attachment)';
-	const cleaned = content.replace(GIF_MSG_RE, '[GIF]').trim();
+	let cleaned = content.replace(GIF_MSG_RE, '[GIF]').trim();
 	if (!cleaned) return '[GIF]';
+	if (mentions && mentions.length > 0) {
+		const userMap = new Map(mentions.map(u => [u.id, u]));
+		cleaned = cleaned.replace(/<@([a-f0-9-]{36})>/g, (match, userId) => {
+			const user = userMap.get(userId);
+			return user ? `@${user.display_name}` : match;
+		});
+	}
 	return cleaned.length > maxLen ? cleaned.slice(0, maxLen) : cleaned;
 }
 

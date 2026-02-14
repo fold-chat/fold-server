@@ -28,7 +28,7 @@
 					<span class="notif-channel">#{item.channelName}</span>
 					<span class="notif-time">{relativeTime(item.timestamp)}</span>
 				</div>
-<div class="notif-preview">{contentPreview(item.message.content)}</div>
+<div class="notif-preview">{contentPreview(item.message.content, 200, item.message.mentions)}</div>
 			</button>
 		{:else}
 			<div class="notif-empty">No notifications yet. Mentions will appear here.</div>

@@ -22,7 +22,7 @@ export function showMentionNotification(msg: Message, channelName?: string) {
 
 	const author = msg.author_display_name || msg.author_username || 'Someone';
 	const title = channelName ? `#${channelName}` : 'New mention';
-	const body = `${author}: ${contentPreview(msg.content)}`;
+	const body = `${author}: ${contentPreview(msg.content, 200, msg.mentions)}`;
 
 	const n = new Notification(title, { body, tag: `mention-${msg.id}` });
 	n.onclick = () => {
