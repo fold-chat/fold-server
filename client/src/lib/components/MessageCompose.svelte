@@ -459,6 +459,7 @@
 		background: none;
 		border: none;
 		cursor: pointer;
+		color: var(--text);
 		font-size: 1.2rem;
 		padding: 0.4rem;
 		border-radius: 4px;
