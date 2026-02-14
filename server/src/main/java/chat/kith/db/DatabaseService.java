@@ -7,10 +7,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
-import uk.co.rstl.libsql.LibSql;
+import uk.co.rstl.libsql.Connection;
+import uk.co.rstl.libsql.Database;
+import uk.co.rstl.libsql.Rows;
+import uk.co.rstl.libsql.Statement;
+import uk.co.rstl.libsql.Transaction;
 
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,50 +28,37 @@ public class DatabaseService {
     @Inject
     KithConfig config;
 
-    private Arena dbArena;
-    private MemorySegment database;
+    private Database database;
 
     // Simple thread-local connection pool (libsql connections are cheap)
-    private final ThreadLocal<MemorySegment> connectionPool = new ThreadLocal<>();
+    private final ThreadLocal<Connection> connectionPool = new ThreadLocal<>();
 
     @PostConstruct
     void init() {
-        LibSql.setup();
-        dbArena = Arena.ofShared();
-        database = LibSql.databaseInit(
-                dbArena,
-                config.path(),
-                config.url().orElse(null),
-                config.authToken().orElse(null),
-                config.syncInterval()
-        );
+        var builder = Database.builder(config.path());
+        config.url().ifPresent(builder::url);
+        config.authToken().ifPresent(builder::authToken);
+        builder.syncInterval(config.syncInterval());
+        database = builder.build();
 
         // Verify connectivity
-        var conn = getConnection();
-        try (var arena = Arena.ofConfined()) {
-            var stmt = LibSql.connectionPrepare(arena, conn, "SELECT 1");
-            var rows = LibSql.statementQuery(stmt);
-            LibSql.rowsDeinit(rows);
-            LibSql.statementDeinit(stmt);
+        try (var conn = database.connect()) {
+            conn.batch("SELECT 1");
         }
         LOG.info("[BOOT] Database ... OK");
     }
 
     @PreDestroy
     void shutdown() {
-        // Connection cleanup happens via thread-local; database is closed here
         if (database != null) {
-            LibSql.databaseDeinit(database);
-        }
-        if (dbArena != null) {
-            dbArena.close();
+            database.close();
         }
     }
 
-    public MemorySegment getConnection() {
+    public Connection getConnection() {
         var conn = connectionPool.get();
         if (conn == null) {
-            conn = LibSql.databaseConnect(database);
+            conn = database.connect();
             connectionPool.set(conn);
         }
         return conn;
@@ -77,48 +66,33 @@ public class DatabaseService {
 
     /** Execute a write statement, return rows changed */
     public long execute(String sql, Object... params) {
-        try (var arena = Arena.ofConfined()) {
-            var conn = getConnection();
-            var stmt = LibSql.connectionPrepare(arena, conn, sql);
-            bindParams(arena, stmt, params);
-            long changed = LibSql.statementExecute(stmt);
-            LibSql.statementDeinit(stmt);
-            return changed;
+        try (var stmt = getConnection().prepare(sql)) {
+            bindParams(stmt, params);
+            return stmt.execute();
         }
     }
 
     /** Execute a batch of SQL statements (semicolon-separated) */
     public void batch(String sql) {
-        try (var arena = Arena.ofConfined()) {
-            LibSql.connectionBatch(arena, getConnection(), sql);
-        }
+        getConnection().batch(sql);
     }
 
     /** Query returning list of row maps */
     public List<Map<String, Object>> query(String sql, Object... params) {
-        try (var arena = Arena.ofConfined()) {
-            var conn = getConnection();
-            var stmt = LibSql.connectionPrepare(arena, conn, sql);
-            bindParams(arena, stmt, params);
-            var rows = LibSql.statementQuery(stmt);
-            var result = readAllRows(rows);
-            LibSql.rowsDeinit(rows);
-            LibSql.statementDeinit(stmt);
-            return result;
+        try (var stmt = getConnection().prepare(sql)) {
+            bindParams(stmt, params);
+            try (var rows = stmt.query()) {
+                return readAllRows(rows);
+            }
         }
     }
 
-    /** Run work in a transaction, auto-commit on success, rollback on failure */
+    /** Run work in a transaction, auto-commit on success, auto-rollback on failure */
     public <T> T transaction(Function<TxContext, T> work) {
-        var conn = getConnection();
-        var tx = LibSql.connectionTransaction(conn);
-        try {
+        try (var tx = getConnection().transaction()) {
             T result = work.apply(new TxContext(tx));
-            LibSql.transactionCommit(tx);
+            tx.commit();
             return result;
-        } catch (Exception e) {
-            LibSql.transactionRollback(tx);
-            throw e;
         }
     }
 
@@ -128,83 +102,71 @@ public class DatabaseService {
     }
 
     public void sync() {
-        LibSql.databaseSync(database);
+        database.sync();
     }
 
     // --- Transaction context ---
 
     public static class TxContext {
-        private final MemorySegment tx;
+        private final Transaction tx;
 
-        TxContext(MemorySegment tx) {
+        TxContext(Transaction tx) {
             this.tx = tx;
         }
 
         public long execute(String sql, Object... params) {
-            try (var arena = Arena.ofConfined()) {
-                var stmt = LibSql.transactionPrepare(arena, tx, sql);
-                DatabaseService.bindParams(arena, stmt, params);
-                long changed = LibSql.statementExecute(stmt);
-                LibSql.statementDeinit(stmt);
-                return changed;
+            try (var stmt = tx.prepare(sql)) {
+                DatabaseService.bindParams(stmt, params);
+                return stmt.execute();
             }
         }
 
         public void batch(String sql) {
-            try (var arena = Arena.ofConfined()) {
-                LibSql.transactionBatch(arena, tx, sql);
-            }
+            tx.batch(sql);
         }
 
         public List<Map<String, Object>> query(String sql, Object... params) {
-            try (var arena = Arena.ofConfined()) {
-                var stmt = LibSql.transactionPrepare(arena, tx, sql);
-                DatabaseService.bindParams(arena, stmt, params);
-                var rows = LibSql.statementQuery(stmt);
-                var result = DatabaseService.readAllRows(rows);
-                LibSql.rowsDeinit(rows);
-                LibSql.statementDeinit(stmt);
-                return result;
+            try (var stmt = tx.prepare(sql)) {
+                DatabaseService.bindParams(stmt, params);
+                try (var rows = stmt.query()) {
+                    return DatabaseService.readAllRows(rows);
+                }
             }
         }
     }
 
     // --- Internal helpers ---
 
-    private static void bindParams(Arena arena, MemorySegment stmt, Object[] params) {
+    private static void bindParams(Statement stmt, Object[] params) {
         for (var param : params) {
-            MemorySegment value = switch (param) {
-                case null -> LibSql.nullValue();
-                case Long l -> LibSql.integer(l);
-                case Integer i -> LibSql.integer(i.longValue());
-                case Double d -> LibSql.real(d);
-                case Float f -> LibSql.real(f.doubleValue());
-                case String s -> LibSql.text(arena, s);
-                case byte[] b -> LibSql.blob(arena, b);
+            switch (param) {
+                case null -> stmt.bindNull();
+                case Long l -> stmt.bind(l);
+                case Integer i -> stmt.bind(i.longValue());
+                case Double d -> stmt.bind(d);
+                case Float f -> stmt.bind(f.doubleValue());
+                case String s -> stmt.bind(s);
+                case byte[] b -> stmt.bind(b);
                 default -> throw new IllegalArgumentException("Unsupported param type: " + param.getClass());
             };
-            LibSql.bindValue(stmt, value);
         }
     }
 
-    private static List<Map<String, Object>> readAllRows(MemorySegment rows) {
-        int colCount = LibSql.rowsColumnCount(rows);
+    private static List<Map<String, Object>> readAllRows(Rows rows) {
+        int colCount = rows.columnCount();
         String[] colNames = new String[colCount];
         for (int i = 0; i < colCount; i++) {
-            colNames[i] = LibSql.rowsColumnName(rows, i);
+            colNames[i] = rows.columnName(i);
         }
 
         var result = new ArrayList<Map<String, Object>>();
-        while (true) {
-            var row = LibSql.rowsNext(rows);
-            if (LibSql.rowEmpty(row)) break;
+        for (var row : rows) {
             var map = new LinkedHashMap<String, Object>();
             for (int i = 0; i < colCount; i++) {
-                var rv = LibSql.rowValue(row, i);
-                map.put(colNames[i], LibSql.extractValue(rv));
+                map.put(colNames[i], row.get(i));
             }
-            LibSql.rowDeinit(row);
             result.add(map);
+            row.close();
         }
         return result;
     }
