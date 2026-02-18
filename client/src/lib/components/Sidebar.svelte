@@ -28,8 +28,7 @@ import {
 	import { goto } from '$app/navigation';
 import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
-	import { cycleTheme, getThemePreference } from '$lib/stores/theme.svelte.js';
-import { isSidebarCollapsed, isSidebarExpanded, isNarrowScreen, closeSidebar, toggleSidebar } from '$lib/stores/sidebar.svelte.js';
+	import { cycleTheme, getThemePreference, isSidebarCollapsed, isSidebarExpanded, isNarrowScreen, closeSidebar } from '$lib/stores/sidebar.svelte.js';
 import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, isE2eeCapability, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
 	import { hasChannelPermission, getUser } from '$lib/stores/auth.svelte.js';
@@ -454,9 +453,9 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 		{/if}
 
 		<div class="rail-footer">
-			<button class="rail-btn" onclick={cycleTheme} title="Theme: {getThemePreference()}">
-				{#if getThemePreference() === 'dark'}<span class="material-symbols-outlined" style="font-size: 18px">dark_mode</span>{:else if getThemePreference() === 'light'}<span class="material-symbols-outlined" style="font-size: 18px">light_mode</span>{:else}<span class="material-symbols-outlined" style="font-size: 18px">computer</span>{/if}
-			</button>
+			<a class="rail-btn" href="/settings/appearance" title="Appearance">
+				<span class="material-symbols-outlined" style="font-size: 18px">palette</span>
+			</a>
 		</div>
 	</div>
 {:else}
@@ -734,9 +733,9 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 				Category
 			</button>
 		{/if}
-		<button class="sidebar-theme-btn" onclick={cycleTheme} title="Theme: {getThemePreference()}">
-			{#if getThemePreference() === 'dark'}<span class="material-symbols-outlined" style="font-size: 16px">dark_mode</span>{:else if getThemePreference() === 'light'}<span class="material-symbols-outlined" style="font-size: 16px">light_mode</span>{:else}<span class="material-symbols-outlined" style="font-size: 16px">computer</span>{/if}
-		</button>
+		<a class="sidebar-theme-btn" href="/settings/appearance" title="Appearance">
+			<span class="material-symbols-outlined" style="font-size: 16px">palette</span>
+		</a>
 	</div>
 {/if}
 </aside>
