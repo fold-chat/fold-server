@@ -29,7 +29,7 @@ import {
 import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
 	import { cycleTheme, getThemePreference } from '$lib/stores/theme.svelte.js';
-	import { isSidebarCollapsed, isSidebarExpanded, isNarrowScreen, closeSidebar } from '$lib/stores/sidebar.svelte.js';
+import { isSidebarCollapsed, isSidebarExpanded, isNarrowScreen, closeSidebar, toggleSidebar } from '$lib/stores/sidebar.svelte.js';
 import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, isE2eeCapability, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
 	import { hasChannelPermission, getUser } from '$lib/stores/auth.svelte.js';
@@ -379,6 +379,14 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 {#if isSidebarCollapsed()}
 	<!-- Icon rail (narrow + collapsed) -->
 	<div class="rail">
+		<button class="rail-btn sidebar-toggle" onclick={toggleSidebar} title="Toggle sidebar">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+				<line x1="3" y1="6" x2="21" y2="6" />
+				<line x1="3" y1="12" x2="21" y2="12" />
+				<line x1="3" y1="18" x2="21" y2="18" />
+			</svg>
+		</button>
+
 		<a class="rail-server-icon" href="/" title={getServerName()}>
 			{#if getServerSettings().server_icon}
 				<img class="server-icon" src={getServerSettings().server_icon} alt="" />
@@ -456,6 +464,18 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 	{#if getConnectionState() !== 'connected'}
 		<div class="connection-banner" class:reconnecting={getConnectionState() === 'reconnecting'}>
 			{getConnectionState() === 'reconnecting' ? 'Reconnecting...' : 'Disconnected'}
+		</div>
+	{/if}
+
+	{#if isNarrowScreen()}
+		<div class="sidebar-toggle-row">
+			<button class="sidebar-toggle-btn" onclick={toggleSidebar} title="Close sidebar">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+					<line x1="3" y1="6" x2="21" y2="6" />
+					<line x1="3" y1="12" x2="21" y2="12" />
+					<line x1="3" y1="18" x2="21" y2="18" />
+				</svg>
+			</button>
 		</div>
 	{/if}
 
@@ -938,6 +958,30 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 	}
 
 	/* ===== Full sidebar ===== */
+	/* Sidebar toggle row (mobile expanded) */
+	.sidebar-toggle-row {
+		padding: 0.5rem 0.75rem;
+		border-bottom: 1px solid var(--border);
+		flex-shrink: 0;
+	}
+
+	.sidebar-toggle-btn {
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 0.35rem;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.sidebar-toggle-btn:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+		color: var(--text);
+	}
+
 	/* Server header */
 	.server-header {
 		padding: 0.75rem 0.75rem;

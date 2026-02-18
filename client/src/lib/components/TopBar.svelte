@@ -4,7 +4,6 @@
 	import { getTotalMentionCount } from '$lib/stores/channels.svelte.js';
 	import { getUnreadNotificationCount, toggleNotificationPanel, isNotificationPanelOpen } from '$lib/stores/notifications.svelte.js';
 	import { isMembersPanelOpen, toggleMembersPanel } from '$lib/stores/membersPanel.svelte.js';
-	import { isNarrowScreen, toggleSidebar } from '$lib/stores/sidebar.svelte.js';
 	import { logout } from '$lib/api/auth.js';
 	import { reset } from '$lib/stores/auth.svelte.js';
 	import { disconnect } from '$lib/stores/ws.svelte.js';
@@ -46,15 +45,6 @@
 </script>
 
 <div class="topbar">
-	{#if isNarrowScreen()}
-		<button class="topbar-btn sidebar-toggle" onclick={toggleSidebar} title="Toggle sidebar">
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-				<line x1="3" y1="6" x2="21" y2="6" />
-				<line x1="3" y1="12" x2="21" y2="12" />
-				<line x1="3" y1="18" x2="21" y2="18" />
-			</svg>
-		</button>
-	{/if}
 	<div class="topbar-center">
 		<button class="search-trigger" onclick={openSearch}>
 			<svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
@@ -125,10 +115,6 @@
 		border-bottom: 1px solid var(--border);
 		gap: 0.5rem;
 		z-index: 10;
-	}
-
-	.sidebar-toggle {
-		flex-shrink: 0;
 	}
 
 	.topbar-center {
