@@ -5,10 +5,17 @@
 		setThemePreference,
 		type ThemePreference
 	} from '$lib/stores/theme.svelte.js';
-	
+	import { getDensity, setDensity, type Density } from '$lib/stores/density.svelte.js';
+
 	function select(id: ThemePreference) {
 		setThemePreference(id);
 	}
+
+	const DENSITY_OPTIONS: { id: Density; label: string; icon: string; desc: string }[] = [
+		{ id: 'compact', label: 'Compact', icon: 'density_small', desc: 'Tighter spacing, smaller text' },
+		{ id: 'default', label: 'Default', icon: 'density_medium', desc: 'Balanced spacing' },
+		{ id: 'large',   label: 'Large',   icon: 'density_large',  desc: 'More breathing room' },
+	];
 </script>
 
 <div class="settings-card">
@@ -60,6 +67,24 @@
 					</button>
 				{/each}
 			</div>
+		</div>
+
+		<div class="form-group">
+			<label>Message Density</label>
+			<div class="density-group">
+				{#each DENSITY_OPTIONS as opt (opt.id)}
+					<button
+						class="density-btn"
+						class:active={getDensity() === opt.id}
+						onclick={() => setDensity(opt.id)}
+						title={opt.desc}
+					>
+						<span class="material-symbols-outlined" style="font-size: 20px">{opt.icon}</span>
+						<span>{opt.label}</span>
+					</button>
+				{/each}
+			</div>
+			<p class="density-hint muted">{DENSITY_OPTIONS.find(o => o.id === getDensity())?.desc}</p>
 		</div>
 	</div>
 </div>
@@ -164,5 +189,49 @@
 		align-items: center;
 		justify-content: center;
 		line-height: 1;
+	}
+
+	.density-group {
+		display: flex;
+		gap: 0;
+		margin-top: 0.25rem;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		overflow: hidden;
+		width: fit-content;
+	}
+
+	.density-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.5rem 1rem;
+		background: none;
+		border: none;
+		border-right: 1px solid var(--border);
+		color: var(--text-muted);
+		font-size: 0.8rem;
+		cursor: pointer;
+		transition: background 0.12s, color 0.12s;
+		border-radius: 0;
+	}
+
+	.density-btn:last-child {
+		border-right: none;
+	}
+
+	.density-btn:hover {
+		background: var(--bg-hover);
+		color: var(--text);
+	}
+
+	.density-btn.active {
+		background: color-mix(in srgb, var(--accent) 12%, transparent);
+		color: var(--accent);
+	}
+
+	.density-hint {
+		margin-top: 0.35rem;
+		font-size: 0.75rem;
 	}
 </style>

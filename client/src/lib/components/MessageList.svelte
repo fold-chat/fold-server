@@ -454,7 +454,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 	}
 
 	.message {
-		padding: 0.25rem 0.5rem;
+		padding: var(--msg-padding);
 		border-radius: 4px;
 		position: relative;
 	}
@@ -464,7 +464,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 	}
 
 	.message:not(.grouped) {
-		margin-top: 1rem;
+		margin-top: var(--msg-gap);
 	}
 
 	.message.grouped {
@@ -497,7 +497,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 
 	.author {
 		font-weight: 600;
-		font-size: 0.9rem;
+		font-size: var(--msg-font);
 		background: none;
 		border: none;
 		padding: 0;
@@ -516,8 +516,8 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 	}
 
 	.message-body {
-		font-size: 0.9rem;
-		line-height: 1.4;
+		font-size: var(--msg-font);
+		line-height: var(--msg-line-height);
 	}
 
 

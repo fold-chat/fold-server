@@ -1097,11 +1097,11 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 		align-items: center;
 		gap: 0.75rem;
 		width: calc(100% - 1rem);
-		padding: 0.4rem 0.75rem;
+		padding: var(--channel-padding);
 		border: none;
 		background: none;
 		color: var(--text-muted);
-		font-size: 0.875rem;
+		font-size: var(--channel-font);
 		cursor: pointer;
 		text-align: left;
 		border-radius: 8px;
