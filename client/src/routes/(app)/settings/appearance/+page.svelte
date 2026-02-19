@@ -13,6 +13,8 @@
 	} from '$lib/stores/theme.svelte.js';
 	import { getDensity, setDensity, type Density } from '$lib/stores/density.svelte.js';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import { exportTheme, decodeTheme, type DecodeResult } from '$lib/utils/theme-codec.js';
+	import { contrastRatio } from '$lib/utils/color.js';
 
 	// ── Density ───────────────────────────────────────────────────────────────
 	const DENSITY_OPTIONS: { id: Density; label: string; icon: string; desc: string }[] = [
@@ -59,6 +61,44 @@
 	let editingTheme = $state<CustomTheme | null>(null);
 	let priorPreference = $state('system');
 	let deleteDialog = $state<{ open: boolean; id: string; name: string }>({ open: false, id: '', name: '' });
+
+	// ── Import / export ───────────────────────────────────────────────────────
+	let importPanel = $state(false);
+	let importStr = $state('');
+	let copiedId = $state<string | null>(null);
+
+	const importDecoded = $derived<DecodeResult | null>(
+		importStr.trim() ? decodeTheme(importStr.trim()) : null
+	);
+
+	const importResolvedName = $derived(
+		importDecoded && !('error' in importDecoded)
+			? resolveNameCollision(importDecoded.theme.name)
+			: null
+	);
+
+	function resolveNameCollision(name: string): string {
+		const names = new Set(getCustomThemes().map((t) => t.name));
+		if (!names.has(name)) return name;
+		let n = 2;
+		while (names.has(`${name} (${n})`)) n++;
+		return `${name} (${n})`;
+	}
+
+	async function copyExport(ct: CustomTheme): Promise<void> {
+		await navigator.clipboard.writeText(exportTheme(ct));
+		copiedId = ct.id;
+		setTimeout(() => { copiedId = null; }, 2000);
+	}
+
+	function addImported(): void {
+		if (!importDecoded || 'error' in importDecoded) return;
+		const theme = { ...importDecoded.theme, name: importResolvedName ?? importDecoded.theme.name };
+		saveCustomTheme(theme);
+		setThemePreference(theme.id);
+		importStr = '';
+		importPanel = false;
+	}
 
 	function startingColors(): CustomThemeColors {
 		const resolved = getThemePreference();
@@ -143,6 +183,12 @@
 	function customSurfaceStyle(colors: CustomThemeColors): string {
 		return `background:${colors['bg-surface']};border-color:${colors.border}`;
 	}
+
+	// ── Phase 5: contrast warnings ────────────────────────────────────────────
+	function isContrastLow(key: ColorKey): boolean {
+		if (!editingTheme || (key !== 'text' && key !== 'text-muted')) return false;
+		return contrastRatio(editingTheme.colors[key], editingTheme.colors.bg) < 4.5;
+	}
 </script>
 
 <div class="settings-card">
@@ -225,6 +271,9 @@
 								<button class="icon-btn" title="Edit" onclick={() => openEdit(ct)}>
 									<span class="material-symbols-outlined">edit</span>
 								</button>
+								<button class="icon-btn" title={copiedId === ct.id ? 'Copied!' : 'Export'} onclick={() => copyExport(ct)}>
+									<span class="material-symbols-outlined">{copiedId === ct.id ? 'check' : 'share'}</span>
+								</button>
 								<button class="icon-btn" title="Duplicate" onclick={() => openDuplicate(ct.colors, ct.name)}>
 									<span class="material-symbols-outlined">content_copy</span>
 								</button>
@@ -248,6 +297,42 @@
 					<span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px">add</span>
 					New Custom Theme
 				</button>
+			{/if}
+
+			<!-- Import -->
+			<button class="import-toggle-btn" onclick={() => { importPanel = !importPanel; importStr = ''; }}>
+				<span class="material-symbols-outlined" style="font-size:14px;vertical-align:-2px">download</span>
+				Import Theme
+			</button>
+			{#if importPanel}
+				<div class="import-panel">
+					<input
+						type="text"
+						class="import-input"
+						bind:value={importStr}
+						placeholder="Paste kt1.… export string"
+						autofocus
+					/>
+					{#if importDecoded}
+						{#if 'error' in importDecoded}
+							<p class="import-error">{importDecoded.error}</p>
+						{:else}
+							<div class="import-preview-row">
+								<div class="mini-preview" style={customPreviewStyle(importDecoded.theme.colors)}>
+									<div class="mini-surface" style={customSurfaceStyle(importDecoded.theme.colors)}></div>
+									<div class="mini-accent" style="background:{importDecoded.theme.colors.accent}"></div>
+								</div>
+								<div class="import-meta">
+									<span class="import-name">{importResolvedName}</span>
+									{#if importResolvedName !== importDecoded.theme.name}
+										<span class="muted" style="font-size:0.7rem">Renamed from "{importDecoded.theme.name}"</span>
+									{/if}
+								</div>
+								<button class="btn-primary" style="font-size:0.8rem;padding:0.3rem 0.75rem" onclick={addImported}>Add</button>
+							</div>
+						{/if}
+					{/if}
+				</div>
 			{/if}
 		</div>
 
@@ -293,6 +378,11 @@
 										/>
 									</label>
 									<span class="token-name">{token.label}</span>
+									{#if isContrastLow(token.key)}
+										<span class="contrast-warn" title="Low contrast vs background (WCAG AA: 4.5:1)">
+											<span class="material-symbols-outlined" style="font-size:14px">warning</span>
+										</span>
+									{/if}
 								</div>
 							{/each}
 						</div>
@@ -320,6 +410,12 @@
 				<!-- Actions -->
 				<div class="editor-actions">
 					<button class="btn-sm" onclick={cancel}>Cancel</button>
+					{#if getCustomThemes().some(t => t.id === editingTheme!.id)}
+						<button class="btn-sm export-btn" title="Copy export string" onclick={() => copyExport(editingTheme!)}>
+							<span class="material-symbols-outlined" style="font-size:14px;vertical-align:-2px">{copiedId === editingTheme!.id ? 'check' : 'share'}</span>
+							{copiedId === editingTheme!.id ? 'Copied!' : 'Export'}
+						</button>
+					{/if}
 					<button class="btn-primary" onclick={save}>Save Theme</button>
 				</div>
 			</div>
@@ -342,6 +438,11 @@
 				{/each}
 			</div>
 			<p class="density-hint muted">{DENSITY_OPTIONS.find(o => o.id === getDensity())?.desc}</p>
+		</div>
+
+		<!-- ── Reset ──────────────────────────────────────────────────────── -->
+		<div class="reset-row">
+			<button class="btn-sm" onclick={() => setThemePreference('system')}>Reset to system theme</button>
 		</div>
 	</div>
 </div>
@@ -538,6 +639,103 @@
 		color: var(--danger);
 	}
 
+	/* ── Import ─────────────────────────────────────────────────────────────── */
+	.import-toggle-btn {
+		margin-top: 0.4rem;
+		width: fit-content;
+		padding: 0.3rem 0.7rem;
+		background: none;
+		border: none;
+		color: var(--text-muted);
+		font-size: 0.78rem;
+		cursor: pointer;
+		transition: color 0.12s;
+		border-radius: 4px;
+	}
+
+	.import-toggle-btn:hover {
+		color: var(--accent);
+		background: var(--bg-hover);
+	}
+
+	.import-panel {
+		margin-top: 0.4rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.import-input {
+		width: 100% !important;
+		background: var(--bg-input) !important;
+		border: 1px solid var(--border) !important;
+		border-radius: 4px;
+		padding: 0.35rem 0.6rem !important;
+		color: var(--text);
+		font-size: 0.8rem;
+		font-family: monospace;
+		outline: none;
+	}
+
+	.import-input:focus { border-color: var(--accent) !important; }
+
+	.import-error {
+		font-size: 0.78rem;
+		color: var(--danger);
+		margin: 0;
+	}
+
+	.import-preview-row {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		padding: 0.4rem 0.5rem;
+		background: var(--bg-hover);
+		border-radius: 6px;
+	}
+
+	.mini-preview {
+		width: 54px;
+		height: 34px;
+		flex-shrink: 0;
+		border-radius: 5px;
+		border: 1px solid transparent;
+		padding: 4px;
+		box-sizing: border-box;
+		display: flex;
+		flex-direction: column;
+		justify-content: flex-end;
+		gap: 3px;
+	}
+
+	.mini-surface {
+		flex: 1;
+		border-radius: 3px;
+	}
+
+	.mini-accent {
+		height: 3px;
+		border-radius: 2px;
+		flex-shrink: 0;
+	}
+
+	.import-meta {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+
+	.import-name {
+		font-size: 0.85rem;
+		font-weight: 500;
+		color: var(--text);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
 	/* ── New theme ───────────────────────────────────────────────────────────── */
 	.new-card { border-style: dashed; }
 
@@ -647,6 +845,14 @@
 	.token-name {
 		font-size: 0.8rem;
 		color: var(--text-muted);
+		flex: 1;
+	}
+
+	.contrast-warn {
+		color: color-mix(in srgb, var(--danger) 80%, transparent);
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
 	}
 
 	/* Color swatch + hidden native input */
@@ -754,5 +960,17 @@
 	.density-hint {
 		margin-top: 0.35rem;
 		font-size: 0.75rem;
+	}
+
+	/* ── Export button in editor actions ─────────────────────────────────────── */
+	.export-btn {
+		margin-right: auto;
+	}
+
+	/* ── Reset ───────────────────────────────────────────────────────────────── */
+	.reset-row {
+		display: flex;
+		justify-content: flex-end;
+		padding-top: 0.25rem;
 	}
 </style>

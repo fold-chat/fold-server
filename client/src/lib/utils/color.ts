@@ -20,3 +20,19 @@ export function isColorDark(hex: string): boolean {
 	// Perceived luminance
 	return (0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b) / 255 < 0.5;
 }
+
+function relativeLuminance(hex: string): number {
+	const rgb = hexToRgb(hex);
+	if (!rgb) return 0;
+	const lin = (c: number) => {
+		const v = c / 255;
+		return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+	};
+	return 0.2126 * lin(rgb.r) + 0.7152 * lin(rgb.g) + 0.0722 * lin(rgb.b);
+}
+
+export function contrastRatio(hex1: string, hex2: string): number {
+	const l1 = relativeLuminance(hex1);
+	const l2 = relativeLuminance(hex2);
+	return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
