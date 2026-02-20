@@ -7,7 +7,7 @@ import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './me
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
 import { setMembers, addMember, removeMember, updateMember, getMembers as getStoreMembers, updateMemberRoleBadge } from './members.svelte.js';
-import { getUser, setPermissions, setMediaSearchEnabled, setServerSettings } from './auth.svelte.js';
+import { getUser, setPermissions, setMediaSearchEnabled, setYoutubeEmbedEnabled, setServerSettings } from './auth.svelte.js';
 import { hydrateVoiceStates, setVoiceVideoEnabled, setE2eeCapability, handleVoiceStateUpdate, handleVoiceMove, handleVoiceKeyRotate } from './voice.svelte.js';
 import { setOnlineUserIds, setUserOnline, setUserOffline } from './presence.svelte.js';
 import { setCustomEmoji, addCustomEmoji, removeCustomEmoji } from './emoji.svelte.js';
@@ -257,6 +257,7 @@ interface HelloPayload {
 	heartbeat_interval_ms: number;
 	session_id: string;
 	media_search?: boolean;
+	youtube_embed?: boolean;
 	server_settings?: { server_name?: string | null; server_icon?: string | null; server_description?: string | null };
 	voice_states?: Array<import('$lib/api/voice.js').VoiceState> | Record<string, Array<import('$lib/api/voice.js').VoiceState>>;
 	capabilities?: { voice_video?: boolean; e2ee?: boolean };
@@ -347,6 +348,7 @@ function handleHello(data: HelloPayload) {
 		);
 	}
 	setMediaSearchEnabled(data.media_search ?? false);
+	setYoutubeEmbedEnabled(data.youtube_embed ?? true);
 	if (data.server_settings) setServerSettings(data.server_settings);
 	if (data.online_user_ids) setOnlineUserIds(data.online_user_ids);
 	setCustomEmoji(data.custom_emoji ?? []);

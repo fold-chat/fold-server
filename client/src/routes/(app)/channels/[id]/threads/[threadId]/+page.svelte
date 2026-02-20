@@ -13,7 +13,9 @@ import { editMessage, deleteMessage } from '$lib/api/messages.js';
 	import { getChannelById, getCategories } from '$lib/stores/channels.svelte.js';
 	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
 import { PermissionName } from '$lib/permissions.js';
-import { renderMarkdown, contentPreview, isEmojiOnly } from '$lib/utils/markdown.js';
+import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } from '$lib/utils/markdown.js';
+	import { getYoutubeEmbedEnabled } from '$lib/stores/auth.svelte.js';
+	import YouTubeEmbed from '$lib/components/YouTubeEmbed.svelte';
 	import CollapsibleContent from '$lib/components/CollapsibleContent.svelte';
 	import { send } from '$lib/stores/ws.svelte.js';
 	import MessageList from '$lib/components/MessageList.svelte';
@@ -293,6 +295,11 @@ import { renderMarkdown, contentPreview, isEmojiOnly } from '$lib/utils/markdown
 			{#if originalPost}
 				<CollapsibleContent>
 				<div class="op-content" class:emoji-only={isEmojiOnly(originalPost.content)}>{@html renderMarkdown(originalPost.content, { mentions: originalPost.mentions, mention_roles: originalPost.mention_roles, mention_everyone: originalPost.mention_everyone })}</div>
+					{#if getYoutubeEmbedEnabled()}
+						{#each extractYouTubeVideoIds(originalPost.content) as videoId}
+							<YouTubeEmbed {videoId} />
+						{/each}
+					{/if}
 					{#if originalPost.attachments?.length}
 						<div class="op-attachments">
 							{#each originalPost.attachments as att}

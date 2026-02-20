@@ -230,6 +230,7 @@ var members = userRepo.listMembers(false);
             hello.put("heartbeat_interval_ms", 30000);
             hello.put("session_id", UUID.randomUUID().toString());
             hello.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
+            hello.put("youtube_embed", mediaConfig.youtubeEmbed());
 
             // Voice states for viewable voice channels
             var voiceChannelIds = channels.stream()

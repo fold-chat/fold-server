@@ -12,4 +12,8 @@ public interface KithMediaConfig {
     /** Max media cache size in MB */
     @WithDefault("512")
     long maxCacheSize();
+
+    /** Whether YouTube video embedding is enabled */
+    @WithDefault("true")
+    boolean youtubeEmbed();
 }

@@ -13,6 +13,7 @@ let initialized = $state(false);
 let permissions = $state<UserPermissions>({ server: [], channels: new Map() });
 let permissionsLoaded = $state(false);
 let mediaSearchEnabled = $state(false);
+let youtubeEmbedEnabled = $state(true);
 let serverSettings = $state<{ server_name: string | null; server_icon: string | null; server_description: string | null }>({
 	server_name: 'Kith',
 	server_icon: null,
@@ -103,6 +104,14 @@ export function setMediaSearchEnabled(v: boolean) {
 	mediaSearchEnabled = v;
 }
 
+export function getYoutubeEmbedEnabled(): boolean {
+	return youtubeEmbedEnabled;
+}
+
+export function setYoutubeEmbedEnabled(v: boolean) {
+	youtubeEmbedEnabled = v;
+}
+
 export function getServerSettings() {
 	return serverSettings;
 }
@@ -122,5 +131,6 @@ export function reset() {
 	permissions = { server: [], channels: new Map() };
 	permissionsLoaded = false;
 	mediaSearchEnabled = false;
+	youtubeEmbedEnabled = true;
 	serverSettings = { server_name: 'Kith', server_icon: null, server_description: null };
 }

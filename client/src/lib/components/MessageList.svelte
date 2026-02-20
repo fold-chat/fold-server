@@ -2,7 +2,9 @@
 import type { Message } from '$lib/api/messages.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { addReaction, removeReaction } from '$lib/api/reactions.js';
-import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdown.js';
+import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } from '$lib/utils/markdown.js';
+	import { getYoutubeEmbedEnabled } from '$lib/stores/auth.svelte.js';
+	import YouTubeEmbed from './YouTubeEmbed.svelte';
 	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	import { findCustomEmojiByName } from '$lib/stores/emoji.svelte.js';
 	import EmojiPicker from './EmojiPicker.svelte';
@@ -305,6 +307,11 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly } from '$lib/utils/markdow
 						{:else}
 							<CollapsibleContent>
 							<div class="content" class:emoji-only={isEmojiOnly(msg.content)}>{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
+								{#if getYoutubeEmbedEnabled()}
+									{#each extractYouTubeVideoIds(msg.content) as videoId}
+										<YouTubeEmbed {videoId} />
+									{/each}
+								{/if}
 								{#if msg.attachments && msg.attachments.length > 0}
 									{@const imageAtts = msg.attachments.filter(a => isImage(a.mime_type))}
 									{@const fileAtts = msg.attachments.filter(a => !isImage(a.mime_type))}

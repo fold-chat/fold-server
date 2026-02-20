@@ -96,6 +96,20 @@ export function renderMarkdown(
 
 const GIF_MSG_RE = /!\[GIF\]\([^)]+\)/g;
 
+/** Matches YouTube URLs and extracts video IDs. Supports youtube.com/watch, youtu.be, and embed URLs. */
+const YOUTUBE_URL_RE = /(?:https?:\/\/)?(?:www\.|m\.)?(?:youtube\.com\/watch\?[^\s]*v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})(?:[^\s]*)/g;
+
+/** Extract unique YouTube video IDs from raw message content. */
+export function extractYouTubeVideoIds(content: string): string[] {
+	const ids = new Set<string>();
+	let match;
+	while ((match = YOUTUBE_URL_RE.exec(content)) !== null) {
+		ids.add(match[1]);
+	}
+	YOUTUBE_URL_RE.lastIndex = 0;
+	return [...ids];
+}
+
 /** Strip markdown artifacts from content for plain-text previews. */
 export function contentPreview(content: string | undefined | null, maxLen = 200, mentions?: MentionedUser[]): string {
 	if (!content) return '(attachment)';
