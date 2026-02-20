@@ -1,20 +1,52 @@
 <script lang="ts">
 	import { getServerSettings, setServerSettings, hasServerPermission, arePermissionsLoaded } from '$lib/stores/auth.svelte.js';
-	import { updateServerSettings, type ServerSettings } from '$lib/api/settings.js';
+	import { getServerSettings as fetchServerSettings, updateServerSettings, type ServerSettings } from '$lib/api/settings.js';
 	import { uploadFile } from '$lib/api/upload.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
+	import { onMount } from 'svelte';
 
 	const loaded = $derived(arePermissionsLoaded());
 	const canManageServer = $derived(hasServerPermission(PermissionName.MANAGE_SERVER));
 
-	let formName = $state(getServerSettings().server_name || '');
-	let formDescription = $state(getServerSettings().server_description || '');
-	let formIcon = $state(getServerSettings().server_icon || '');
+	let formName = $state('');
+	let formDescription = $state('');
+	let formIcon = $state('');
 	let loading = $state(false);
 	let error = $state('');
 	let success = $state('');
 	let uploadingIcon = $state(false);
+	let settingsLoaded = $state(false);
+
+	function syncForm(s: { server_name?: string | null; server_icon?: string | null; server_description?: string | null }) {
+		formName = s.server_name || '';
+		formDescription = s.server_description || '';
+		formIcon = s.server_icon || '';
+	}
+
+	// Fetch settings via REST API on mount for immediate availability
+	onMount(async () => {
+		try {
+			const settings = await fetchServerSettings();
+			setServerSettings(settings);
+			if (!settingsLoaded) {
+				syncForm(settings);
+				settingsLoaded = true;
+			}
+		} catch {
+			// REST fetch failed — fall through to $effect which waits for WS HELLO
+		}
+	});
+
+	// Fallback: sync form when WS HELLO populates the auth store
+	$effect(() => {
+		if (settingsLoaded) return;
+		const settings = getServerSettings();
+		if (loaded) {
+			syncForm(settings);
+			settingsLoaded = true;
+		}
+	});
 
 	async function handleSave() {
 		if (!formName.trim()) {
@@ -81,7 +113,7 @@
 			<div class="success-message">{success}</div>
 		{/if}
 
-		{#if !loaded}
+		{#if !loaded || !settingsLoaded}
 			<p class="muted">Loading…</p>
 		{:else if !canManageServer}
 			<p class="muted">You don't have permission to manage server settings.</p>
