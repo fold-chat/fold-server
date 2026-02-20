@@ -220,25 +220,37 @@
 
 				<!-- Built-in themes -->
 				{#each BUILT_IN_THEMES as theme (theme.id)}
-					<button
+					<div
 						class="theme-card"
 						class:active={getThemePreference() === theme.id}
-						onclick={() => setThemePreference(theme.id)}
 					>
-						<div class="theme-preview" style="background:{theme.colors.bg};border-color:{theme.colors.border}">
-							<div class="preview-surface" style="background:{theme.colors.surface};border-color:{theme.colors.border}">
-								<div class="preview-text-line" style="background:{theme.colors.text}"></div>
-								<div class="preview-text-line short" style="background:{theme.colors.text}"></div>
+						<button
+							class="builtin-select"
+							onclick={() => setThemePreference(theme.id)}
+							aria-label="Select {theme.label}"
+						>
+							<div class="theme-preview" style="background:{theme.colors.bg};border-color:{theme.colors.border}">
+								<div class="preview-surface" style="background:{theme.colors.surface};border-color:{theme.colors.border}">
+									<div class="preview-text-line" style="background:{theme.colors.text}"></div>
+									<div class="preview-text-line short" style="background:{theme.colors.text}"></div>
+								</div>
+								<div class="preview-accent-bar" style="background:{theme.colors.accent}"></div>
 							</div>
-							<div class="preview-accent-bar" style="background:{theme.colors.accent}"></div>
-						</div>
-						<span class="theme-label">{theme.label}</span>
-						{#if getThemePreference() === theme.id}
-							<span class="active-badge">
-								<span class="material-symbols-outlined" style="font-size:14px">check</span>
-							</span>
-						{/if}
-					</button>
+							<span class="theme-label">{theme.label}</span>
+							{#if getThemePreference() === theme.id}
+								<span class="active-badge">
+									<span class="material-symbols-outlined" style="font-size:14px">check</span>
+								</span>
+							{/if}
+						</button>
+						<button
+							class="clone-btn icon-btn"
+							title="Clone as custom theme"
+							onclick={() => openDuplicate(BUILT_IN_THEME_COLORS[theme.id], theme.label)}
+						>
+							<span class="material-symbols-outlined">content_copy</span>
+						</button>
+					</div>
 				{/each}
 			</div>
 
@@ -473,6 +485,43 @@
 		margin-bottom: 0.1rem;
 	}
 
+	/* ── Built-in theme cards ───────────────────────────────────────────────── */
+	.builtin-select {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.6rem;
+		background: none;
+		border: none;
+		cursor: pointer;
+		color: var(--text-muted);
+		width: 100%;
+		position: relative;
+	}
+
+	.theme-card.active .builtin-select { color: var(--text); }
+
+	.clone-btn {
+		position: absolute;
+		top: 0.35rem;
+		left: 0.35rem;
+		opacity: 0;
+		transition: opacity 0.12s;
+		background: var(--bg-surface) !important;
+		border: 1px solid var(--border) !important;
+		z-index: 1;
+	}
+	.theme-card:hover .clone-btn { opacity: 1; }
+
+	/* when theme-card is a div wrapper (built-in cards) remove its own padding */
+	.theme-card:has(.builtin-select) {
+		padding: 0;
+		gap: 0;
+		cursor: default;
+	}
+
+	/* ── Theme grid
 	/* ── Theme grid ─────────────────────────────────────────────────────────── */
 	.theme-grid {
 		display: grid;
