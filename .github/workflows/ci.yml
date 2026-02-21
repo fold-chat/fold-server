@@ -6,11 +6,12 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,3 +41,51 @@ jobs:
         run: |
           cd server
           ./gradlew build
+
+  build-image-main:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build]
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-image.yml
+    with:
+      image_name: fray-chat/fray-app
+      image_tag: main-${{ github.sha }}
+      dockerfile: Dockerfile.preview
+    secrets: inherit
+
+  deploy-main:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-image-main]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: kith-main-deploy
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Nomad
+        env:
+          NOMAD_SSH_KEY: ${{ secrets.NOMAD_SSH_KEY }}
+          NOMAD_HOST: ${{ secrets.NOMAD_HOST }}
+          NOMAD_TOKEN: ${{ secrets.NOMAD_TOKEN }}
+          KITH_DOMAIN: ${{ vars.KITH_DOMAIN || 'demo.fold.chat' }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$NOMAD_SSH_KEY" > ~/.ssh/nomad_key
+          chmod 600 ~/.ssh/nomad_key
+
+          SSH_OPTS="-i ~/.ssh/nomad_key -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10"
+          IMAGE="${{ needs.build-image-main.outputs.image_ref }}"
+
+          sed -e "s|__IMAGE_TAG__|${IMAGE}|g" \
+              -e "s|__KITH_DOMAIN__|${KITH_DOMAIN}|g" \
+              deploy/nomad/kith.nomad.hcl > /tmp/kith-main.nomad.hcl
+
+          scp $SSH_OPTS /tmp/kith-main.nomad.hcl root@${NOMAD_HOST}:/tmp/kith-main.nomad.hcl
+
+          ssh $SSH_OPTS root@${NOMAD_HOST} \
+            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run /tmp/kith-main.nomad.hcl"

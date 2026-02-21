@@ -14,11 +14,10 @@ job "kith-pr-__PR_NUMBER__" {
         to = 8080
       }
     }
-
-    ephemeral_disk {
-      size    = 500
-      migrate = false
-      sticky  = false
+    volume "preview-data" {
+      type      = "host"
+      source    = "kith-preview-data"
+      read_only = false
     }
 
     task "kith" {
@@ -29,9 +28,15 @@ job "kith-pr-__PR_NUMBER__" {
         ports = ["http"]
       }
 
+      volume_mount {
+        volume      = "preview-data"
+        destination = "/persist"
+        read_only   = false
+      }
+
       env {
-        KITH_DB_PATH        = "/alloc/data/kith.db"
-        KITH_DATA_DIR       = "/alloc/data"
+        KITH_DB_PATH        = "/persist/pr-__PR_NUMBER__/kith.db"
+        KITH_DATA_DIR       = "/persist/pr-__PR_NUMBER__"
         KITH_BASE_URL       = "https://pr-__PR_NUMBER__-preview.fold.chat"
         KITH_CORS_ORIGINS   = "https://pr-__PR_NUMBER__-preview.fold.chat"
         KITH_DEV            = "false"

@@ -1,0 +1,86 @@
+name: Build and Push App Image
+
+on:
+  workflow_call:
+    inputs:
+      image_name:
+        description: Image name without registry prefix
+        required: true
+        type: string
+      image_tag:
+        description: Image tag
+        required: true
+        type: string
+      dockerfile:
+        description: Dockerfile path
+        required: false
+        type: string
+        default: Dockerfile.preview
+    secrets:
+      GH_PACKAGES_TOKEN:
+        required: true
+    outputs:
+      image_ref:
+        description: Fully qualified image reference
+        value: ${{ jobs.build-and-push.outputs.image_ref }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ inputs.image_name }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+    outputs:
+      image_ref: ${{ steps.meta.outputs.image_ref }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Client
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+      - name: Build client
+        run: |
+          cd client
+          pnpm install --frozen-lockfile
+          pnpm build
+          mkdir -p ../server/src/main/resources/META-INF/resources
+          cp -r build/* ../server/src/main/resources/META-INF/resources/
+
+      # Server
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build server uber-jar
+        run: |
+          cd server
+          ./gradlew quarkusBuild -Dquarkus.package.jar.type=uber-jar
+
+      # Docker image
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build image metadata
+        id: meta
+        run: |
+          echo "image_ref=${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ inputs.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.image_ref }}
