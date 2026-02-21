@@ -81,6 +81,26 @@ const CUSTOM_STORAGE_KEY = 'kith_custom_themes';
 let preference = $state<string>('system');
 let customThemes = $state<CustomTheme[]>([]);
 
+// Eagerly load from localStorage at module init (browser only).
+// This ensures $state values are correct before any component reads them.
+if (typeof window !== 'undefined') {
+	try {
+		const raw = localStorage.getItem(CUSTOM_STORAGE_KEY);
+		if (raw) customThemes = JSON.parse(raw);
+	} catch { /* ignore */ }
+
+	try {
+		const stored = localStorage.getItem(STORAGE_KEY);
+		if (stored) {
+			const valid =
+				stored === 'system' ||
+				ALL_BUILT_IN_IDS.has(stored) ||
+				customThemes.some((t: CustomTheme) => t.id === stored);
+			if (valid) preference = stored;
+		}
+	} catch { /* ignore */ }
+}
+
 function getSystemTheme(): BuiltInThemeId {
 	if (typeof window === 'undefined') return 'dark';
 	return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
@@ -126,7 +146,7 @@ function applyTheme(themeId: string): void {
 
 function persistCustomThemes(): void {
 	try {
-		localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify(customThemes));
+		localStorage.setItem(CUSTOM_STORAGE_KEY, JSON.stringify($state.snapshot(customThemes)));
 	} catch { /* ignore */ }
 }
 
@@ -172,26 +192,9 @@ export function deleteCustomTheme(id: string): void {
 }
 
 export function initTheme() {
-	// Load custom themes first (needed for preference validation)
-	try {
-		const raw = localStorage.getItem(CUSTOM_STORAGE_KEY);
-		if (raw) customThemes = JSON.parse(raw);
-	} catch { /* ignore */ }
-
-	try {
-		const stored = localStorage.getItem(STORAGE_KEY);
-		if (stored) {
-			const valid =
-				stored === 'system' ||
-				ALL_BUILT_IN_IDS.has(stored) ||
-				customThemes.some((t) => t.id === stored);
-			if (valid) preference = stored;
-		}
-	} catch { /* ignore */ }
-
+	// State already loaded at module init; just apply visuals + listeners.
 	applyTheme(resolveTheme(preference));
 
-	// Listen for system theme changes when preference is 'system'
 	window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
 		if (preference === 'system') {
 			applyTheme(getSystemTheme());
