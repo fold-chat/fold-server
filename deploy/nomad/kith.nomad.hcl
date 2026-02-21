@@ -42,6 +42,14 @@ job "kith-main" {
         JAVA_OPTS         = "--enable-native-access=ALL-UNNAMED"
       }
 
+      template {
+        destination = "${NOMAD_SECRETS_DIR}/klipy.env"
+        env         = true
+        data        = <<EOT
+KITH_KLIPY_API_KEY={{ with nomadVar "kith/secrets/klipy" }}{{ index . "KITH_KLIPY_API_KEY" | toJSON }}{{ end }}
+EOT
+      }
+
       resources {
         cpu    = 500
         memory = 1024
