@@ -173,7 +173,7 @@
 	.icon-preview {
 		width: 64px;
 		height: 64px;
-		border-radius: 50%;
+		border-radius: 16px;
 		object-fit: cover;
 		border: 2px solid var(--border);
 	}
@@ -181,7 +181,7 @@
 	.icon-placeholder {
 		width: 64px;
 		height: 64px;
-		border-radius: 50%;
+		border-radius: 16px;
 		background: var(--bg);
 		border: 2px dashed var(--border);
 		display: flex;
