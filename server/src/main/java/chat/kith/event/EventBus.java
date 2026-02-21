@@ -9,8 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
-import java.util.Collection;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
@@ -20,6 +19,7 @@ public class EventBus {
 
     @Inject SessionRegistry registry;
     @Inject PermissionService permissionService;
+    @Inject EventBuffer eventBuffer;
     @Inject Vertx vertx;
 
     private final ObjectMapper mapper = new ObjectMapper();
@@ -40,13 +40,28 @@ public class EventBus {
                         "d", event.data(),
                         "s", seq
                 ));
+
+                // Send to active connections and buffer for their sessions
+                var bufferedSessionIds = new HashSet<String>();
                 for (var conn : targets) {
+                    var sessionId = registry.getSessionId(conn);
+                    if (sessionId != null && bufferedSessionIds.add(sessionId)) {
+                        eventBuffer.append(sessionId, seq, json);
+                    }
                     vertx.runOnContext(v ->
                         conn.sendText(json).subscribe().with(
                                 ok -> {},
                                 err -> LOG.debugf("Error dispatching to %s: %s", conn.id(), err.getMessage())
                         )
                     );
+                }
+
+                // Buffer for suspended sessions that match the scope
+                var suspendedTargets = resolveSuspendedTargets(event.scope(), event.excludeUserId());
+                for (var sessionId : suspendedTargets) {
+                    if (bufferedSessionIds.add(sessionId)) {
+                        eventBuffer.append(sessionId, seq, json);
+                    }
                 }
             } catch (Exception e) {
                 LOG.errorf("Failed to serialize event %s: %s", event.type(), e.getMessage());
@@ -74,5 +89,26 @@ public class EventBus {
                 yield conns;
             }
         };
+    }
+
+    /** Resolve suspended session IDs that should receive events for the given scope. */
+    private Set<String> resolveSuspendedTargets(Scope scope, String excludeUserId) {
+        var suspended = registry.allSuspendedSessions();
+        if (suspended.isEmpty()) return Set.of();
+
+        var result = new HashSet<String>();
+        for (var s : suspended) {
+            if (excludeUserId != null && s.userId().equals(excludeUserId)) continue;
+            if (!eventBuffer.hasBuffer(s.sessionId())) continue;
+
+            boolean matches = switch (scope) {
+                case Scope.Server ignored -> true;
+                case Scope.Channel c -> permissionService.hasPermission(s.userId(), c.channelId(), Permission.VIEW_CHANNEL);
+                case Scope.User u -> s.userId().equals(u.userId());
+                case Scope.Users u -> u.userIds().contains(s.userId());
+            };
+            if (matches) result.add(s.sessionId());
+        }
+        return result;
     }
 }

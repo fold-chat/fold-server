@@ -23,6 +23,7 @@ public class KithWebSocket {
     @Inject JwtService jwtService;
     @Inject SessionRegistry registry;
     @Inject EventBus eventBus;
+    @Inject EventBuffer eventBuffer;
     @Inject ChannelRepository channelRepo;
     @Inject CategoryRepository categoryRepo;
     @Inject UserRepository userRepo;
@@ -41,41 +42,31 @@ public class KithWebSocket {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @OnOpen
-    public String onOpen(WebSocketConnection connection) {
+    public void onOpen(WebSocketConnection connection) {
         // Parse cookie from handshake headers
         var cookieHeader = connection.handshakeRequest().header("Cookie");
         String token = parseCookie(cookieHeader, "kith_access");
 
         if (token == null) {
             rejectAuth(connection, "no kith_access cookie");
-            return null;
+            return;
         }
 
         var claims = jwtService.verify(token);
         if (claims.isEmpty()) {
             rejectAuth(connection, "invalid token");
-            return null;
+            return;
         }
 
-        var c = claims.get();
-        String userId = c.getSubject();
-        String username = (String) c.get("usr");
+        LOG.debugf("WS authenticated: %s (%s)", claims.get().get("usr"), connection.id());
 
-        boolean wasOnline = registry.isOnline(userId);
-        registry.register(userId, username, connection);
-        LOG.debugf("WS connected: %s (%s)", username, connection.id());
-
-        // Broadcast presence if user just came online (0→1 connections)
-        if (!wasOnline) {
-            eventBus.publish(Event.of(
-                    EventType.PRESENCE_UPDATE,
-                    Map.of("user_id", userId, "status", "online"),
-                    Scope.server()
-            ));
+        // Don't register or send HELLO yet — wait for IDENTIFY or RESUME from client.
+        // Send READY to signal the client can proceed.
+        try {
+            connection.sendText("{\"op\":\"READY\"}").subscribe().with(v -> {}, e -> {});
+        } catch (Exception e) {
+            LOG.debugf("Failed to send READY: %s", e.getMessage());
         }
-
-        // Build HELLO payload
-        return buildHello(userId);
     }
 
     @OnTextMessage
@@ -87,6 +78,8 @@ public class KithWebSocket {
             if (op == null) return;
 
             switch (op) {
+                case "IDENTIFY" -> handleIdentify(connection);
+                case "RESUME" -> handleResume(connection, msg);
                 case "HEARTBEAT" -> handleHeartbeat(connection);
                 case "TYPING" -> handleTyping(connection, msg);
                 case "TYPING_STOP" -> handleTypingStop(connection, msg);
@@ -100,9 +93,10 @@ public class KithWebSocket {
     @OnClose
     public void onClose(WebSocketConnection connection) {
         var meta = registry.getMeta(connection);
-        registry.unregister(connection);
+        // Suspend session instead of unregistering — allows RESUME
+        registry.suspend(connection);
         if (meta != null) {
-            LOG.debugf("WS disconnected: %s (%s)", meta.username(), connection.id());
+            LOG.debugf("WS disconnected (suspended): %s (%s) session=%s", meta.username(), connection.id(), meta.sessionId());
             // If user has no remaining connections, they went offline
             if (!registry.isOnline(meta.userId())) {
                 userRepo.updateLastSeen(meta.userId());
@@ -117,11 +111,153 @@ public class KithWebSocket {
         }
     }
 
+    private void handleIdentify(WebSocketConnection connection) {
+        var cookieHeader = connection.handshakeRequest().header("Cookie");
+        String token = parseCookie(cookieHeader, "kith_access");
+        if (token == null) {
+            rejectAuth(connection, "no kith_access cookie");
+            return;
+        }
+        var claims = jwtService.verify(token);
+        if (claims.isEmpty()) {
+            rejectAuth(connection, "invalid token");
+            return;
+        }
+
+        var c = claims.get();
+        String userId = c.getSubject();
+        String username = (String) c.get("usr");
+
+        String sessionId = UUID.randomUUID().toString();
+        boolean wasOnline = registry.isOnline(userId);
+        registry.register(userId, username, sessionId, connection);
+        eventBuffer.createBuffer(sessionId, userId);
+        LOG.debugf("WS identified: %s (%s) session=%s", username, connection.id(), sessionId);
+
+        // Broadcast presence if user just came online
+        if (!wasOnline) {
+            eventBus.publish(Event.of(
+                    EventType.PRESENCE_UPDATE,
+                    Map.of("user_id", userId, "status", "online"),
+                    Scope.server()
+            ));
+        }
+
+        // Send HELLO payload
+        String hello = buildHello(userId, sessionId);
+        try {
+            connection.sendText(hello).subscribe().with(v -> {}, e -> {});
+        } catch (Exception e) {
+            LOG.debugf("Failed to send HELLO: %s", e.getMessage());
+        }
+    }
+
     private void handleHeartbeat(WebSocketConnection connection) {
         try {
             connection.sendText("{\"op\":\"HEARTBEAT_ACK\"}").subscribe().with(v -> {}, e -> {});
         } catch (Exception e) {
             LOG.debugf("Failed to send heartbeat ack: %s", e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void handleResume(WebSocketConnection connection, Map<String, Object> msg) {
+        var data = (Map<String, Object>) msg.get("d");
+        if (data == null) {
+            sendResumeError(connection, "missing data");
+            return;
+        }
+
+        String reqSessionId = (String) data.get("session_id");
+        var lastSeqRaw = data.get("last_sequence");
+        if (reqSessionId == null || lastSeqRaw == null) {
+            sendResumeError(connection, "missing session_id or last_sequence");
+            return;
+        }
+
+        long lastSequence;
+        try {
+            lastSequence = lastSeqRaw instanceof Number n ? n.longValue() : Long.parseLong(lastSeqRaw.toString());
+        } catch (NumberFormatException e) {
+            sendResumeError(connection, "invalid last_sequence");
+            return;
+        }
+
+        // Authenticate the connection
+        var cookieHeader = connection.handshakeRequest().header("Cookie");
+        String token = parseCookie(cookieHeader, "kith_access");
+        if (token == null) {
+            sendResumeError(connection, "no kith_access cookie");
+            return;
+        }
+        var claims = jwtService.verify(token);
+        if (claims.isEmpty()) {
+            sendResumeError(connection, "invalid token");
+            return;
+        }
+
+        String userId = claims.get().getSubject();
+
+        // Verify the session belongs to this user
+        String bufferUserId = eventBuffer.getUserId(reqSessionId);
+        if (bufferUserId == null || !bufferUserId.equals(userId)) {
+            sendResumeError(connection, "session not found");
+            return;
+        }
+
+        // Get missed events
+        var missedEvents = eventBuffer.eventsSince(reqSessionId, lastSequence);
+        if (missedEvents == null) {
+            // Sequence fell off the buffer — client must do full HELLO
+            sendResumeError(connection, "sequence too old");
+            return;
+        }
+
+        // Resume the session
+        boolean wasOnline = registry.isOnline(userId);
+        var suspended = registry.resume(reqSessionId, connection);
+        if (suspended == null) {
+            // Not in suspended state — register fresh with the same session ID
+            String username = (String) claims.get().get("usr");
+            registry.register(userId, username, reqSessionId, connection);
+        }
+
+        LOG.debugf("WS resumed: user=%s session=%s replaying %d events from seq %d",
+                userId, reqSessionId, missedEvents.size(), lastSequence);
+
+        // Broadcast presence if user came back online
+        if (!wasOnline) {
+            eventBus.publish(Event.of(
+                    EventType.PRESENCE_UPDATE,
+                    Map.of("user_id", userId, "status", "online"),
+                    Scope.server()
+            ));
+        }
+
+        // Send RESUMED ack
+        try {
+            connection.sendText("{\"op\":\"RESUMED\"}").subscribe().with(v -> {}, e -> {});
+        } catch (Exception e) {
+            LOG.debugf("Failed to send RESUMED: %s", e.getMessage());
+        }
+
+        // Replay missed events
+        for (var event : missedEvents) {
+            try {
+                connection.sendText(event.json()).subscribe().with(v -> {}, e -> {});
+            } catch (Exception e) {
+                LOG.debugf("Failed to replay event seq=%d: %s", event.sequence(), e.getMessage());
+                break;
+            }
+        }
+    }
+
+    private void sendResumeError(WebSocketConnection connection, String reason) {
+        LOG.debugf("RESUME failed: %s", reason);
+        try {
+            connection.sendText("{\"op\":\"RESUME_FAILED\"}").subscribe().with(v -> {}, e -> {});
+        } catch (Exception e) {
+            LOG.debugf("Failed to send RESUME_FAILED: %s", e.getMessage());
         }
     }
 
@@ -163,7 +299,7 @@ public class KithWebSocket {
         ));
     }
 
-    private String buildHello(String userId) {
+    private String buildHello(String userId, String sessionId) {
         try {
             var user = userRepo.findById(userId).orElse(Map.of());
             var allChannels = channelRepo.listAll();
@@ -228,7 +364,7 @@ var members = userRepo.listMembers(false);
             hello.put("user_permissions", userPermissions);
             hello.put("online_user_ids", registry.onlineUserIds());
             hello.put("heartbeat_interval_ms", 30000);
-            hello.put("session_id", UUID.randomUUID().toString());
+            hello.put("session_id", sessionId);
             hello.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
             hello.put("youtube_embed", mediaConfig.youtubeEmbed());
 

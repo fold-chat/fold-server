@@ -40,6 +40,8 @@ let heartbeatInterval = $state<ReturnType<typeof setInterval> | null>(null);
 let reconnectTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 let reconnectAttempts = $state(0);
 let sessionId = $state<string | null>(null);
+let lastSequence = $state<number | null>(null);
+let pendingResume = $state(false);
 let authFailed = $state(false);
 
 const MAX_RECONNECT_DELAY = 30_000;
@@ -66,6 +68,7 @@ export function connect() {
 	ws.onopen = () => {
 		connectionState = 'connected';
 		reconnectAttempts = 0;
+		// Wait for READY from server before sending IDENTIFY or RESUME
 	};
 
 	ws.onmessage = (event) => {
@@ -80,6 +83,7 @@ export function connect() {
 	ws.onclose = () => {
 		connectionState = 'disconnected';
 		stopHeartbeat();
+		pendingResume = false;
 		if (authFailed) {
 			authFailed = false;
 			tryRefreshAndReconnect();
@@ -106,6 +110,9 @@ export function disconnect() {
 	}
 	connectionState = 'disconnected';
 	reconnectAttempts = 0;
+	sessionId = null;
+	lastSequence = null;
+	pendingResume = false;
 }
 
 export function send(op: string, data?: Record<string, unknown>) {
@@ -115,9 +122,35 @@ export function send(op: string, data?: Record<string, unknown>) {
 }
 
 function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number }) {
+	// Track sequence numbers for RESUME support
+	if (msg.s != null) {
+		lastSequence = msg.s;
+	}
+
 	switch (msg.op) {
+		case 'READY':
+			// Server is ready — send IDENTIFY or RESUME
+			if (sessionId != null && lastSequence != null) {
+				pendingResume = true;
+				send('RESUME', { session_id: sessionId, last_sequence: lastSequence });
+			} else {
+				send('IDENTIFY');
+			}
+			break;
 		case 'HELLO':
+			pendingResume = false;
 			if (msg.d) handleHello(msg.d as unknown as HelloPayload);
+			break;
+		case 'RESUMED':
+			pendingResume = false;
+			startHeartbeat(30000);
+			break;
+		case 'RESUME_FAILED':
+			// Resume failed — clear session and send IDENTIFY for full resync
+			pendingResume = false;
+			sessionId = null;
+			lastSequence = null;
+			send('IDENTIFY');
 			break;
 		case 'AUTH_FAILED':
 			authFailed = true;
