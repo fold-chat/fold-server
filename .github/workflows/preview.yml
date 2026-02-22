@@ -58,6 +58,8 @@ jobs:
           ssh $SSH_OPTS root@${NOMAD_HOST} \
             "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run /tmp/kith-pr-${PR_NUMBER}.nomad.hcl"
 
+          ssh $SSH_OPTS root@${NOMAD_HOST} "echo 'namespace \"default\" { variables { path \"kith/secrets/*\" { capabilities = [\"read\"] } } }' | NOMAD_TOKEN='${NOMAD_TOKEN}' nomad acl policy apply -namespace default -job kith-pr-${PR_NUMBER} -group kith -task kith kith-pr-${PR_NUMBER}-secrets -"
+
       # Comment on PR
       - name: Comment preview URL
         uses: actions/github-script@v7
