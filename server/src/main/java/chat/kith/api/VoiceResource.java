@@ -79,10 +79,25 @@ public class VoiceResource {
         }
 
         // Generate LiveKit token
-        String token = liveKitService.generateToken(
-                sc.getUserId(), sc.getUsername(), req.channel_id(),
-                true, true // canPublish, canSubscribe
-        );
+        String token;
+        String livekitUrl;
+        try {
+            if (liveKitService.isManaged()) {
+                var managedResult = liveKitService.generateManagedToken(
+                        sc.getUserId(), sc.getUsername(), req.channel_id(), true, true);
+                token = managedResult.token();
+                livekitUrl = managedResult.url();
+            } else {
+                token = liveKitService.generateToken(
+                        sc.getUserId(), sc.getUsername(), req.channel_id(), true, true);
+                livekitUrl = liveKitService.getUrl();
+            }
+        } catch (LiveKitService.CentralServiceException e) {
+            int status = e.statusCode == 429 ? 429 : 503;
+            return Response.status(status)
+                    .entity(Map.of("error", status == 429 ? "tier_limit" : "voice_unavailable", "message", e.getMessage()))
+                    .build();
+        }
 
         // Upsert voice state
         voiceStateRepo.upsert(sc.getUserId(), req.channel_id(), 0, 0);
@@ -92,7 +107,7 @@ public class VoiceResource {
 
         var result = new LinkedHashMap<String, Object>();
         result.put("token", token);
-        result.put("url", liveKitService.getUrl());
+        result.put("url", livekitUrl);
         result.put("can_video", canVideo);
 
         // E2EE key — only when server-wide E2EE is enabled
@@ -277,8 +292,20 @@ public class VoiceResource {
         voiceStateRepo.upsert(userId, req.target_channel_id(), 0, 0);
 
         // Generate new token for target room
-        // Resolve username from session registry or DB — use userId as fallback
-        String token = liveKitService.generateToken(userId, userId, req.target_channel_id(), true, true);
+        String moveToken;
+        String moveLkUrl;
+        try {
+            if (liveKitService.isManaged()) {
+                var managed = liveKitService.generateManagedToken(userId, userId, req.target_channel_id(), true, true);
+                moveToken = managed.token();
+                moveLkUrl = managed.url();
+            } else {
+                moveToken = liveKitService.generateToken(userId, userId, req.target_channel_id(), true, true);
+                moveLkUrl = liveKitService.getUrl();
+            }
+        } catch (LiveKitService.CentralServiceException e) {
+            return Response.status(503).entity(Map.of("error", "voice_unavailable", "message", e.getMessage())).build();
+        }
 
         // Publish leave on old channel, join on new
         publishVoiceStates(channelId);
@@ -287,8 +314,8 @@ public class VoiceResource {
         // Send VOICE_MOVE to the moved user
         var moveData = new LinkedHashMap<String, Object>();
         moveData.put("channel_id", req.target_channel_id());
-        moveData.put("token", token);
-        moveData.put("url", liveKitService.getUrl());
+        moveData.put("token", moveToken);
+        moveData.put("url", moveLkUrl);
 
         // E2EE key for target channel — only when enabled
         if (liveKitConfig.e2ee()) {

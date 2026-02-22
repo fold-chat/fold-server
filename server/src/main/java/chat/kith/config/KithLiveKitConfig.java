@@ -7,7 +7,7 @@ import java.util.Optional;
 @ConfigMapping(prefix = "kith.livekit")
 public interface KithLiveKitConfig {
 
-    /** off (default), embedded, external */
+    /** off (default), embedded, external, managed */
     @WithDefault("off")
     String mode();
 
@@ -19,6 +19,14 @@ public interface KithLiveKitConfig {
 
     /** LiveKit API secret (required for external, auto-generated for embedded) */
     Optional<String> apiSecret();
+
+    // --- Managed mode config (hybrid hosting via kith-central) ---
+
+    /** Central service URL (required for managed mode) */
+    Optional<String> centralUrl();
+
+    /** API key for central service auth (required for managed mode) */
+    Optional<String> centralApiKey();
 
     // --- Embedded mode config ---
 
