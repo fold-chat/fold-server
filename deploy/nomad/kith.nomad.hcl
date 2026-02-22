@@ -45,6 +45,7 @@ job "kith-main" {
       template {
         destination = "${NOMAD_SECRETS_DIR}/klipy.env"
         env         = true
+        error_on_missing_key = true
         data        = <<EOT
 KITH_KLIPY_API_KEY={{ with nomadVar "kith/secrets/klipy" }}{{ index . "KITH_KLIPY_API_KEY" | toJSON }}{{ end }}
 EOT
