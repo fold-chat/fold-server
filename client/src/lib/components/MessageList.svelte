@@ -274,12 +274,10 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 		<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id} class:highlighted={highlightMessageId === msg.id} class:thread-msg={threadMode} data-message-id={msg.id}>
 				{#if newGroup}
 					<div class="message-header">
-						{#if threadMode}
-							{#if msg.author_avatar_url}
-								<img class="msg-avatar" src={msg.author_avatar_url} alt="" />
-							{:else}
-								<div class="msg-avatar msg-avatar-fallback">{(msg.author_display_name || msg.author_username || '?')[0].toUpperCase()}</div>
-							{/if}
+						{#if msg.author_avatar_url}
+							<img class="msg-avatar" src={msg.author_avatar_url} alt="" />
+						{:else}
+							<div class="msg-avatar msg-avatar-fallback">{(msg.author_display_name || msg.author_username || '?')[0].toUpperCase()}</div>
 						{/if}
 						<button class="author" onclick={() => openMemberProfile(msg.author_id)}>{ msg.author_display_name || msg.author_username || 'Unknown'}</button>
 						<span class="timestamp">{formatTimestamp(msg.created_at)}</span>
@@ -497,7 +495,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 
 	.message-header {
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		gap: 0.5rem;
 		margin-bottom: 0.15rem;
 	}

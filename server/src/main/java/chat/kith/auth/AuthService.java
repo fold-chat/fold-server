@@ -5,6 +5,7 @@ import chat.kith.db.InviteRepository;
 import chat.kith.db.RoleRepository;
 import chat.kith.db.SessionRepository;
 import chat.kith.db.UserRepository;
+import chat.kith.service.AvatarService;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.NewCookie;
@@ -35,6 +36,7 @@ public class AuthService {
     @Inject SessionRepository sessionRepo;
     @Inject InviteRepository inviteRepo;
     @Inject RoleRepository roleRepo;
+    @Inject AvatarService avatarService;
 
     // --- Registration ---
 
@@ -81,6 +83,11 @@ public class AuthService {
         String userId = UUID.randomUUID().toString();
         String hash = passwordService.hash(req.password());
         userRepo.create(userId, req.username(), req.username(), hash);
+
+        // Set default generated avatar
+        userRepo.updateProfile(userId, req.username(), null, "online", null,
+                avatarService.defaultAvatarUrl(req.username()));
+
         var defaultRole = roleRepo.findDefaultRole();
         String defaultRoleId = defaultRole.map(r -> (String) r.get("id")).orElse("member");
         userRepo.assignRole(userId, defaultRoleId);

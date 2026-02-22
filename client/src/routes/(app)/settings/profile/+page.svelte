@@ -3,6 +3,7 @@
 	import { updateMe } from '$lib/api/users.js';
 	import { uploadFile } from '$lib/api/upload.js';
 	import type { ApiError } from '$lib/api/client.js';
+	import AvatarCropper from '$lib/components/AvatarCropper.svelte';
 
 	let displayName = $state(getUser()?.display_name || '');
 	let bio = $state(getUser()?.bio || '');
@@ -11,6 +12,7 @@
 	let success = $state('');
 	let loading = $state(false);
 	let uploading = $state(false);
+	let cropFile = $state<File | null>(null);
 
 	async function handleSave(e: Event) {
 		e.preventDefault();
@@ -34,16 +36,22 @@
 		}
 	}
 
-	async function handleAvatarUpload(e: Event) {
+	function handleAvatarSelect(e: Event) {
 		const input = e.target as HTMLInputElement;
 		const file = input.files?.[0];
 		if (!file) return;
+		cropFile = file;
+		// Reset input so the same file can be re-selected
+		input.value = '';
+	}
 
+	async function handleCroppedUpload(croppedFile: File) {
+		cropFile = null;
 		uploading = true;
 		error = '';
 
 		try {
-			const result = await uploadFile(file);
+			const result = await uploadFile(croppedFile);
 			const updated = await updateMe({ avatar_url: result.url });
 			setUser(updated);
 			success = 'Avatar updated';
@@ -53,6 +61,10 @@
 		} finally {
 			uploading = false;
 		}
+	}
+
+	function handleCropCancel() {
+		cropFile = null;
 	}
 </script>
 
@@ -80,7 +92,7 @@
 					{/if}
 					<label class="upload-btn">
 						{uploading ? 'Uploading...' : 'Change avatar'}
-						<input type="file" accept="image/*" onchange={handleAvatarUpload} hidden />
+						<input type="file" accept="image/*" onchange={handleAvatarSelect} hidden />
 					</label>
 				</div>
 			</div>
@@ -105,6 +117,10 @@
 			</div>
 		</div>
 </div>
+
+{#if cropFile}
+	<AvatarCropper imageFile={cropFile} onCrop={handleCroppedUpload} onCancel={handleCropCancel} />
+{/if}
 
 <style>
 	.avatar-section {
