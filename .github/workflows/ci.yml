@@ -88,4 +88,4 @@ jobs:
           scp $SSH_OPTS /tmp/kith-main.nomad.hcl root@${NOMAD_HOST}:/tmp/kith-main.nomad.hcl
 
           ssh $SSH_OPTS root@${NOMAD_HOST} \
-            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run /tmp/kith-main.nomad.hcl"
+            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run -namespace=ci /tmp/kith-main.nomad.hcl"

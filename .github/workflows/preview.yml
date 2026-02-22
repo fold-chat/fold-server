@@ -56,9 +56,7 @@ jobs:
           scp $SSH_OPTS /tmp/kith-pr-${PR_NUMBER}.nomad.hcl root@${NOMAD_HOST}:/tmp/kith-pr-${PR_NUMBER}.nomad.hcl
 
           ssh $SSH_OPTS root@${NOMAD_HOST} \
-            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run /tmp/kith-pr-${PR_NUMBER}.nomad.hcl"
-
-          ssh $SSH_OPTS root@${NOMAD_HOST} "echo 'namespace \"default\" { variables { path \"kith/secrets/*\" { capabilities = [\"read\"] } } }' | NOMAD_TOKEN='${NOMAD_TOKEN}' nomad acl policy apply -namespace default -job kith-pr-${PR_NUMBER} -group kith -task kith kith-pr-${PR_NUMBER}-secrets -"
+            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run -namespace=ci /tmp/kith-pr-${PR_NUMBER}.nomad.hcl"
 
       # Comment on PR
       - name: Comment preview URL
@@ -118,7 +116,7 @@ jobs:
 
           PR_NUMBER=${{ github.event.pull_request.number }}
           ssh $SSH_OPTS root@${NOMAD_HOST} \
-            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job stop -purge kith-pr-${PR_NUMBER}" || true
+            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job stop -purge -namespace=ci kith-pr-${PR_NUMBER}" || true
 
           ssh $SSH_OPTS root@${NOMAD_HOST} \
             "rm -rf ${PREVIEW_DATA_ROOT}/pr-${PR_NUMBER}" || true

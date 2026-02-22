@@ -1,4 +1,5 @@
 job "kith-main" {
+  namespace   = "ci"
   datacenters = ["dc1"]
   type        = "service"
 
@@ -47,7 +48,7 @@ job "kith-main" {
         env         = true
         error_on_missing_key = true
         data        = <<EOT
-KITH_KLIPY_API_KEY={{ with nomadVar "kith/secrets/klipy" }}{{ index . "KITH_KLIPY_API_KEY" | toJSON }}{{ end }}
+KITH_KLIPY_API_KEY={{ with nomadVar "nomad/jobs" }}{{ index . "KITH_KLIPY_API_KEY" | toJSON }}{{ end }}
 EOT
       }
 
