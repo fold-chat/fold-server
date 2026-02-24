@@ -6,15 +6,25 @@ on:
     branches: [main]
 
 jobs:
+  prepare:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    outputs:
+      short_sha: ${{ steps.sha.outputs.short }}
+    steps:
+      - id: sha
+        run: echo "short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
   build-image:
     if: github.event.action != 'closed'
+    needs: [prepare]
     permissions:
       contents: read
       packages: write
     uses: ./.github/workflows/build-image.yml
     with:
       image_name: fray-chat/fray-app
-      image_tag: pr-${{ github.event.pull_request.number }}
+      image_tag: pr-${{ github.event.pull_request.number }}-${{ needs.prepare.outputs.short_sha }}
       dockerfile: Dockerfile.preview
     secrets: inherit
   # --- Deploy preview on PR open/update ---

@@ -12,8 +12,12 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      short_sha: ${{ steps.sha.outputs.short }}
     steps:
       - uses: actions/checkout@v4
+      - id: sha
+        run: echo "short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       # Client
       - uses: pnpm/action-setup@v4
@@ -51,7 +55,7 @@ jobs:
     uses: ./.github/workflows/build-image.yml
     with:
       image_name: fray-chat/fray-app
-      image_tag: main-${{ github.sha }}
+      image_tag: main-${{ needs.build.outputs.short_sha }}
       dockerfile: Dockerfile.preview
     secrets: inherit
 
