@@ -3,6 +3,7 @@ package chat.kith.service;
 import chat.kith.config.KithFileConfig;
 import chat.kith.config.KithMediaConfig;
 import io.quarkus.runtime.StartupEvent;
+import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -36,12 +37,29 @@ public class MediaCacheService {
         }
     }
 
+    /** Package-private for testing. */
+    void setCacheDir(Path dir) {
+        this.cacheDir = dir;
+    }
+
+    /** Package-private for testing. */
+    Path getCacheDir() {
+        return cacheDir;
+    }
+
     public Optional<CachedMedia> get(String url) {
         var hash = hash(url);
         var dataFile = cacheDir.resolve(hash);
         var metaFile = cacheDir.resolve(hash + ".ct");
         try {
             if (Files.exists(dataFile) && Files.exists(metaFile)) {
+                // Check TTL — if expired, remove and return empty
+                if (isExpired(dataFile)) {
+                    Files.deleteIfExists(dataFile);
+                    Files.deleteIfExists(metaFile);
+                    return Optional.empty();
+                }
+                // Touch last-modified for LRU ordering
                 dataFile.toFile().setLastModified(System.currentTimeMillis());
                 var contentType = Files.readString(metaFile).trim();
                 return Optional.of(new CachedMedia(Files.readAllBytes(dataFile), contentType));
@@ -63,24 +81,75 @@ public class MediaCacheService {
         evictIfNeeded();
     }
 
-    private void evictIfNeeded() {
+    /** Evict expired entries + LRU eviction when over max size. */
+    void evictIfNeeded() {
         long maxBytes = mediaConfig.maxCacheSize() * 1024L * 1024L;
         try (var stream = Files.list(cacheDir)) {
             var files = stream
                     .filter(p -> !p.getFileName().toString().endsWith(".ct"))
                     .sorted(Comparator.comparingLong(p -> p.toFile().lastModified()))
                     .toList();
-            long total = files.stream().mapToLong(p -> p.toFile().length()).sum();
+
+            // First pass: remove TTL-expired entries
+            long total = 0;
             for (var f : files) {
-                if (total <= maxBytes) break;
-                long size = f.toFile().length();
-                Files.deleteIfExists(f);
-                Files.deleteIfExists(Path.of(f + ".ct"));
-                total -= size;
+                if (isExpired(f)) {
+                    Files.deleteIfExists(f);
+                    Files.deleteIfExists(Path.of(f + ".ct"));
+                } else {
+                    total += f.toFile().length();
+                }
+            }
+
+            // Second pass: LRU eviction if still over budget
+            if (total > maxBytes) {
+                // Re-list since we deleted some
+                try (var stream2 = Files.list(cacheDir)) {
+                    var remaining = stream2
+                            .filter(p -> !p.getFileName().toString().endsWith(".ct"))
+                            .sorted(Comparator.comparingLong(p -> p.toFile().lastModified()))
+                            .toList();
+                    long currentTotal = remaining.stream().mapToLong(p -> p.toFile().length()).sum();
+                    for (var f : remaining) {
+                        if (currentTotal <= maxBytes) break;
+                        long size = f.toFile().length();
+                        Files.deleteIfExists(f);
+                        Files.deleteIfExists(Path.of(f + ".ct"));
+                        currentTotal -= size;
+                    }
+                }
             }
         } catch (IOException e) {
             LOG.warn("Cache eviction failed", e);
         }
+    }
+
+    /** Periodic cleanup of expired cache entries (every 30 minutes). */
+    @Scheduled(every = "30m")
+    void cleanExpiredEntries() {
+        if (cacheDir == null) return;
+        try (var stream = Files.list(cacheDir)) {
+            stream.filter(p -> !p.getFileName().toString().endsWith(".ct"))
+                    .filter(this::isExpired)
+                    .forEach(f -> {
+                        try {
+                            Files.deleteIfExists(f);
+                            Files.deleteIfExists(Path.of(f + ".ct"));
+                        } catch (IOException e) {
+                            LOG.debug("Failed to clean expired cache entry: " + f, e);
+                        }
+                    });
+        } catch (IOException e) {
+            LOG.debug("Scheduled cache cleanup failed", e);
+        }
+    }
+
+    private boolean isExpired(Path dataFile) {
+        long ttlHours = mediaConfig.cacheTtl();
+        if (ttlHours <= 0) return false;
+        long lastModified = dataFile.toFile().lastModified();
+        long ageMs = System.currentTimeMillis() - lastModified;
+        return ageMs > ttlHours * 3600_000L;
     }
 
     static String hash(String url) {

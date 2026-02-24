@@ -13,6 +13,10 @@ public interface KithMediaConfig {
     @WithDefault("512")
     long maxCacheSize();
 
+    /** Cache entry TTL in hours. Entries older than this are evicted. 0 = no TTL. */
+    @WithDefault("24")
+    long cacheTtl();
+
     /** Whether YouTube video embedding is enabled */
     @WithDefault("true")
     boolean youtubeEmbed();

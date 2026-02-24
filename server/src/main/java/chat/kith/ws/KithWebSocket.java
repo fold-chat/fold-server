@@ -365,7 +365,6 @@ var members = userRepo.listMembers(false);
             hello.put("online_user_ids", registry.onlineUserIds());
             hello.put("heartbeat_interval_ms", 30000);
             hello.put("session_id", sessionId);
-            hello.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
             hello.put("youtube_embed", mediaConfig.youtubeEmbed());
 
             // Voice states for viewable voice channels
@@ -383,6 +382,7 @@ var members = userRepo.listMembers(false);
             var capabilities = new LinkedHashMap<String, Object>();
             capabilities.put("voice_video", liveKitService.isEnabled());
             capabilities.put("e2ee", liveKitConfig.e2ee());
+            capabilities.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
             hello.put("capabilities", capabilities);
 
             // Server settings

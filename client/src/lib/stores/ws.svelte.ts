@@ -289,11 +289,10 @@ interface HelloPayload {
 	online_user_ids?: string[];
 	heartbeat_interval_ms: number;
 	session_id: string;
-	media_search?: boolean;
 	youtube_embed?: boolean;
 	server_settings?: { server_name?: string | null; server_icon?: string | null; server_description?: string | null };
 	voice_states?: Array<import('$lib/api/voice.js').VoiceState> | Record<string, Array<import('$lib/api/voice.js').VoiceState>>;
-	capabilities?: { voice_video?: boolean; e2ee?: boolean };
+	capabilities?: { voice_video?: boolean; e2ee?: boolean; media_search?: boolean };
 	custom_emoji?: CustomEmoji[];
 }
 
@@ -380,7 +379,7 @@ function handleHello(data: HelloPayload) {
 			data.user_permissions.channels ?? {}
 		);
 	}
-	setMediaSearchEnabled(data.media_search ?? false);
+	setMediaSearchEnabled(data.capabilities?.media_search ?? false);
 	setYoutubeEmbedEnabled(data.youtube_embed ?? true);
 	if (data.server_settings) setServerSettings(data.server_settings);
 	if (data.online_user_ids) setOnlineUserIds(data.online_user_ids);
