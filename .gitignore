@@ -30,3 +30,6 @@ tools/kith-mcp/dist/
 
 # Secrets file
 .env
+
+# Full (unsubset) font source
+client/static/fonts/material-symbols-outlined-full.woff2
