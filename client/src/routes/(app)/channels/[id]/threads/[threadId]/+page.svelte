@@ -303,8 +303,14 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 					{#if originalPost.attachments?.length}
 						<div class="op-attachments">
 							{#each originalPost.attachments as att}
-								{#if att.mime_type.startsWith('image/')}
-									<img class="op-attachment-img" src={att.url} alt={att.original_name} />
+							{#if att.mime_type.startsWith('image/')}
+									<div class="op-attachment-wrapper">
+										<img class="op-attachment-img" src={att.url} alt={att.original_name} onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+										<div class="image-broken hidden">
+											<span class="image-broken-icon">🖼️</span>
+											<span class="image-broken-text">{att.original_name ?? 'Image'} could not be loaded</span>
+										</div>
+									</div>
 								{:else}
 									<a class="op-attachment-file" href={att.url} download={att.original_name}>
 										📄 {att.original_name}
@@ -583,6 +589,38 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 		max-height: 300px;
 		border-radius: 8px;
 		object-fit: contain;
+	}
+
+	.op-attachment-wrapper {
+		display: contents;
+	}
+
+	.image-broken {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+		font-size: 0.85rem;
+		max-width: 300px;
+	}
+
+	.image-broken.hidden {
+		display: none;
+	}
+
+	.image-broken-icon {
+		font-size: 1.25rem;
+		opacity: 0.6;
+	}
+
+	.image-broken-text {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.op-attachment-file {

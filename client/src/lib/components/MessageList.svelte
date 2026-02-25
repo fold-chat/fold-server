@@ -245,6 +245,12 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 		}
 	}
 
+	function scrollToBottomIfNeeded() {
+		if (shouldAutoScroll && scrollContainer) {
+			scrollContainer.scrollTop = scrollContainer.scrollHeight;
+		}
+	}
+
 	function typingText(users: string[]): string {
 		if (users.length === 0) return '';
 		if (users.length === 1) return `${users[0]} is typing...`;
@@ -299,7 +305,11 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 					{:else}
 						{#if isGifMessage(msg.content)}
 							<div class="gif-message">
-								<img src={gifUrl(msg.content)} alt="GIF" class="gif-image" />
+								<img src={gifUrl(msg.content)} alt="GIF" class="gif-image" onload={scrollToBottomIfNeeded} onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+								<div class="image-broken hidden">
+									<span class="image-broken-icon">🖼️</span>
+									<span class="image-broken-text">Image could not be loaded</span>
+								</div>
 								<img src={klipyLogo} alt="KLIPY" class="klipy-watermark" />
 							</div>
 						{:else}
@@ -318,13 +328,21 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 										<div class="image-attachments" class:multi={imageAtts.length > 1}>
 											{#each imageAtts as att, idx}
 												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-												<img
-													src={att.url}
-													alt={att.original_name}
-													class="attachment-image"
-													onclick={() => openLightbox(lbImages, idx)}
-													onkeydown={(e) => e.key === 'Enter' && openLightbox(lbImages, idx)}
-												/>
+												<div class="attachment-image-wrapper">
+													<img
+														src={att.url}
+														alt={att.original_name}
+														class="attachment-image"
+														onclick={() => openLightbox(lbImages, idx)}
+														onkeydown={(e) => e.key === 'Enter' && openLightbox(lbImages, idx)}
+														onload={scrollToBottomIfNeeded}
+														onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+													/>
+													<div class="image-broken hidden">
+														<span class="image-broken-icon">🖼️</span>
+														<span class="image-broken-text">{att.original_name ?? 'Image'} could not be loaded</span>
+													</div>
+												</div>
 											{/each}
 										</div>
 									{/if}
@@ -804,6 +822,38 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 
 	.attachment-image:hover {
 		opacity: 0.9;
+	}
+
+	.attachment-image-wrapper {
+		display: contents;
+	}
+
+	.image-broken {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+		font-size: 0.85rem;
+		max-width: 300px;
+	}
+
+	.image-broken.hidden {
+		display: none;
+	}
+
+	.image-broken-icon {
+		font-size: 1.25rem;
+		opacity: 0.6;
+	}
+
+	.image-broken-text {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.attachment-file {
