@@ -33,9 +33,9 @@ def collect_icons() -> set[str]:
                 continue
             with open(os.path.join(root, fname)) as f:
                 content = f.read()
-            # Direct text content after class
+            # Direct text content after class (handles extra attrs like style)
             icons.update(re.findall(
-                r'material-symbols-outlined["\s>]+([a-z_]+)', content
+                r'material-symbols-outlined[^>]*>([a-z_]+)', content
             ))
             # icon: 'xxx' patterns (e.g. density options)
             icons.update(re.findall(r"icon:\s*'([a-z_]+)'", content))
