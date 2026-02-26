@@ -37,35 +37,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Client
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: client/pnpm-lock.yaml
-      - name: Build client
-        run: |
-          cd client
-          pnpm install --frozen-lockfile
-          pnpm build
-          mkdir -p ../server/src/main/resources/META-INF/resources
-          cp -r build/* ../server/src/main/resources/META-INF/resources/
-
-      # Server
-      - uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: 25
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Build server uber-jar
-        run: |
-          cd server
-          ./gradlew quarkusBuild -Dquarkus.package.jar.type=uber-jar
-
-      # Docker image
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -84,3 +55,5 @@ jobs:
           file: ${{ inputs.dockerfile }}
           push: true
           tags: ${{ steps.meta.outputs.image_ref }}
+          build-args: |
+            GITHUB_TOKEN=${{ secrets.GH_PACKAGES_TOKEN }}

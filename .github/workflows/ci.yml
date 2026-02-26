@@ -55,8 +55,8 @@ jobs:
     uses: ./.github/workflows/build-image.yml
     with:
       image_name: fray-chat/fray-app
-      image_tag: main-${{ needs.build.outputs.short_sha }}
-      dockerfile: Dockerfile.preview
+      image_tag: main-${{ github.sha }}
+      dockerfile: Dockerfile.native-build
     secrets: inherit
 
   deploy-main:
