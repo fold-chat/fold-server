@@ -16,6 +16,11 @@ on:
         required: false
         type: string
         default: Dockerfile.preview
+      self_contained:
+        description: Skip client/server pre-build (Dockerfile handles everything)
+        required: false
+        type: boolean
+        default: false
     secrets:
       GH_PACKAGES_TOKEN:
         required: true
@@ -36,6 +41,38 @@ jobs:
       image_ref: ${{ steps.meta.outputs.image_ref }}
     steps:
       - uses: actions/checkout@v4
+
+      # Pre-build (skipped for self-contained Dockerfiles like Dockerfile.native-build)
+      - uses: pnpm/action-setup@v4
+        if: ${{ !inputs.self_contained }}
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        if: ${{ !inputs.self_contained }}
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: client/pnpm-lock.yaml
+      - name: Build client
+        if: ${{ !inputs.self_contained }}
+        run: |
+          cd client
+          pnpm install --frozen-lockfile
+          pnpm build
+          mkdir -p ../server/src/main/resources/META-INF/resources
+          cp -r build/* ../server/src/main/resources/META-INF/resources/
+      - uses: actions/setup-java@v4
+        if: ${{ !inputs.self_contained }}
+        with:
+          distribution: zulu
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+        if: ${{ !inputs.self_contained }}
+      - name: Build server uber-jar
+        if: ${{ !inputs.self_contained }}
+        run: |
+          cd server
+          ./gradlew quarkusBuild -Dquarkus.package.jar.type=uber-jar
 
       - uses: docker/login-action@v3
         with:

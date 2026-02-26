@@ -57,6 +57,7 @@ jobs:
       image_name: fray-chat/fray-app
       image_tag: main-${{ github.sha }}
       dockerfile: Dockerfile.native-build
+      self_contained: true
     secrets: inherit
 
   deploy-main:
