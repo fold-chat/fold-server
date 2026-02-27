@@ -11,7 +11,7 @@ RUN pnpm build
 FROM debian:bookworm-slim AS native-build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl build-essential zlib1g-dev && \
+    curl build-essential zlib1g-dev upx-ucl && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://download.oracle.com/graalvm/25/latest/graalvm-jdk-25_linux-x64_bin.tar.gz \
@@ -40,6 +40,9 @@ COPY --from=client-build /app/client/build/ ./src/main/resources/META-INF/resour
 # Native build + extract libsql native lib
 RUN ./gradlew build -Dquarkus.native.enabled=true --no-daemon
 RUN ./gradlew extractNativeLib --no-daemon
+
+# Compress binary with UPX
+RUN upx --best --lzma build/kith-runner
 
 # Stage 3: Minimal runtime
 FROM gcr.io/distroless/base-nossl-debian12

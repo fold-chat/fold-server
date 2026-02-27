@@ -44,7 +44,7 @@ job "kith-pr-__PR_NUMBER__" {
         KITH_ADMIN_USERNAME = "admin"
         KITH_ADMIN_PASSWORD = "preview-admin-pw"
         KITH_PORT           = "8080"
-        KITH_LIVEKIT_MODE   = "embedded"
+        KITH_LIVEKIT_MODE   = "off"
         JAVA_OPTS           = "--enable-native-access=ALL-UNNAMED"
       }
 
