@@ -11,7 +11,7 @@ RUN pnpm build
 FROM debian:bookworm-slim AS native-build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl build-essential zlib1g-dev upx-ucl && \
+    curl build-essential zlib1g-dev upx && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://download.oracle.com/graalvm/25/latest/graalvm-jdk-25_linux-x64_bin.tar.gz \
@@ -22,23 +22,24 @@ ENV JAVA_HOME=/opt/graalvm
 ENV GRAALVM_HOME=/opt/graalvm
 ENV PATH="$JAVA_HOME/bin:$PATH"
 
-ARG GITHUB_TOKEN
-ENV GITHUB_TOKEN=$GITHUB_TOKEN
-
 WORKDIR /app/server
 
 # Gradle wrapper + build config (cache-friendly layer)
 COPY server/gradlew server/gradlew.bat ./
 COPY server/gradle/ ./gradle/
 COPY server/build.gradle.kts server/settings.gradle.kts server/gradle.properties ./
-RUN chmod +x gradlew && ./gradlew dependencies --no-daemon || true
+RUN --mount=type=secret,id=GITHUB_TOKEN \
+    GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN) \
+    chmod +x gradlew && ./gradlew dependencies --no-daemon || true
 
 # Source + client assets
 COPY server/src/ ./src/
 COPY --from=client-build /app/client/build/ ./src/main/resources/META-INF/resources/
 
 # Native build + extract libsql native lib
-RUN ./gradlew build -Dquarkus.native.enabled=true --no-daemon
+RUN --mount=type=secret,id=GITHUB_TOKEN \
+    GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN) \
+    ./gradlew build -Dquarkus.native.enabled=true --no-daemon
 RUN ./gradlew extractNativeLib --no-daemon
 
 # Compress binary with UPX
