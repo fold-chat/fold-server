@@ -45,7 +45,7 @@ job "kith-pr-__PR_NUMBER__" {
         KITH_ADMIN_PASSWORD = "preview-admin-pw"
         KITH_PORT           = "8080"
         KITH_LIVEKIT_MODE   = "off"
-        JAVA_OPTS           = "--enable-native-access=ALL-UNNAMED"
+        JAVA_OPTS           = "--enable-native-access=ALL-UNNAMED -Djava.security.egd=file:/dev/./urandom"
       }
 
       template {

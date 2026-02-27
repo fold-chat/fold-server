@@ -24,8 +24,9 @@ jobs:
     uses: ./.github/workflows/build-image.yml
     with:
       image_name: fray-chat/fray-app
-      image_tag: pr-${{ github.event.pull_request.number }}-${{ needs.prepare.outputs.short_sha }}
-      dockerfile: Dockerfile.preview
+      image_tag: pr-${{ github.event.pull_request.number }}
+      dockerfile: Dockerfile.native-build
+      self_contained: true
     secrets: inherit
   # --- Deploy preview on PR open/update ---
   deploy:
