@@ -11,7 +11,7 @@ RUN pnpm build
 FROM debian:bookworm-slim AS native-build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl build-essential zlib1g-dev xz-utils && \
+    curl ca-certificates build-essential zlib1g-dev xz-utils && \
     rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://github.com/upx/upx/releases/download/v5.0.0/upx-5.0.0-amd64_linux.tar.xz \
