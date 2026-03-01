@@ -78,6 +78,34 @@ tasks.register("extractNativeLib") {
     }
 }
 
+// --- Generate migration index (native image can't enumerate classpath directories) ---
+val generateMigrationIndex = tasks.register("generateMigrationIndex") {
+    val migrationDir = layout.projectDirectory.dir("src/main/resources/db/migration")
+    val outputDir = layout.buildDirectory.dir("generated/sources/migrationIndex/java/main")
+    inputs.dir(migrationDir)
+    outputs.dir(outputDir)
+    doLast {
+        val files = migrationDir.asFile.listFiles { f -> f.name.matches(Regex("V\\d+__.*\\.sql")) }
+            ?.sortedBy { it.name }
+            ?: emptyList()
+        val filesList = files.joinToString(",\n                    ") { "\"${it.name}\"" }
+        val src = outputDir.get().dir("chat/kith/db").asFile
+        src.mkdirs()
+        src.resolve("MigrationIndex.java").writeText("""
+            package chat.kith.db;
+            import java.util.List;
+            public final class MigrationIndex {
+                private MigrationIndex() {}
+                public static final List<String> FILES = List.of(
+                    $filesList
+                );
+            }
+        """.trimIndent())
+    }
+}
+sourceSets.main { java.srcDir(generateMigrationIndex.map { it.outputs.files.singleFile }) }
+tasks.named("compileJava") { dependsOn(generateMigrationIndex) }
+
 // --- Client build ---
 tasks.register("buildClient") {
     description = "Build SvelteKit client and copy to META-INF/resources"

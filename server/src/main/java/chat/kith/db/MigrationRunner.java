@@ -6,9 +6,8 @@ import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -67,39 +66,19 @@ public class MigrationRunner {
     }
 
     private List<Migration> scanMigrations() {
-        var migrations = new ArrayList<Migration>();
         var cl = Thread.currentThread().getContextClassLoader();
-
-        try {
-            var resources = cl.getResources(MIGRATION_DIR);
-            while (resources.hasMoreElements()) {
-                var url = resources.nextElement();
-                if ("file".equals(url.getProtocol())) {
-                    var dir = Path.of(url.toURI());
-                    try (var stream = Files.list(dir)) {
-                        stream.filter(p -> p.toString().endsWith(".sql"))
-                                .sorted()
-                                .forEach(p -> migrations.add(parseMigration(p.getFileName().toString(),
-                                        readFile(p))));
+        return MigrationIndex.FILES.stream()
+                .map(filename -> {
+                    var path = MIGRATION_DIR + "/" + filename;
+                    try (InputStream is = cl.getResourceAsStream(path)) {
+                        if (is == null) throw new RuntimeException("Migration not found: " + path);
+                        return parseMigration(filename, new String(is.readAllBytes(), StandardCharsets.UTF_8));
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to read migration: " + path, e);
                     }
-                } else if ("jar".equals(url.getProtocol())) {
-                    // Handle classpath scanning in JAR mode
-                    var jarPath = url.toURI().toString().split("!")[0].replace("jar:", "");
-                    try (var fs = FileSystems.newFileSystem(Path.of(java.net.URI.create(jarPath)));
-                         var stream = Files.list(fs.getPath(MIGRATION_DIR))) {
-                        stream.filter(p -> p.toString().endsWith(".sql"))
-                                .sorted()
-                                .forEach(p -> migrations.add(parseMigration(p.getFileName().toString(),
-                                        readFile(p))));
-                    }
-                }
-            }
-        } catch (IOException | URISyntaxException e) {
-            throw new RuntimeException("Failed to scan migrations", e);
-        }
-
-        migrations.sort(Comparator.comparingInt(Migration::version));
-        return migrations;
+                })
+                .sorted(Comparator.comparingInt(Migration::version))
+                .toList();
     }
 
     private static Migration parseMigration(String filename, String sql) {
@@ -108,14 +87,6 @@ public class MigrationRunner {
         int version = Integer.parseInt(parts[0].substring(1)); // Remove 'V' prefix
         String name = parts.length > 1 ? parts[1] : filename;
         return new Migration(version, name, sql);
-    }
-
-    private static String readFile(Path path) {
-        try {
-            return Files.readString(path, StandardCharsets.UTF_8);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read migration: " + path, e);
-        }
     }
 
     record Migration(int version, String name, String sql) {}
