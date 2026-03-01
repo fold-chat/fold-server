@@ -49,7 +49,7 @@ RUN ./gradlew extractNativeLib --no-daemon
 RUN upx --best --lzma build/kith-runner
 
 # Stage 3: Minimal runtime
-FROM gcr.io/distroless/base-nossl-debian12
+FROM gcr.io/distroless/base-debian12
 
 WORKDIR /app
 COPY --from=native-build /app/server/build/kith-runner /app/kith
