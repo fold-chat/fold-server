@@ -25,6 +25,18 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 		...options
 	});
 
+	if (res.status === 503) {
+		const body = await res.json().catch(() => ({ error: 'maintenance' })) as ApiError;
+		body.status = res.status;
+		if (body.error === 'maintenance') {
+			if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/maintenance')) {
+				window.location.href = '/maintenance';
+			}
+			throw body;
+		}
+		throw body;
+	}
+
 	if (res.status === 403) {
 		const body = await res.json().catch(() => ({ error: 'forbidden' })) as ApiError;
 		body.status = res.status;

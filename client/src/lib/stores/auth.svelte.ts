@@ -14,10 +14,12 @@ let permissions = $state<UserPermissions>({ server: [], channels: new Map() });
 let permissionsLoaded = $state(false);
 let mediaSearchEnabled = $state(false);
 let youtubeEmbedEnabled = $state(true);
-let serverSettings = $state<{ server_name: string | null; server_icon: string | null; server_description: string | null }>({
+let serverSettings = $state<{ server_name: string | null; server_icon: string | null; server_description: string | null; maintenance_enabled?: boolean; maintenance_message?: string | null }>({
 	server_name: 'Kith',
 	server_icon: null,
-	server_description: null
+	server_description: null,
+	maintenance_enabled: false,
+	maintenance_message: null
 });
 
 export function getUser(): User | null {
@@ -116,8 +118,16 @@ export function getServerSettings() {
 	return serverSettings;
 }
 
-export function setServerSettings(s: { server_name?: string | null; server_icon?: string | null; server_description?: string | null }) {
+export function setServerSettings(s: { server_name?: string | null; server_icon?: string | null; server_description?: string | null; maintenance_enabled?: boolean; maintenance_message?: string | null }) {
 	serverSettings = { ...serverSettings, ...s };
+}
+
+export function isMaintenanceEnabled(): boolean {
+	return serverSettings.maintenance_enabled ?? false;
+}
+
+export function getMaintenanceMessage(): string | null {
+	return serverSettings.maintenance_message ?? null;
 }
 
 export function getServerName(): string {
@@ -132,5 +142,5 @@ export function reset() {
 	permissionsLoaded = false;
 	mediaSearchEnabled = false;
 	youtubeEmbedEnabled = true;
-	serverSettings = { server_name: 'Kith', server_icon: null, server_description: null };
+	serverSettings = { server_name: 'Kith', server_icon: null, server_description: null, maintenance_enabled: false, maintenance_message: null };
 }

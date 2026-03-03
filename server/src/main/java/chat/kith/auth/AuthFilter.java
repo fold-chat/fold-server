@@ -1,6 +1,9 @@
 package chat.kith.auth;
 
 import chat.kith.db.UserRepository;
+import chat.kith.security.Permission;
+import chat.kith.security.PermissionService;
+import chat.kith.service.MaintenanceService;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Priorities;
@@ -21,6 +24,12 @@ public class AuthFilter implements ContainerRequestFilter {
 
     @Inject
     UserRepository userRepo;
+
+    @Inject
+    MaintenanceService maintenanceService;
+
+    @Inject
+    PermissionService permissionService;
 
     @Override
     public void filter(ContainerRequestContext ctx) {
@@ -57,6 +66,21 @@ public class AuthFilter implements ContainerRequestFilter {
         }
 
         ctx.setSecurityContext(new KithSecurityContext(userId, (String) c.get("usr")));
+
+        // Block non-admin users during maintenance mode
+        if (maintenanceService.isEnabled() && !isAdminPath(path)) {
+            if (!permissionService.hasServerPermission(userId, Permission.MANAGE_SERVER)) {
+                ctx.abortWith(Response.status(503)
+                        .entity(java.util.Map.of(
+                                "error", "maintenance",
+                                "message", maintenanceService.getMessage() != null
+                                        ? maintenanceService.getMessage()
+                                        : "Server is under maintenance"
+                        ))
+                        .build());
+                return;
+            }
+        }
     }
 
     private boolean isPublicPath(String path, String method) {
@@ -82,5 +106,10 @@ public class AuthFilter implements ContainerRequestFilter {
         if (!p.startsWith("api/")) return true;
 
         return false;
+    }
+
+    private boolean isAdminPath(String path) {
+        String p = path.startsWith("/") ? path.substring(1) : path;
+        return p.startsWith("api/v0/admin/");
     }
 }

@@ -55,6 +55,9 @@
 				{#if canVoice}
 					<a class="nav-item" class:active={isActive('/settings/voice')} href="/settings/voice">Voice</a>
 				{/if}
+				{#if canManageServer}
+					<a class="nav-item" class:active={isActive('/settings/maintenance')} href="/settings/maintenance">Maintenance</a>
+				{/if}
 				{#if canViewAudit}
 					<a class="nav-item" class:active={isActive('/settings/audit-log')} href="/settings/audit-log">Audit Log</a>
 				{/if}

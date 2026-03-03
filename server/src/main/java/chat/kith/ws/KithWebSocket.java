@@ -6,6 +6,7 @@ import chat.kith.db.*;
 import chat.kith.event.*;
 import chat.kith.security.PermissionService;
 import chat.kith.service.LiveKitService;
+import chat.kith.service.MaintenanceService;
 import chat.kith.service.RoleService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.websockets.next.*;
@@ -38,6 +39,7 @@ public class KithWebSocket {
     @Inject LiveKitService liveKitService;
     @Inject chat.kith.config.KithLiveKitConfig liveKitConfig;
     @Inject EmojiRepository emojiRepo;
+    @Inject MaintenanceService maintenanceService;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -391,6 +393,8 @@ var members = userRepo.listMembers(false);
             for (var row : settingsRows) {
                 serverSettings.put((String) row.get("key"), row.get("value"));
             }
+            serverSettings.put("maintenance_enabled", maintenanceService.isEnabled());
+            serverSettings.put("maintenance_message", maintenanceService.getMessage());
             hello.put("server_settings", serverSettings);
 
             // Custom emoji
