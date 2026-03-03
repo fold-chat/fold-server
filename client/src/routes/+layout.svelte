@@ -11,7 +11,7 @@ import { init, isInitialized, isSetupRequired, isAuthenticated } from '$lib/stor
 
 	let { children } = $props();
 
-	const PUBLIC_ROUTES = ['/login', '/register', '/setup', '/invite'];
+	const PUBLIC_ROUTES = ['/login', '/register', '/setup', '/invite', '/maintenance'];
 
 	function isPublicRoute(path: string): boolean {
 		return PUBLIC_ROUTES.some((r) => path === r || path.startsWith(r + '/'));

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { getMe } from '$lib/api/users.js';
+	import { setUser } from '$lib/stores/auth.svelte.js';
 
 	let message = $state('');
 	let serverName = $state('Kith');
@@ -14,8 +16,12 @@
 			});
 			const data = await res.json();
 			serverName = data.server_name || 'Kith';
-			if (!data.maintenance) {
-				// Server is back up — redirect to home
+		if (!data.maintenance) {
+				// Server is back up — restore session then redirect
+				try {
+					const user = await getMe();
+					setUser(user);
+				} catch {}
 				goto('/');
 				return;
 			}

@@ -31,7 +31,10 @@
 				error = 'Unable to reach server. Please try again later.';
 			} else {
 				const apiErr = err as ApiError;
-				if (apiErr.error === 'banned') {
+				if (apiErr.error === 'maintenance') {
+					// Redirect handled by api client — don't flash an error
+					return;
+				} else if (apiErr.error === 'banned') {
 					error = 'You have been banned from this server.';
 				} else if (apiErr.error === 'account_locked') {
 					error = `Account locked. Try again in ${apiErr.retry_after} seconds.`;
