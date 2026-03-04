@@ -367,12 +367,20 @@ public class VoiceResource {
     public Response stats() {
         permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_SERVER);
 
-        var result = new LinkedHashMap<String, Object>();
-        result.put("mode", liveKitService.isEnabled() ? "active" : "off");
-        result.put("status", liveKitService.isEnabled() ? "UP" : "OFF");
-        result.put("active_connections", liveKitService.isEnabled() ? voiceStateRepo.countAll() : 0);
+        String mode = liveKitService.getMode();
+        boolean enabled = liveKitService.isEnabled();
 
-        if (liveKitService.isEnabled()) {
+        var result = new LinkedHashMap<String, Object>();
+        result.put("mode", mode);
+        result.put("status", enabled ? "UP" : "OFF");
+        result.put("active_connections", enabled ? voiceStateRepo.countAll() : 0);
+        result.put("embedded_binary_available", liveKitService.getEmbeddedBinaryAvailable());
+
+        if (liveKitService.isManaged()) {
+            result.put("managed_status", enabled ? "connected" : "disconnected");
+        }
+
+        if (enabled) {
             var rooms = liveKitService.listRooms();
             result.put("active_rooms", rooms.size());
             var roomDetails = rooms.stream()

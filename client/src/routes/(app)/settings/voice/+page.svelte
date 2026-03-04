@@ -2,28 +2,126 @@
 	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
-	import { getVoiceStats, rotateKey, type VoiceStats, type VoiceRoomStats } from '$lib/api/voice.js';
-import { isVoiceVideoEnabled, isE2eeCapability } from '$lib/stores/voice.svelte.js';
+	import { getVoiceStats, rotateKey, type VoiceStats } from '$lib/api/voice.js';
+	import { getRuntimeConfig, updateRuntimeConfig, type RuntimeConfig } from '$lib/api/config.js';
+	import { getVoiceMode, isE2eeCapability } from '$lib/stores/voice.svelte.js';
 	import { getChannels } from '$lib/stores/channels.svelte.js';
 
 	const canManageServer = $derived(hasServerPermission(PermissionName.MANAGE_SERVER));
+	const mode = $derived(getVoiceMode());
+	const isEnabled = $derived(mode !== 'off');
 
 	let voiceStats = $state<VoiceStats | null>(null);
-	let voiceLoading = $state(false);
-	let voiceError = $state('');
+	let config = $state<RuntimeConfig>({});
+	let loading = $state(false);
+	let saving = $state(false);
+	let error = $state('');
+	let success = $state('');
 	let rotatingKey = $state<string | null>(null);
+
+	// Editable fields (local form state)
+	let editMode = $state('off');
+	let editUrl = $state('');
+	let editApiKey = $state('');
+	let editApiSecret = $state('');
+	let editCentralApiKey = $state('');
+	let editMaxParticipants = $state('50');
+	let editE2ee = $state('false');
+	let editTurnEnabled = $state('false');
 
 	const voiceChannels = $derived(getChannels().filter(c => c.type === 'VOICE'));
 
-	async function loadVoiceStats() {
-		voiceLoading = true;
-		voiceError = '';
+	// Validation
+	const validationError = $derived.by(() => {
+		if (editMode === 'managed') {
+			if (!editCentralApiKey || editCentralApiKey.endsWith('...')) return 'API key is required for managed mode';
+		}
+		if (editMode === 'external') {
+			if (!editUrl) return 'URL is required for external mode';
+			if (!editApiKey || editApiKey.endsWith('...')) return 'API key is required for external mode';
+			if (!editApiSecret || editApiSecret.endsWith('...')) return 'API secret is required for external mode';
+		}
+		return null;
+	});
+	const canSave = $derived(!saving && !validationError);
+	const hasChanges = $derived.by(() => {
+		const cfg = config;
+		if (editMode !== (cfg['kith.livekit.mode'] ?? 'off')) return true;
+		if (editMode === 'managed' && editCentralApiKey !== (cfg['kith.livekit.central-api-key'] ?? '')) return true;
+		if (editMode === 'external') {
+			if (editUrl !== (cfg['kith.livekit.url'] ?? '')) return true;
+			if (editApiKey !== (cfg['kith.livekit.api-key'] ?? '')) return true;
+			if (editApiSecret !== (cfg['kith.livekit.api-secret'] ?? '')) return true;
+		}
+		if (editMaxParticipants !== (cfg['kith.livekit.max-participants'] ?? '50')) return true;
+		if (editE2ee !== (cfg['kith.livekit.e2ee'] ?? 'false')) return true;
+		if (editTurnEnabled !== (cfg['kith.livekit.turn-enabled'] ?? 'false')) return true;
+		return false;
+	});
+
+	async function loadAll() {
+		loading = true;
+		error = '';
 		try {
-			voiceStats = await getVoiceStats();
+			const [stats, cfg] = await Promise.all([getVoiceStats(), getRuntimeConfig()]);
+			voiceStats = stats;
+			config = cfg;
+			hydrateFields(cfg);
 		} catch (err) {
-			voiceError = (err as ApiError).message || 'Failed to load voice stats';
+			error = (err as ApiError).message || 'Failed to load voice settings';
 		} finally {
-			voiceLoading = false;
+			loading = false;
+		}
+	}
+
+	function hydrateFields(cfg: RuntimeConfig) {
+		editMode = cfg['kith.livekit.mode'] ?? 'off';
+		editUrl = cfg['kith.livekit.url'] ?? '';
+		editApiKey = cfg['kith.livekit.api-key'] ?? '';
+		editApiSecret = cfg['kith.livekit.api-secret'] ?? '';
+		editCentralApiKey = cfg['kith.livekit.central-api-key'] ?? '';
+		editMaxParticipants = cfg['kith.livekit.max-participants'] ?? '50';
+		editE2ee = cfg['kith.livekit.e2ee'] ?? 'false';
+		editTurnEnabled = cfg['kith.livekit.turn-enabled'] ?? 'false';
+	}
+
+	const modeChanging = $derived(editMode !== (config['kith.livekit.mode'] ?? 'off'));
+
+	async function save() {
+		if (validationError) { error = validationError; return; }
+		if (modeChanging && isEnabled && !confirm('Changing voice mode will drop all active voice calls. Continue?')) return;
+		saving = true;
+		error = '';
+		success = '';
+		try {
+			const patch: RuntimeConfig = { 'kith.livekit.mode': editMode };
+			// Mode-specific fields
+			if (editMode === 'managed') {
+				if (editCentralApiKey && !editCentralApiKey.endsWith('...')) {
+					patch['kith.livekit.central-api-key'] = editCentralApiKey;
+				}
+			}
+			if (editMode === 'external') {
+				if (editUrl) patch['kith.livekit.url'] = editUrl;
+				if (editApiKey && !editApiKey.endsWith('...')) patch['kith.livekit.api-key'] = editApiKey;
+				if (editApiSecret && !editApiSecret.endsWith('...')) patch['kith.livekit.api-secret'] = editApiSecret;
+			}
+			// Common settings (always included when not off)
+			if (editMode !== 'off') {
+				patch['kith.livekit.max-participants'] = editMaxParticipants;
+				patch['kith.livekit.e2ee'] = editE2ee;
+				patch['kith.livekit.turn-enabled'] = editTurnEnabled;
+			}
+			const result = await updateRuntimeConfig(patch);
+			config = result;
+			hydrateFields(result);
+			success = 'Settings saved';
+			try { voiceStats = await getVoiceStats(); } catch { /* ignore */ }
+		} catch (err) {
+			error = (err as ApiError).message || 'Failed to save';
+		} finally {
+			saving = false;
+			setTimeout(() => { success = ''; }, 3000);
 		}
 	}
 
@@ -32,80 +130,188 @@ import { isVoiceVideoEnabled, isE2eeCapability } from '$lib/stores/voice.svelte.
 		try {
 			await rotateKey(channelId);
 		} catch (err) {
-			voiceError = (err as ApiError).message || 'Failed to rotate key';
+			error = (err as ApiError).message || 'Failed to rotate key';
 		} finally {
 			rotatingKey = null;
 		}
 	}
 
+	// Auto-enable E2EE when switching to managed
 	$effect(() => {
-		if (isVoiceVideoEnabled() && canManageServer) loadVoiceStats();
+		if (editMode === 'managed') editE2ee = 'true';
+	});
+
+	$effect(() => {
+		if (canManageServer) loadAll();
 	});
 </script>
 
 <div class="settings-card">
 	<div class="header-row">
-		<h1>Voice</h1>
-		<button class="btn-sm" onclick={loadVoiceStats} disabled={voiceLoading}>
-			{voiceLoading ? 'Loading...' : 'Refresh'}
+		<h1>Voice & Video</h1>
+		<button class="btn-sm" onclick={loadAll} disabled={loading}>
+			{loading ? 'Loading...' : 'Refresh'}
 		</button>
 	</div>
 
 	{#if !canManageServer}
 		<p class="muted">You don't have permission to manage voice settings.</p>
-	{:else if !isVoiceVideoEnabled()}
-		<p class="muted">Voice is not enabled on this server.</p>
 	{:else}
-		{#if voiceError}
-			<div class="error-message">{voiceError}</div>
+		{#if error}
+			<div class="error-message">{error}</div>
+		{/if}
+		{#if success}
+			<div class="success-message">{success}</div>
 		{/if}
 
-		{#if voiceStats}
-			<div class="voice-stats">
-				<div class="stat-row">
-					<span class="stat-label">Mode</span>
-					<span class="stat-value">{voiceStats.mode}</span>
-				</div>
-				<div class="stat-row">
-					<span class="stat-label">Status</span>
-					<span class="stat-value" class:stat-up={voiceStats.status === 'UP'} class:stat-off={voiceStats.status === 'OFF'}>{voiceStats.status}</span>
-				</div>
-				<div class="stat-row">
-					<span class="stat-label">Active Connections</span>
-					<span class="stat-value">{voiceStats.active_connections}</span>
-				</div>
-				<div class="stat-row">
-					<span class="stat-label">Active Rooms</span>
-					<span class="stat-value">{voiceStats.active_rooms}</span>
-				</div>
+		<!-- Mode descriptions -->
+		<div class="mode-descriptions">
+			<p class="muted"><strong>Embedded</strong> — runs LiveKit alongside Kith. Requires <code>livekit-server</code> binary.</p>
+			<p class="muted"><strong>External</strong> — connect to your own LiveKit server with URL + credentials.</p>
+			<p class="muted"><strong>Managed</strong> — hosted by central.fold.chat. Just enter an API key.</p>
+		</div>
 
-				{#if voiceStats.rooms.length > 0}
-					<h3 class="subsection">Active Rooms</h3>
-					{#each voiceStats.rooms as room}
-						{@const ch = getChannels().find(c => c.id === room.channel_id)}
-						<div class="stat-row">
-							<span class="stat-label">🔊 {ch?.name ?? room.room_name}</span>
-							<span class="stat-value">{room.participants} participants</span>
-						</div>
-					{/each}
+		<!-- Mode selector -->
+		<div class="form-section">
+			<div class="form-group">
+				<label for="voice-mode">Voice Mode</label>
+				<select id="voice-mode" bind:value={editMode} class="mode-select">
+					<option value="off">Off</option>
+					<option value="embedded">Embedded</option>
+					<option value="external">External</option>
+					<option value="managed">Managed (central.fold.chat)</option>
+				</select>
+			</div>
+
+			{#if editMode === 'embedded' && voiceStats && !voiceStats.embedded_binary_available}
+				<div class="warning-message">LiveKit binary not found. Install <code>livekit-server</code> or set <code>KITH_LIVEKIT_PATH</code>.</div>
+			{/if}
+
+			<!-- Status indicator -->
+			{#if voiceStats}
+				<div class="status-row">
+					<span class="status-dot" class:status-up={voiceStats.status === 'UP'} class:status-off={voiceStats.status === 'OFF'}></span>
+					<span class="status-text">
+						{voiceStats.status === 'UP' ? 'Active' : 'Off'}
+						{#if voiceStats.managed_status}
+							— {voiceStats.managed_status}
+						{/if}
+					</span>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Mode = managed: API key -->
+		{#if editMode === 'managed'}
+			<div class="form-section" style="margin-top: 1rem">
+				<h3 class="subsection">Managed Setup</h3>
+				<div class="form-group">
+					<label for="central-api-key">API Key <span class="required">*</span></label>
+					<input id="central-api-key" type="text" bind:value={editCentralApiKey}
+						placeholder="kith_..." onfocus={() => { if (editCentralApiKey.endsWith('...')) editCentralApiKey = ''; }} />
+				</div>
+			</div>
+		{/if}
+
+		<!-- Mode = external: URL + key + secret -->
+		{#if editMode === 'external'}
+			<div class="form-section" style="margin-top: 1rem">
+				<h3 class="subsection">External LiveKit</h3>
+				<div class="form-group">
+					<label for="ext-url">URL <span class="required">*</span></label>
+					<input id="ext-url" type="text" bind:value={editUrl} placeholder="wss://livekit.example.com" />
+				</div>
+				<div class="form-group">
+					<label for="ext-api-key">API Key <span class="required">*</span></label>
+					<input id="ext-api-key" type="text" bind:value={editApiKey}
+						onfocus={() => { if (editApiKey.endsWith('...')) editApiKey = ''; }} />
+				</div>
+				<div class="form-group">
+					<label for="ext-api-secret">API Secret <span class="required">*</span></label>
+					<input id="ext-api-secret" type="text" bind:value={editApiSecret}
+						onfocus={() => { if (editApiSecret.endsWith('...')) editApiSecret = ''; }} />
+				</div>
+			</div>
+		{/if}
+
+		<!-- Common config: max-participants, e2ee, turn (when any mode enabled) -->
+		{#if editMode !== 'off'}
+			<div class="form-section" style="margin-top: 1rem">
+				<h3 class="subsection">Voice Settings</h3>
+				<div class="form-group">
+					<label for="max-participants">Max Participants per Room</label>
+					<input id="max-participants" type="number" bind:value={editMaxParticipants} min="2" max="200" />
+				</div>
+				<div class="toggle-row">
+					<label>
+						<input type="checkbox" checked={editE2ee === 'true'} onchange={() => editE2ee = editE2ee === 'true' ? 'false' : 'true'} />
+						End-to-end encryption (E2EE)
+					</label>
+				</div>
+				{#if editMode === 'embedded'}
+					<div class="toggle-row">
+						<label>
+							<input type="checkbox" checked={editTurnEnabled === 'true'} onchange={() => editTurnEnabled = editTurnEnabled === 'true' ? 'false' : 'true'} />
+							TURN relay (helps with restrictive firewalls)
+						</label>
+					</div>
 				{/if}
 			</div>
-		{:else if !voiceLoading}
-			<p class="muted">No stats loaded yet.</p>
 		{/if}
 
-		{#if voiceChannels.length > 0 && isE2eeCapability()}
-			<h3 class="subsection">E2EE Key Rotation</h3>
-			<p class="muted" style="margin-bottom: 0.5rem">Force-rotate the encryption key for a voice channel. All connected users will receive the new key automatically.</p>
-			<div class="key-rotation-list">
-				{#each voiceChannels as vc}
-					<div class="key-rotation-row">
-						<span class="key-channel-name">🔊 {vc.name}</span>
-						<button class="btn-sm" onclick={() => handleRotateKey(vc.id)} disabled={rotatingKey === vc.id}>
-							{rotatingKey === vc.id ? 'Rotating...' : 'Rotate Key'}
-						</button>
+		<!-- Single save button -->
+		{#if hasChanges}
+			<div class="form-actions" style="margin-top: 1rem">
+				{#if validationError}
+					<span class="validation-hint">{validationError}</span>
+				{/if}
+				<button class="btn-primary" onclick={save} disabled={!canSave}>
+					{saving ? 'Saving...' : 'Save'}
+				</button>
+			</div>
+		{/if}
+
+		<!-- Stats (when active) -->
+		{#if isEnabled && voiceStats}
+			<div class="form-section" style="margin-top: 1rem">
+				<h3 class="subsection">Stats</h3>
+				<div class="voice-stats">
+					<div class="stat-row">
+						<span class="stat-label">Active Connections</span>
+						<span class="stat-value">{voiceStats.active_connections}</span>
 					</div>
-				{/each}
+					<div class="stat-row">
+						<span class="stat-label">Active Rooms</span>
+						<span class="stat-value">{voiceStats.active_rooms}</span>
+					</div>
+					{#if voiceStats.rooms.length > 0}
+						{#each voiceStats.rooms as room}
+							{@const ch = getChannels().find(c => c.id === room.channel_id)}
+							<div class="stat-row">
+								<span class="stat-label">🔊 {ch?.name ?? room.room_name}</span>
+								<span class="stat-value">{room.participants} participants</span>
+							</div>
+						{/each}
+					{/if}
+				</div>
+			</div>
+		{/if}
+
+		<!-- E2EE Key Rotation -->
+		{#if isEnabled && voiceChannels.length > 0 && isE2eeCapability()}
+			<div class="form-section" style="margin-top: 1rem">
+				<h3 class="subsection">E2EE Key Rotation</h3>
+				<p class="muted" style="margin-bottom: 0.5rem">Force-rotate the encryption key for a voice channel.</p>
+				<div class="key-rotation-list">
+					{#each voiceChannels as vc}
+						<div class="key-rotation-row">
+							<span class="key-channel-name">🔊 {vc.name}</span>
+							<button class="btn-sm" onclick={() => handleRotateKey(vc.id)} disabled={rotatingKey === vc.id}>
+								{rotatingKey === vc.id ? 'Rotating...' : 'Rotate Key'}
+							</button>
+						</div>
+					{/each}
+				</div>
 			</div>
 		{/if}
 	{/if}
@@ -135,21 +341,101 @@ import { isVoiceVideoEnabled, isE2eeCapability } from '$lib/stores/voice.svelte.
 		font-weight: 500;
 	}
 
-	.stat-up {
-		color: #2ecc71;
-	}
-
-	.stat-off {
-		color: var(--text-muted);
-	}
-
 	.subsection {
 		font-size: 0.85rem;
-		margin: 1rem 0 0.35rem;
+		margin: 0 0 0.35rem;
 		color: var(--text-muted);
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.03em;
+	}
+
+	.mode-row {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.mode-select {
+		flex: 1;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		color: var(--text);
+		border-radius: 4px;
+		padding: 0.5rem 0.6rem;
+		font-size: 0.875rem;
+		font-family: inherit;
+	}
+
+	.status-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.5rem;
+	}
+
+	.status-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--text-muted);
+	}
+
+	.status-up {
+		background: #2ecc71;
+	}
+
+	.status-off {
+		background: var(--text-muted);
+	}
+
+	.status-text {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.warning-message {
+		color: #f39c12;
+		font-size: 0.85rem;
+		padding: 0.5rem;
+		background: rgba(243, 156, 18, 0.1);
+		border-radius: 4px;
+	}
+
+	.warning-message code {
+		background: rgba(255, 255, 255, 0.08);
+		padding: 0.1rem 0.3rem;
+		border-radius: 2px;
+		font-size: 0.8rem;
+	}
+
+	.mode-descriptions {
+		margin-bottom: 0.75rem;
+	}
+
+	.mode-descriptions p {
+		margin: 0.3rem 0;
+	}
+
+	.toggle-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.875rem;
+	}
+
+	.toggle-row label {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		cursor: pointer;
+		color: var(--text);
+	}
+
+	.toggle-row input[type='checkbox'] {
+		width: 16px;
+		height: 16px;
+		cursor: pointer;
 	}
 
 	.key-rotation-list {
@@ -170,5 +456,16 @@ import { isVoiceVideoEnabled, isE2eeCapability } from '$lib/stores/voice.svelte.
 
 	.key-channel-name {
 		font-size: 0.85rem;
+	}
+
+	.required {
+		color: #e74c3c;
+		font-weight: 600;
+	}
+
+	.validation-hint {
+		color: #e74c3c;
+		font-size: 0.8rem;
+		margin-right: 0.5rem;
 	}
 </style>

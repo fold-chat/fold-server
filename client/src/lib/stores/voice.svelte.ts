@@ -26,6 +26,7 @@ let currentVoiceChannelId = $state<string | null>(null);
 let localAudioMuted = $state(false);
 let localDeafened = $state(false);
 let voiceVideoEnabled = $state(false);
+let voiceMode = $state<string>('off');
 
 // E2EE key state
 let currentEncryptionKey = $state<string | null>(null);
@@ -82,6 +83,14 @@ export function isLocalDeafened(): boolean {
 
 export function isVoiceVideoEnabled(): boolean {
 	return voiceVideoEnabled;
+}
+
+export function getVoiceMode(): string {
+	return voiceMode;
+}
+
+export function setVoiceMode(mode: string) {
+	voiceMode = mode;
 }
 
 export function getCurrentEncryptionKey(): string | null {
@@ -429,6 +438,7 @@ export function resetVoiceState() {
 	serverMuted = false;
 	serverDeafened = false;
 	voiceVideoEnabled = false;
+	voiceMode = 'off';
 	currentEncryptionKey = null;
 	currentKeyIndex = 0;
 	e2eeActive = false;

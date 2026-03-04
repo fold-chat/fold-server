@@ -10,6 +10,7 @@ import chat.kith.event.Scope;
 import chat.kith.security.Permission;
 import chat.kith.security.PermissionService;
 import chat.kith.service.AuditLogService;
+import chat.kith.service.LiveKitService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.container.ContainerRequestContext;
@@ -19,24 +20,31 @@ import jakarta.ws.rs.core.Response;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 @Path("/api/v0/config")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class ConfigResource {
 
+    private static final Set<String> RECONFIGURE_KEYS = Set.of(
+            "kith.livekit.mode", "kith.livekit.central-api-key",
+            "kith.livekit.url", "kith.livekit.api-key", "kith.livekit.api-secret"
+    );
+
     @Inject RuntimeConfigService runtimeConfig;
     @Inject DatabaseService db;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
     @Inject AuditLogService auditLogService;
+    @Inject LiveKitService liveKitService;
     @Context ContainerRequestContext requestContext;
 
     @GET
     public Response getConfig() {
         var sc = sc();
         permissionService.requireServerPermission(sc.getUserId(), Permission.MANAGE_SERVER);
-        return Response.ok(runtimeConfig.getOverridableConfig()).build();
+        return Response.ok(runtimeConfig.getOverridableConfigObscured()).build();
     }
 
     @PATCH
@@ -76,9 +84,14 @@ public class ConfigResource {
             runtimeConfig.refresh();
             eventBus.publish(Event.of(EventType.SERVER_CONFIG_UPDATE, updated, Scope.server()));
             auditLogService.log(sc.getUserId(), "SERVER_CONFIG_UPDATE", "server", null, Map.copyOf(updated));
+
+            // Trigger LiveKit reconfigure if mode/key changed
+            if (updated.keySet().stream().anyMatch(RECONFIGURE_KEYS::contains)) {
+                liveKitService.reconfigure();
+            }
         }
 
-        return Response.ok(runtimeConfig.getOverridableConfig()).build();
+        return Response.ok(runtimeConfig.getOverridableConfigObscured()).build();
     }
 
     private KithSecurityContext sc() {

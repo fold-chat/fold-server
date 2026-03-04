@@ -13,8 +13,10 @@ CDI bean for admin-overridable config values. Backed by `server_config` table ro
 - **Cache:** `ConcurrentHashMap` loaded on boot (`@PostConstruct`), refreshed after admin writes.
 - **Access:** `getString(key, default)`, `getInt(key, default)`, `getBoolean(key, default)`. Falls back to default if key absent or unparseable.
 - **Whitelist:** `RuntimeConfigService.WHITELISTED_KEYS` — only these keys can be set via admin API. Prevents overriding sensitive bootstrap config.
-- **Admin API:** `ConfigResource` at `/api/v0/config`. `GET` returns all whitelisted config. `PATCH` validates keys against whitelist, upserts into `server_config`, calls `refresh()`, publishes `SERVER_CONFIG_UPDATE` event.
-- **Live reload:** Changes take effect immediately for services reading from `RuntimeConfigService`. For embedded LiveKit, `EmbeddedLiveKitManager.reconfigure()` regenerates config YAML and restarts the process.
+- **Sensitive keys:** `SENSITIVE_KEYS` set — values obscured in GET responses (first 7 chars + `...`). Includes `kith.livekit.api-key`, `kith.livekit.api-secret`, `kith.livekit.central-api-key`.
+- **Admin API:** `ConfigResource` at `/api/v0/config`. `GET` returns all whitelisted config (sensitive values obscured). `PATCH` validates keys against whitelist, upserts into `server_config`, calls `refresh()`, publishes `SERVER_CONFIG_UPDATE` event. If mode/key changes, triggers `liveKitService.reconfigure()`.
+- **Live reload:** Changes take effect immediately for services reading from `RuntimeConfigService`. For embedded LiveKit, `EmbeddedLiveKitManager.reconfigure()` regenerates config YAML and restarts the process. For external/managed modes, `LiveKitService.reconfigure()` re-initializes connections.
+- **Voice mode switching:** `kith.livekit.mode` is runtime-overridable. `LiveKitService.getMode()` reads from `RuntimeConfigService` first, falls back to `@ConfigMapping`. Stats endpoint returns actual mode, managed status, and embedded binary availability.
 - **When to use:** Use `RuntimeConfigService` for settings admins can change at runtime (voice/video settings). Use `@ConfigMapping` for static bootstrap config (DB path, auth, ports).
 
 ## API Resources

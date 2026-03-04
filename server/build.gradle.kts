@@ -85,9 +85,31 @@ val generateMigrationIndex = tasks.register("generateMigrationIndex") {
     inputs.dir(migrationDir)
     outputs.dir(outputDir)
     doLast {
-        val files = migrationDir.asFile.listFiles { f -> f.name.matches(Regex("V\\d+__.*\\.sql")) }
-            ?.sortedBy { it.name }
-            ?: emptyList()
+        val pattern = Regex("V(\\d+)__.*\\.sql")
+        val allSql = migrationDir.asFile.listFiles { f -> f.extension == "sql" }
+            ?.sortedBy { it.name } ?: emptyList()
+
+        // Fail on any .sql file that doesn't match the naming convention
+        val invalid = allSql.filter { !it.name.matches(pattern) }
+        if (invalid.isNotEmpty()) {
+            error("Migration files don't match V<NNN>__<description>.sql:\n" +
+                invalid.joinToString("\n") { "  ${it.name}" })
+        }
+
+        val files = allSql.sortedBy { it.name }
+        val versions = files.map { pattern.matchEntire(it.name)!!.groupValues[1].toInt() }
+
+        // Fail on duplicate versions
+        val duplicates = versions.groupBy { it }.filter { it.value.size > 1 }.keys
+        if (duplicates.isNotEmpty()) {
+            error("Duplicate migration versions: ${duplicates.joinToString(", ")}")
+        }
+
+        // Fail on gaps in version sequence
+        versions.zipWithNext { a, b ->
+            if (b != a + 1) error("Gap in migration versions between V$a and V$b")
+        }
+
         val filesList = files.joinToString(",\n                    ") { "\"${it.name}\"" }
         val src = outputDir.get().dir("chat/kith/db").asFile
         src.mkdirs()

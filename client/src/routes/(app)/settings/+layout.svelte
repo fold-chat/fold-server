@@ -2,7 +2,6 @@
 	import { page } from '$app/state';
 	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
-	import { isVoiceVideoEnabled } from '$lib/stores/voice.svelte.js';
 	import '$lib/styles/settings.css';
 
 	let { children } = $props();
@@ -16,8 +15,7 @@
 	const canViewAudit = $derived(
 		hasServerPermission(PermissionName.ADMINISTRATOR) || hasServerPermission(PermissionName.MANAGE_SERVER)
 	);
-	const canVoice = $derived(canManageServer && isVoiceVideoEnabled());
-	const showServerGroup = $derived(canManageServer || canManageRoles || canBan || canInvite || canViewAudit || canVoice);
+	const showServerGroup = $derived(canManageServer || canManageRoles || canBan || canInvite || canViewAudit);
 
 	function isActive(path: string): boolean {
 		return page.url.pathname === path;
@@ -52,7 +50,7 @@
 				{#if canManageServer}
 					<a class="nav-item" class:active={isActive('/settings/emoji')} href="/settings/emoji">Emoji</a>
 				{/if}
-				{#if canVoice}
+				{#if canManageServer}
 					<a class="nav-item" class:active={isActive('/settings/voice')} href="/settings/voice">Voice</a>
 				{/if}
 				{#if canManageServer}

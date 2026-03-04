@@ -8,11 +8,13 @@ Quarkus (Java 25). Full patterns reference: `docs/server-patterns.md`.
 
 ### Runtime Config
 - `RuntimeConfigService` (`chat.kith.config`) — CDI bean, in-memory `ConcurrentHashMap` cache backed by `server_config` table.
-- Use for admin-overridable keys (e.g. `kith.livekit.max-participants`, `kith.livekit.e2ee`). Use `@ConfigMapping` for bootstrap/static config.
+- Use for admin-overridable keys (e.g. `kith.livekit.mode`, `kith.livekit.max-participants`). Use `@ConfigMapping` for bootstrap/static config.
 - `getString(key, default)` / `getInt(key, default)` / `getBoolean(key, default)` — reads from cache.
 - `refresh()` — reloads cache from DB. Called after admin writes via `ConfigResource`.
 - Whitelist in `RuntimeConfigService.WHITELISTED_KEYS` controls which keys the admin API can set.
-- Admin API: `GET/PATCH /api/v0/config` (requires `MANAGE_SERVER`). Publishes `SERVER_CONFIG_UPDATE` event.
+- `SENSITIVE_KEYS` — subset of whitelisted keys obscured in GET responses (first 7 chars + `...`).
+- Admin API: `GET/PATCH /api/v0/config` (requires `MANAGE_SERVER`). GET returns obscured values. PATCH triggers `liveKitService.reconfigure()` for mode/key changes. Publishes `SERVER_CONFIG_UPDATE` event.
+- Voice mode switching: `kith.livekit.mode` overridable at runtime (off/embedded/external/managed). `LiveKitService.getMode()` reads runtime first, falls back to `@ConfigMapping`.
 
 ## API Resources
 - `chat.kith.api`, `@Path("/api/v0/<entity>")`, JSON in/out.

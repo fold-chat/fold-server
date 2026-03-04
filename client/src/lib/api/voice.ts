@@ -79,6 +79,8 @@ export interface VoiceStats {
 	active_connections: number;
 	active_rooms: number;
 	rooms: VoiceRoomStats[];
+	embedded_binary_available: boolean;
+	managed_status?: string;
 }
 
 export function getVoiceStats() {

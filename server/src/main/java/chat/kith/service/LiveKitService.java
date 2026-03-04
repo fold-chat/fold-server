@@ -1,6 +1,7 @@
 package chat.kith.service;
 
 import chat.kith.config.KithLiveKitConfig;
+import chat.kith.config.RuntimeConfigService;
 import chat.kith.db.VoiceStateRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -21,6 +22,8 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +36,9 @@ public class LiveKitService {
 
     @Inject
     KithLiveKitConfig config;
+
+    @Inject
+    RuntimeConfigService runtimeConfig;
 
     @Inject
     VoiceStateRepository voiceStateRepo;
@@ -51,28 +57,41 @@ public class LiveKitService {
 
     @PostConstruct
     void init() {
-        if (!isEnabled()) {
-            LOG.info("[BOOT] LiveKit ... SKIP (not configured)");
+        String mode = getMode();
+        if ("off".equals(mode)) {
+            LOG.info("[BOOT] LiveKit ... SKIP (mode=off)");
             return;
         }
-        if ("managed".equals(config.mode())) {
+        if ("managed".equals(mode)) {
             initManaged();
-        } else if ("external".equals(config.mode())) {
-            configure(
-                    config.url().orElseThrow(() -> new IllegalStateException("kith.livekit.url required for external mode")),
-                    config.apiKey().orElseThrow(() -> new IllegalStateException("kith.livekit.api-key required for external mode")),
-                    config.apiSecret().orElseThrow(() -> new IllegalStateException("kith.livekit.api-secret required for external mode"))
-            );
+        } else if ("external".equals(mode)) {
+            String extUrl = runtimeConfig.getString("kith.livekit.url",
+                    config.url().orElse(null));
+            String extKey = runtimeConfig.getString("kith.livekit.api-key",
+                    config.apiKey().orElse(null));
+            String extSecret = runtimeConfig.getString("kith.livekit.api-secret",
+                    config.apiSecret().orElse(null));
+            if (extUrl == null || extKey == null || extSecret == null) {
+                LOG.error("[BOOT] LiveKit (external) ... FAIL (url/key/secret required)");
+                return;
+            }
+            configure(extUrl, extKey, extSecret);
             LOG.info("[BOOT] LiveKit (external) ... OK");
             reconcileOnStartup();
         }
+        // embedded mode handled by EmbeddedLiveKitManager
     }
 
     private void initManaged() {
         String centralUrl = config.centralUrl()
                 .orElseThrow(() -> new IllegalStateException("kith.livekit.central-url required for managed mode"));
-        String centralApiKey = config.centralApiKey()
-                .orElseThrow(() -> new IllegalStateException("kith.livekit.central-api-key required for managed mode"));
+        String centralApiKey = runtimeConfig.getString("kith.livekit.central-api-key",
+                config.centralApiKey().orElse(null));
+        if (centralApiKey == null || centralApiKey.isBlank()) {
+            LOG.error("[BOOT] LiveKit (managed) ... FAIL (central-api-key required)");
+            managedAvailable = false;
+            return;
+        }
         httpClient = HttpClient.newHttpClient();
 
         // Register instance with central service
@@ -135,13 +154,23 @@ public class LiveKitService {
         this.roomService = RoomServiceClient.createClient(httpUrl(url), apiKey, apiSecret);
     }
 
+    /** Effective mode — runtime override first, fallback to @ConfigMapping */
+    public String getMode() {
+        return runtimeConfig.getString("kith.livekit.mode", config.mode());
+    }
+
     public boolean isEnabled() {
-        if ("managed".equals(config.mode())) return managedAvailable;
-        return !"off".equalsIgnoreCase(config.mode());
+        String mode = getMode();
+        if ("managed".equals(mode)) return managedAvailable;
+        return !"off".equalsIgnoreCase(mode);
     }
 
     public boolean isManaged() {
-        return "managed".equals(config.mode());
+        return "managed".equals(getMode());
+    }
+
+    public boolean isExternal() {
+        return "external".equals(getMode());
     }
 
     public String getUrl() {
@@ -195,7 +224,9 @@ public class LiveKitService {
     public ManagedTokenResult generateManagedToken(String userId, String username, String channelId,
                                                     boolean canPublish, boolean canSubscribe) {
         String centralUrl = config.centralUrl().orElseThrow();
-        String centralApiKey = config.centralApiKey().orElseThrow();
+        String centralApiKey = runtimeConfig.getString("kith.livekit.central-api-key",
+                config.centralApiKey().orElse(null));
+        if (centralApiKey == null) throw new CentralServiceException(500, "central-api-key not configured");
         try {
             var body = MAPPER.writeValueAsString(Map.of(
                     "user_id", userId,
@@ -295,7 +326,7 @@ public class LiveKitService {
 
     /** List all active rooms */
     public List<LivekitModels.Room> listRooms() {
-        if (isManaged()) return Collections.emptyList();
+        if (isManaged() || roomService == null) return Collections.emptyList();
         try {
             var call = roomService.listRooms();
             var response = call.execute();
@@ -310,7 +341,7 @@ public class LiveKitService {
 
     /** List participants in a specific room */
     public List<LivekitModels.ParticipantInfo> listParticipants(String roomName) {
-        if (isManaged()) return Collections.emptyList();
+        if (isManaged() || roomService == null) return Collections.emptyList();
         try {
             var call = roomService.listParticipants(roomName);
             var response = call.execute();
@@ -325,13 +356,65 @@ public class LiveKitService {
 
     /** Delete a room (used on voice channel deletion) */
     public void deleteRoom(String roomName) {
-        if (isManaged()) return;
+        if (isManaged() || roomService == null) return;
         try {
             var call = roomService.deleteRoom(roomName);
             call.execute();
         } catch (IOException e) {
             LOG.warnf("Failed to delete room %s: %s", roomName, e.getMessage());
         }
+    }
+
+    /**
+     * Reconfigure LiveKit after runtime config changes (mode, keys, URL).
+     * Called by ConfigResource when relevant keys are updated.
+     */
+    public void reconfigure() {
+        String mode = getMode();
+        LOG.infof("LiveKit reconfigure: mode=%s", mode);
+        switch (mode) {
+            case "managed" -> {
+                initManaged();
+            }
+            case "external" -> {
+                String extUrl = runtimeConfig.getString("kith.livekit.url",
+                        config.url().orElse(null));
+                String extKey = runtimeConfig.getString("kith.livekit.api-key",
+                        config.apiKey().orElse(null));
+                String extSecret = runtimeConfig.getString("kith.livekit.api-secret",
+                        config.apiSecret().orElse(null));
+                if (extUrl != null && extKey != null && extSecret != null) {
+                    configure(extUrl, extKey, extSecret);
+                    LOG.info("LiveKit reconfigured (external)");
+                } else {
+                    LOG.warn("LiveKit external reconfigure skipped — missing url/key/secret");
+                }
+            }
+            case "embedded" -> {
+                // EmbeddedLiveKitManager handles its own reconfigure
+                LOG.info("LiveKit mode=embedded — EmbeddedLiveKitManager manages lifecycle");
+            }
+            default -> {
+                managedAvailable = false;
+                roomService = null;
+                LOG.info("LiveKit disabled (mode=off)");
+            }
+        }
+    }
+
+    /** Check if the embedded LiveKit binary is available on disk */
+    public boolean getEmbeddedBinaryAvailable() {
+        String path = config.path();
+        if (path == null || path.isBlank()) return false;
+        // Absolute path check
+        if (Path.of(path).isAbsolute()) return Files.isExecutable(Path.of(path));
+        // Check PATH
+        String pathEnv = System.getenv("PATH");
+        if (pathEnv == null) return false;
+        for (String dir : pathEnv.split(System.getProperty("path.separator"))) {
+            if (Files.isExecutable(Path.of(dir, path))) return true;
+        }
+        return false;
     }
 
     /** Convert ws:// or wss:// URL to http:// or https:// for API calls */

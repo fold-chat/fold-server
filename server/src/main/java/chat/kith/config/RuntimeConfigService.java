@@ -23,9 +23,21 @@ public class RuntimeConfigService {
 
     /** Keys that admins are allowed to override via the config API */
     public static final Set<String> WHITELISTED_KEYS = Set.of(
+            "kith.livekit.mode",
+            "kith.livekit.url",
+            "kith.livekit.api-key",
+            "kith.livekit.api-secret",
+            "kith.livekit.central-api-key",
             "kith.livekit.max-participants",
             "kith.livekit.e2ee",
             "kith.livekit.turn-enabled"
+    );
+
+    /** Keys whose values are obscured in GET responses */
+    public static final Set<String> SENSITIVE_KEYS = Set.of(
+            "kith.livekit.api-key",
+            "kith.livekit.api-secret",
+            "kith.livekit.central-api-key"
     );
 
     private final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();
@@ -79,6 +91,20 @@ public class RuntimeConfigService {
         var result = new LinkedHashMap<String, String>();
         for (var key : WHITELISTED_KEYS) {
             result.put(key, cache.get(key));
+        }
+        return result;
+    }
+
+    /** Like getOverridableConfig() but replaces sensitive values with first 7 chars + "..." */
+    public Map<String, String> getOverridableConfigObscured() {
+        var result = new LinkedHashMap<String, String>();
+        for (var key : WHITELISTED_KEYS) {
+            String val = cache.get(key);
+            if (val != null && !val.isBlank() && SENSITIVE_KEYS.contains(key)) {
+                result.put(key, val.length() > 7 ? val.substring(0, 7) + "..." : val + "...");
+            } else {
+                result.put(key, val);
+            }
         }
         return result;
     }
