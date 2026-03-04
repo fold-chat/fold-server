@@ -36,5 +36,6 @@ public enum EventType {
     VOICE_MOVE,
     VOICE_KEY_ROTATE,
     EMOJI_CREATE,
-    EMOJI_DELETE
+    EMOJI_DELETE,
+    SERVER_CONFIG_UPDATE
 }

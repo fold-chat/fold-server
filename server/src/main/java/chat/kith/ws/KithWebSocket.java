@@ -2,6 +2,7 @@ package chat.kith.ws;
 
 import chat.kith.auth.JwtService;
 import chat.kith.config.KithMediaConfig;
+import chat.kith.config.RuntimeConfigService;
 import chat.kith.db.*;
 import chat.kith.event.*;
 import chat.kith.security.PermissionService;
@@ -38,6 +39,7 @@ public class KithWebSocket {
     @Inject VoiceStateRepository voiceStateRepo;
     @Inject LiveKitService liveKitService;
     @Inject chat.kith.config.KithLiveKitConfig liveKitConfig;
+    @Inject RuntimeConfigService runtimeConfig;
     @Inject EmojiRepository emojiRepo;
     @Inject MaintenanceService maintenanceService;
 
@@ -383,7 +385,7 @@ var members = userRepo.listMembers(false);
             // Capabilities
             var capabilities = new LinkedHashMap<String, Object>();
             capabilities.put("voice_video", liveKitService.isEnabled());
-            capabilities.put("e2ee", liveKitConfig.e2ee());
+            capabilities.put("e2ee", runtimeConfig.getBoolean("kith.livekit.e2ee", liveKitConfig.e2ee()));
             capabilities.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
             hello.put("capabilities", capabilities);
 

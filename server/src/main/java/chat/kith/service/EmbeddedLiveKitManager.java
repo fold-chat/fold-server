@@ -2,6 +2,7 @@ package chat.kith.service;
 
 import chat.kith.config.KithFileConfig;
 import chat.kith.config.KithLiveKitConfig;
+import chat.kith.config.RuntimeConfigService;
 import chat.kith.db.DatabaseService;
 import io.quarkus.runtime.Startup;
 import jakarta.annotation.PostConstruct;
@@ -39,6 +40,7 @@ public class EmbeddedLiveKitManager {
     @Inject KithFileConfig fileConfig;
     @Inject DatabaseService db;
     @Inject LiveKitService liveKitService;
+    @Inject RuntimeConfigService runtimeConfig;
 
     private Process process;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -191,7 +193,7 @@ public class EmbeddedLiveKitManager {
         sb.append("  ").append(apiKey).append(": ").append(apiSecret).append('\n');
 
         sb.append("room:\n");
-        sb.append("  max_participants: ").append(config.maxParticipants()).append('\n');
+        sb.append("  max_participants: ").append(runtimeConfig.getInt("kith.livekit.max-participants", config.maxParticipants())).append('\n');
         sb.append("  auto_create: true\n");
 
         if (config.turnEnabled()) {
@@ -208,6 +210,23 @@ public class EmbeddedLiveKitManager {
 
         Files.writeString(configPath, sb.toString());
         LOG.debugf("Wrote LiveKit config to %s", configPath);
+    }
+
+    /** Regenerate config YAML and restart embedded LiveKit to pick up runtime config changes */
+    public void reconfigure() {
+        if (!"embedded".equalsIgnoreCase(config.mode())) return;
+        try {
+            writeConfigYaml();
+            stopProcess();
+            startProcess();
+            if (waitForHealthy()) {
+                LOG.info("LiveKit reconfigured and restarted");
+            } else {
+                LOG.warn("LiveKit reconfigured but health check pending");
+            }
+        } catch (Exception e) {
+            LOG.errorf("Failed to reconfigure LiveKit: %s", e.getMessage());
+        }
     }
 
     /** Load a value from server_config or generate + persist a new random string */

@@ -8,6 +8,15 @@ SmallRye `@ConfigMapping` interfaces under `chat.kith.config`.
 - Use `@WithDefault("...")` for sensible defaults. Use `Optional<String>` for optional overrides (empty = not set).
 - Dev profile (`%dev.`) overrides where needed (e.g. `%dev.kith.auth.dev=true` disables secure cookies).
 
+### Runtime Config (`RuntimeConfigService`)
+CDI bean for admin-overridable config values. Backed by `server_config` table rows with `kith.%` prefix.
+- **Cache:** `ConcurrentHashMap` loaded on boot (`@PostConstruct`), refreshed after admin writes.
+- **Access:** `getString(key, default)`, `getInt(key, default)`, `getBoolean(key, default)`. Falls back to default if key absent or unparseable.
+- **Whitelist:** `RuntimeConfigService.WHITELISTED_KEYS` — only these keys can be set via admin API. Prevents overriding sensitive bootstrap config.
+- **Admin API:** `ConfigResource` at `/api/v0/config`. `GET` returns all whitelisted config. `PATCH` validates keys against whitelist, upserts into `server_config`, calls `refresh()`, publishes `SERVER_CONFIG_UPDATE` event.
+- **Live reload:** Changes take effect immediately for services reading from `RuntimeConfigService`. For embedded LiveKit, `EmbeddedLiveKitManager.reconfigure()` regenerates config YAML and restarts the process.
+- **When to use:** Use `RuntimeConfigService` for settings admins can change at runtime (voice/video settings). Use `@ConfigMapping` for static bootstrap config (DB path, auth, ports).
+
 ## API Resources
 JAX-RS resources under `chat.kith.api`. One resource per entity.
 - Path: `@Path("/api/v0/<entity>")`. JSON in/out (`@Produces/@Consumes MediaType.APPLICATION_JSON`).

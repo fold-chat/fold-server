@@ -21,6 +21,7 @@ SvelteKit + TypeScript. Full patterns reference: `docs/client-patterns.md`.
 - `ws.svelte.ts`: auto-reconnect w/ exponential backoff.
 - `handleEvent` dispatches ops to store functions.
 - HELLO populates channels, categories, read_states.
+- `SERVER_CONFIG_UPDATE` event — pushed when admin changes runtime config. HELLO `capabilities` section delivers current voice/video settings (e.g. `e2ee`) live per connection.
 
 ## Routing
 - Public: `/login`, `/register`, `/setup`, `/invite/[code]`.

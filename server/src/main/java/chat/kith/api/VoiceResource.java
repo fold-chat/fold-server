@@ -8,6 +8,7 @@ import chat.kith.db.ChannelRepository;
 import chat.kith.db.VoiceKeyRepository;
 import chat.kith.db.VoiceStateRepository;
 import chat.kith.config.KithLiveKitConfig;
+import chat.kith.config.RuntimeConfigService;
 import chat.kith.event.*;
 import chat.kith.security.Permission;
 import chat.kith.security.PermissionService;
@@ -38,6 +39,7 @@ public class VoiceResource {
     @Inject ChannelRepository channelRepo;
     @Inject PermissionService permissionService;
     @Inject RateLimitService rateLimitService;
+    @Inject RuntimeConfigService runtimeConfig;
     @Inject EventBus eventBus;
     @Context ContainerRequestContext requestContext;
 
@@ -111,7 +113,7 @@ public class VoiceResource {
         result.put("can_video", canVideo);
 
         // E2EE key — only when server-wide E2EE is enabled
-        if (liveKitConfig.e2ee()) {
+        if (runtimeConfig.getBoolean("kith.livekit.e2ee", liveKitConfig.e2ee())) {
             var keyOpt = voiceKeyRepo.getCurrentKey(req.channel_id());
             if (keyOpt.isEmpty()) {
                 LOG.warnf("No E2EE key for voice channel %s, generating one", req.channel_id());
@@ -318,7 +320,7 @@ public class VoiceResource {
         moveData.put("url", moveLkUrl);
 
         // E2EE key for target channel — only when enabled
-        if (liveKitConfig.e2ee()) {
+        if (runtimeConfig.getBoolean("kith.livekit.e2ee", liveKitConfig.e2ee())) {
             var keyOpt = voiceKeyRepo.getCurrentKey(req.target_channel_id());
             if (keyOpt.isPresent()) {
                 moveData.put("encryption_key", Base64.getEncoder().encodeToString((byte[]) keyOpt.get().get("encryption_key")));
@@ -335,7 +337,7 @@ public class VoiceResource {
     @POST
     @Path("/{channelId}/rotate-key")
     public Response rotateKey(@PathParam("channelId") String channelId) {
-        if (!liveKitConfig.e2ee()) {
+        if (!runtimeConfig.getBoolean("kith.livekit.e2ee", liveKitConfig.e2ee())) {
             return Response.status(400).entity(Map.of("error", "e2ee_disabled", "message", "E2EE is not enabled")).build();
         }
         var sc = sc();
