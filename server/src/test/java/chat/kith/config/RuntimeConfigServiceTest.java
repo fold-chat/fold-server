@@ -131,10 +131,10 @@ class RuntimeConfigServiceTest {
         ));
 
         var config = service.getOverridableConfig();
-        assertEquals(3, config.size());
-        assertTrue(config.containsKey("kith.livekit.max-participants"));
-        assertTrue(config.containsKey("kith.livekit.e2ee"));
-        assertTrue(config.containsKey("kith.livekit.turn-enabled"));
+        assertEquals(RuntimeConfigService.WHITELISTED_KEYS.size(), config.size());
+        assertEquals("50", config.get("kith.livekit.max-participants"));
+        assertEquals("false", config.get("kith.livekit.e2ee"));
+        assertEquals("false", config.get("kith.livekit.turn-enabled"));
         assertFalse(config.containsKey("kith.some.other.key"));
     }
 
