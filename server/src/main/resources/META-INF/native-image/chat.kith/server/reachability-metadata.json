@@ -1,9 +1,11 @@
-[
-  {
-    "type": {
-      "proxy": [
-        "io.livekit.server.RoomService"
-      ]
+{
+  "reflection": [
+    {
+      "type": {
+        "proxy": [
+          "io.livekit.server.RoomService"
+        ]
+      }
     }
-  }
-]
+  ]
+}
