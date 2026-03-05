@@ -31,7 +31,12 @@ export function leaveVoice() {
 	return api<void>('/voice', { method: 'DELETE' });
 }
 
-export function updateVoiceState(data: { self_mute?: boolean; self_deaf?: boolean }) {
+/** Best-effort leave via sendBeacon (for beforeunload) */
+export function leaveVoiceBeacon() {
+	navigator.sendBeacon('/api/v0/voice/leave');
+}
+
+export function updateVoiceState(data: { channel_id?: string; self_mute?: boolean; self_deaf?: boolean }) {
 	return api<VoiceState>('/voice', { method: 'PATCH', body: JSON.stringify(data) });
 }
 

@@ -123,7 +123,7 @@ public class LiveKitWebhookResource {
         String channelId = roomName.substring("voice-".length());
         String userId = participant.getIdentity();
 
-        // Upsert voice state (may already exist from token endpoint)
+        // Single source of truth — voice state is created when user actually connects
         voiceStateRepo.upsert(userId, channelId, 0, 0);
         publishVoiceStates(channelId);
     }

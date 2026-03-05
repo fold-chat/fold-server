@@ -25,6 +25,7 @@ export interface LiveKitCallbacks {
 	onParticipantDisconnected?: (identity: string) => void;
 	onLocalTrackPublished?: () => void;
 	onLocalTrackUnpublished?: () => void;
+	onMicPermissionDenied?: () => void;
 }
 
 // --- State ---
@@ -32,6 +33,7 @@ export interface LiveKitCallbacks {
 let room: Room | null = null;
 let keyProvider: ExternalE2EEKeyProvider | null = null;
 let callbacks: LiveKitCallbacks | null = null;
+let intentionalDisconnect = false;
 
 // --- Public API ---
 
@@ -100,7 +102,18 @@ export async function connectToRoom(
 	room.on(RoomEvent.LocalTrackPublished, handleLocalTrackPublished);
 	room.on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
 
+	// Pre-check microphone permission before connecting
+	let micAllowed = true;
+	try {
+		const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+		stream.getTracks().forEach((t) => t.stop());
+	} catch {
+		micAllowed = false;
+		cbs.onMicPermissionDenied?.();
+	}
+
 	// Connect
+	intentionalDisconnect = false;
 	await room.connect(url, token);
 
 	// Enable E2EE if available
@@ -120,11 +133,13 @@ export async function connectToRoom(
 		callbacks?.onE2EEStateChanged?.('local', 'disabled');
 	}
 
-	// Enable microphone by default (user can mute after)
-	try {
-		await room.localParticipant.setMicrophoneEnabled(true);
-	} catch {
-		console.warn('[Voice] Failed to enable microphone');
+	// Enable microphone if permission was granted
+	if (micAllowed) {
+		try {
+			await room.localParticipant.setMicrophoneEnabled(true);
+		} catch {
+			console.warn('[Voice] Failed to enable microphone');
+		}
 	}
 
 	return room;
@@ -135,6 +150,7 @@ export async function connectToRoom(
  * @param notifyServer Whether to call DELETE /voice (true by default)
  */
 export async function disconnectFromRoom(notifyServer = true): Promise<void> {
+	intentionalDisconnect = true;
 	if (room) {
 		room.removeAllListeners();
 		await room.disconnect();
@@ -142,10 +158,6 @@ export async function disconnectFromRoom(notifyServer = true): Promise<void> {
 	}
 	keyProvider = null;
 	callbacks = null;
-
-	if (notifyServer) {
-		// Caller is responsible for the server-side leave
-	}
 }
 
 /**
@@ -267,6 +279,12 @@ function handleTrackUnsubscribed(
 }
 
 function handleConnectionStateChanged(state: ConnectionState) {
+	// Only fire unexpected-disconnect logic when not user-initiated
+	if (state === ConnectionState.Disconnected && intentionalDisconnect) {
+		// Intentional — just update state
+		callbacks?.onConnectionStateChanged(state);
+		return;
+	}
 	callbacks?.onConnectionStateChanged(state);
 }
 

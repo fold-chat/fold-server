@@ -2,6 +2,7 @@
 	import {
 		getVoiceStatesForChannel,
 		getCurrentVoiceChannelId,
+		getJoiningChannelId,
 		joinVoice,
 		isSpeaking,
 		getAudioLevel,
@@ -27,6 +28,7 @@
 	let { channelId, channelName }: { channelId: string; channelName: string } = $props();
 
 	const isConnected = $derived(getCurrentVoiceChannelId() === channelId);
+	const isJoining = $derived(getJoiningChannelId() === channelId && !isConnected);
 	const canVideo = $derived(hasChannelPermission(channelId, PermissionName.VIDEO));
 	const voiceUsers = $derived(getVoiceStatesForChannel(channelId));
 
@@ -50,8 +52,8 @@
 			isMuted: s.self_mute || s.server_mute,
 			isDeafened: s.self_deaf || s.server_deaf
 		}));
-		// Local user fallback — server voice state may lag briefly after join
-		if (user && !vs.some((s) => s.user_id === user.id)) {
+		// Local user fallback — webhook voice_state may lag behind LiveKit connection
+		if (isConnected && user && !vs.some((s) => s.user_id === user.id)) {
 			list.push({
 				userId: user.id,
 				displayName: user.display_name || user.username,
@@ -169,17 +171,12 @@
 
 	// --- Lobby join ---
 
-	let joining = $state(false);
-
 	async function handleJoin() {
-		if (joining) return;
-		joining = true;
+		if (isJoining) return;
 		try {
 			await joinVoice(channelId);
 		} catch {
 			// error shown in sidebar voice error banner
-		} finally {
-			joining = false;
 		}
 	}
 </script>
@@ -193,7 +190,13 @@
 		{/if}
 	</div>
 
-	{#if isConnected}
+	{#if isJoining}
+		<!-- ── Joining overlay ── -->
+		<div class="voice-joining">
+			<div class="joining-spinner"></div>
+			<span class="joining-label">Joining voice…</span>
+		</div>
+	{:else if isConnected}
 		<!-- ── Connected view ── -->
 		<div class="voice-connected">
 			{#if screenTiles.length > 0}
@@ -395,8 +398,8 @@
 				<p class="empty-label">No one is in voice yet.</p>
 			{/if}
 
-			<button class="join-btn" onclick={handleJoin} disabled={joining}>
-				{joining ? 'Joining…' : 'Join Voice'}
+		<button class="join-btn" onclick={handleJoin} disabled={isJoining}>
+				{isJoining ? 'Joining…' : 'Join Voice'}
 			</button>
 		</div>
 	{/if}
@@ -698,6 +701,35 @@
 	.disconnect-btn:hover:not(:disabled) {
 		background: rgba(231, 76, 60, 0.15);
 		color: var(--danger, #e74c3c);
+	}
+
+	/* ── Joining overlay ── */
+
+	.voice-joining {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 1rem;
+	}
+
+	.joining-spinner {
+		width: 32px;
+		height: 32px;
+		border: 3px solid var(--border);
+		border-top-color: var(--accent, #5865f2);
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+
+	.joining-label {
+		font-size: 0.875rem;
+		color: var(--text-muted);
 	}
 
 	/* ── Lobby view ── */

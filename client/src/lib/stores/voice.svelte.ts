@@ -1,5 +1,5 @@
 import type { VoiceState } from '$lib/api/voice.js';
-import { getVoiceToken, leaveVoice as leaveVoiceApi, updateVoiceState as updateVoiceStateApi } from '$lib/api/voice.js';
+import { getVoiceToken, leaveVoice as leaveVoiceApi, leaveVoiceBeacon, updateVoiceState as updateVoiceStateApi } from '$lib/api/voice.js';
 import { getUser } from '$lib/stores/auth.svelte.js';
 import {
 	connectToRoom,
@@ -23,10 +23,14 @@ import { Track, ConnectionState } from 'livekit-client';
 
 let voiceStates = $state<Map<string, VoiceState[]>>(new Map());
 let currentVoiceChannelId = $state<string | null>(null);
+let joiningChannelId = $state<string | null>(null);
 let localAudioMuted = $state(false);
 let localDeafened = $state(false);
 let voiceVideoEnabled = $state(false);
 let voiceMode = $state<string>('off');
+
+// Mic permission denied (user joins muted)
+let micPermissionDenied = $state(false);
 
 // E2EE key state
 let currentEncryptionKey = $state<string | null>(null);
@@ -59,6 +63,15 @@ let pttActive = $state(false);
 let voiceLatencyMs = $state(0);
 let latencyInterval: ReturnType<typeof setInterval> | null = null;
 
+// --- beforeunload handler ---
+if (typeof window !== 'undefined') {
+	window.addEventListener('beforeunload', () => {
+		if (currentVoiceChannelId || joiningChannelId) {
+			leaveVoiceBeacon();
+		}
+	});
+}
+
 // --- Getters ---
 
 export function getVoiceStates(): Map<string, VoiceState[]> {
@@ -71,6 +84,14 @@ export function getVoiceStatesForChannel(channelId: string): VoiceState[] {
 
 export function getCurrentVoiceChannelId(): string | null {
 	return currentVoiceChannelId;
+}
+
+export function getJoiningChannelId(): string | null {
+	return joiningChannelId;
+}
+
+export function isMicPermissionDenied(): boolean {
+	return micPermissionDenied;
 }
 
 export function isLocalAudioMuted(): boolean {
@@ -199,19 +220,12 @@ export function hydrateVoiceStates(states: VoiceState[]) {
 		map.set(s.channel_id, list);
 	}
 	voiceStates = map;
-
-	// Check if local user is in a voice channel
-	const me = getUser();
-	if (me) {
-		const myState = states.find(s => s.user_id === me.id);
-		if (myState) {
-			currentVoiceChannelId = myState.channel_id;
-			localAudioMuted = myState.self_mute;
-			localDeafened = myState.self_deaf;
-			serverMuted = myState.server_mute;
-			serverDeafened = myState.server_deaf;
-		}
-	}
+	// Do NOT set currentVoiceChannelId from server state — only populate
+	// the voiceStates map so other users appear in channels.
+	// currentVoiceChannelId is set locally by joinVoice() / webhook event
+	// only when this device has an active LiveKit connection.
+	// This also fixes multi-device: device B sees users in voice but
+	// doesn't show its own voice bar because it never called joinVoice().
 }
 
 // --- Event Handlers ---
@@ -235,9 +249,11 @@ export function handleVoiceStateUpdate(data: Record<string, unknown>) {
 	if (!me) return;
 	const myState = states?.find(s => s.user_id === me.id);
 	if (myState) {
+		// Webhook confirmed we're in this channel — set connected state
 		currentVoiceChannelId = myState.channel_id;
-		localAudioMuted = myState.self_mute;
-		localDeafened = myState.self_deaf;
+		if (joiningChannelId === myState.channel_id) {
+			joiningChannelId = null;
+		}
 		serverMuted = myState.server_mute;
 		serverDeafened = myState.server_deaf;
 	} else if (currentVoiceChannelId === channelId) {
@@ -300,9 +316,10 @@ export function getLastJoinError(): string | null {
 
 export async function joinVoice(channelId: string) {
 	lastJoinError = null;
+	micPermissionDenied = false;
+	joiningChannelId = channelId;
 	try {
 		const resp = await getVoiceToken(channelId);
-		currentVoiceChannelId = channelId;
 		currentEncryptionKey = resp.encryption_key ?? null;
 		currentKeyIndex = resp.key_index ?? 0;
 
@@ -314,19 +331,24 @@ export async function joinVoice(channelId: string) {
 			makeLiveKitCallbacks()
 		);
 
+		// joiningChannelId stays set until webhook VOICE_STATE_UPDATE arrives
 		startLatencyPolling();
 		return resp;
 	} catch (e: any) {
+		joiningChannelId = null;
 		currentVoiceChannelId = null;
 		currentEncryptionKey = null;
+		// Best-effort cleanup of any partial server state
+		leaveVoiceApi().catch(() => {});
 		lastJoinError = e?.message || 'Voice unavailable';
 		throw e;
 	}
 }
 
 export async function leaveCurrentVoice() {
-	if (!currentVoiceChannelId) return;
+	if (!currentVoiceChannelId && !joiningChannelId) return;
 
+	joiningChannelId = null;
 	stopLatencyPolling();
 	// Disconnect from LiveKit first
 	await disconnectFromRoom(false);
@@ -358,7 +380,7 @@ export async function toggleMute() {
 	localAudioMuted = newMuted;
 	try {
 		await setMicrophoneEnabled(!newMuted);
-		await updateVoiceStateApi({ self_mute: newMuted });
+		await updateVoiceStateApi({ channel_id: currentVoiceChannelId ?? undefined, self_mute: newMuted });
 	} catch {
 		localAudioMuted = !newMuted;
 		await setMicrophoneEnabled(newMuted).catch(() => {});
@@ -374,7 +396,7 @@ export async function toggleDeafen() {
 	}
 	try {
 		await setMicrophoneEnabled(!newDeafened && !localAudioMuted);
-		await updateVoiceStateApi({ self_deaf: newDeafened, self_mute: newDeafened || localAudioMuted });
+		await updateVoiceStateApi({ channel_id: currentVoiceChannelId ?? undefined, self_deaf: newDeafened, self_mute: newDeafened || localAudioMuted });
 	} catch {
 		localDeafened = !newDeafened;
 		if (newDeafened) localAudioMuted = false;
@@ -433,6 +455,7 @@ export function resetVoiceState() {
 	stopLatencyPolling();
 	voiceStates = new Map();
 	currentVoiceChannelId = null;
+	joiningChannelId = null;
 	localAudioMuted = false;
 	localDeafened = false;
 	serverMuted = false;
@@ -443,6 +466,7 @@ export function resetVoiceState() {
 	currentKeyIndex = 0;
 	e2eeActive = false;
 	e2eeCapability = false;
+	micPermissionDenied = false;
 	lastJoinError = null;
 	speakingUserIds = new Set();
 	audioLevels = new Map();
@@ -493,6 +517,22 @@ function makeLiveKitCallbacks(): LiveKitCallbacks {
 		},
 		onConnectionStateChanged: (state) => {
 			livekitConnectionState = state;
+			// LiveKit confirmed connection — transition from joining to connected
+			if (state === ConnectionState.Connected && joiningChannelId) {
+				currentVoiceChannelId = joiningChannelId;
+				joiningChannelId = null;
+			}
+			// Unexpected disconnect — LiveKit dropped without user calling leave
+			if (state === ConnectionState.Disconnected && (currentVoiceChannelId || joiningChannelId)) {
+				joiningChannelId = null;
+				currentVoiceChannelId = null;
+				stopLatencyPolling();
+				leaveVoiceApi().catch(() => {});
+			}
+		},
+		onMicPermissionDenied: () => {
+			micPermissionDenied = true;
+			localAudioMuted = true;
 		},
 		onE2EEStateChanged: (_identity, state) => {
 			e2eeActive = state === 'enabled';

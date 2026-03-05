@@ -101,11 +101,9 @@ public class VoiceResource {
                     .build();
         }
 
-        // Upsert voice state
-        voiceStateRepo.upsert(sc.getUserId(), req.channel_id(), 0, 0);
-
-        // Publish voice state update
-        publishVoiceStates(req.channel_id());
+        // Voice state is NOT upserted here — it's deferred to the participant_joined
+        // webhook from LiveKit, which is the single source of truth for when a user
+        // actually connects.
 
         var result = new LinkedHashMap<String, Object>();
         result.put("token", token);
@@ -132,12 +130,24 @@ public class VoiceResource {
     @DELETE
     public Response leave() {
         var sc = sc();
-        var existing = voiceStateRepo.findByUser(sc.getUserId());
+        return doLeave(sc.getUserId());
+    }
+
+    /** Beacon-friendly alias (sendBeacon can only POST) */
+    @POST
+    @Path("/leave")
+    public Response leaveBeacon() {
+        var sc = sc();
+        return doLeave(sc.getUserId());
+    }
+
+    private Response doLeave(String userId) {
+        var existing = voiceStateRepo.findByUser(userId);
         if (existing.isEmpty()) {
             return Response.noContent().build();
         }
         String channelId = (String) existing.get().get("channel_id");
-        leaveVoiceInternal(sc.getUserId(), channelId);
+        leaveVoiceInternal(userId, channelId);
         return Response.noContent().build();
     }
 
@@ -151,7 +161,15 @@ public class VoiceResource {
 
         var existing = voiceStateRepo.findByUser(sc.getUserId());
         if (existing.isEmpty()) {
-            return Response.status(404).entity(Map.of("error", "not_in_voice", "message", "Not in a voice channel")).build();
+            // Webhook may not have fired yet — accept channel_id from client to create row
+            if (req.channel_id() == null) {
+                return Response.status(404).entity(Map.of("error", "not_in_voice", "message", "Not in a voice channel")).build();
+            }
+            int selfMute = req.self_mute() != null && req.self_mute() ? 1 : 0;
+            int selfDeaf = req.self_deaf() != null && req.self_deaf() ? 1 : 0;
+            voiceStateRepo.upsert(sc.getUserId(), req.channel_id(), selfMute, selfDeaf);
+            publishVoiceStates(req.channel_id());
+            return Response.ok(Map.of("channel_id", req.channel_id(), "self_mute", selfMute != 0, "self_deaf", selfDeaf != 0)).build();
         }
         String channelId = (String) existing.get().get("channel_id");
         int selfMute = req.self_mute() != null ? (req.self_mute() ? 1 : 0) : ((Long) existing.get().get("self_mute")).intValue();
@@ -407,7 +425,7 @@ public class VoiceResource {
     // --- DTOs ---
 
     public record TokenRequest(String channel_id) {}
-    public record UpdateStateRequest(Boolean self_mute, Boolean self_deaf) {}
+    public record UpdateStateRequest(String channel_id, Boolean self_mute, Boolean self_deaf) {}
     public record MoveRequest(String target_channel_id) {}
 
     // --- Helpers ---

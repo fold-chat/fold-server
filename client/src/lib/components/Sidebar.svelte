@@ -28,8 +28,8 @@ import {
 	import { goto } from '$app/navigation';
 import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
-	import { cycleTheme, getThemePreference, isSidebarCollapsed, isSidebarExpanded, isNarrowScreen, closeSidebar } from '$lib/stores/sidebar.svelte.js';
-import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, isE2eeCapability, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
+import { isSidebarCollapsed, isSidebarExpanded, isNarrowScreen, closeSidebar, toggleSidebar } from '$lib/stores/sidebar.svelte.js';
+import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, isE2eeCapability, getLivekitConnectionState, getLastJoinError } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
 	import { hasChannelPermission, getUser } from '$lib/stores/auth.svelte.js';
 	import { serverMute, serverUnmute, serverDeafen, serverUndeafen, disconnectUser, moveUser } from '$lib/api/voice.js';
@@ -197,7 +197,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 	}
 
 	const voiceChannelName = $derived.by(() => {
-		const id = getCurrentVoiceChannelId();
+		const id = getCurrentVoiceChannelId() ?? getJoiningChannelId();
 		if (!id) return null;
 		const ch = getChannelById(id);
 		return ch?.name ?? null;
@@ -423,7 +423,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 			{/each}
 		</nav>
 
-		{#if getCurrentVoiceChannelId()}
+	{#if getCurrentVoiceChannelId() || getJoiningChannelId()}
 			<div class="rail-voice">
 				<button class="voice-control-btn" class:active={isLocalAudioMuted() || isServerMuted()} title={isLocalAudioMuted() ? 'Unmute' : 'Mute'} onclick={toggleMute} disabled={isServerMuted()}>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -612,10 +612,12 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, isLocalAudioMuted, 
 		</div>
 	{/if}
 
-	{#if getCurrentVoiceChannelId()}
+	{#if getCurrentVoiceChannelId() || getJoiningChannelId()}
 		<div class="voice-bar">
 			<div class="voice-bar-info">
-				{#if getLivekitConnectionState() === 'reconnecting'}
+				{#if getJoiningChannelId() && !getCurrentVoiceChannelId()}
+					<span class="voice-bar-label" style="color: #f39c12">Joining…</span>
+				{:else if getLivekitConnectionState() === 'reconnecting'}
 					<span class="voice-bar-label" style="color: #f39c12">Reconnecting…</span>
 				{:else}
 				<span class="voice-bar-label">Voice Connected</span>

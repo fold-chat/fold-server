@@ -4,7 +4,7 @@
 	import { getChannels, getTotalMentionCount } from '$lib/stores/channels.svelte.js';
 	import { getActiveChannelId } from '$lib/stores/messages.svelte.js';
 	import { isShortcutHelpOpen, closeShortcutHelp, toggleShortcutHelp } from '$lib/stores/shortcuts.svelte.js';
-	import { isPttEnabled, getPttKey, pttKeyDown, pttKeyUp } from '$lib/stores/voice.svelte.js';
+	import { isPttEnabled, getPttKey, pttKeyDown, pttKeyUp, getCurrentVoiceChannelId, getJoiningChannelId } from '$lib/stores/voice.svelte.js';
 	import { isNotificationPanelOpen } from '$lib/stores/notifications.svelte.js';
 	import { isNarrowScreen, isSidebarExpanded, closeSidebar } from '$lib/stores/sidebar.svelte.js';
 	import { goto } from '$app/navigation';
@@ -14,6 +14,7 @@
 	import ShortcutHelpModal from '$lib/components/ShortcutHelpModal.svelte';
 	import NotificationPanel from '$lib/components/NotificationPanel.svelte';
 	import MembersPanel from '$lib/components/MembersPanel.svelte';
+	import VoiceBar from '$lib/components/VoiceBar.svelte';
 	import { isMembersPanelOpen } from '$lib/stores/membersPanel.svelte.js';
 
 	let { children } = $props();
@@ -131,6 +132,10 @@
 
 <SearchModal />
 <ShortcutHelpModal />
+
+{#if isNarrowScreen() && (getCurrentVoiceChannelId() || getJoiningChannelId())}
+	<VoiceBar />
+{/if}
 
 <style>
 	.app-shell {

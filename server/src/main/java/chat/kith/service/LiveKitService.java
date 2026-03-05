@@ -110,6 +110,8 @@ public class LiveKitService {
             var resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() == 200) {
                 managedAvailable = true;
+                // Managed mode can't query LiveKit rooms — clear all stale voice_state
+                voiceStateRepo.clearAll();
                 LOG.info("[BOOT] LiveKit (managed) ... OK");
             } else if (resp.statusCode() == 403) {
                 LOG.error("[BOOT] LiveKit (managed) ... FAILED (invalid API key)");
