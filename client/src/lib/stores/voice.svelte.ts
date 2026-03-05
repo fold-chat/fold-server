@@ -63,6 +63,9 @@ let pttActive = $state(false);
 let voiceLatencyMs = $state(0);
 let latencyInterval: ReturnType<typeof setInterval> | null = null;
 
+// Speaking holdover — keep users in speaking set briefly after LiveKit drops them
+const speakingHoldTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 // --- beforeunload handler ---
 if (typeof window !== 'undefined') {
 	window.addEventListener('beforeunload', () => {
@@ -468,6 +471,8 @@ export function resetVoiceState() {
 	e2eeCapability = false;
 	micPermissionDenied = false;
 	lastJoinError = null;
+	for (const t of speakingHoldTimers.values()) clearTimeout(t);
+	speakingHoldTimers.clear();
 	speakingUserIds = new Set();
 	audioLevels = new Map();
 	connectedParticipantIds = new Set();
@@ -488,10 +493,39 @@ export function resetVoiceState() {
 function makeLiveKitCallbacks(): LiveKitCallbacks {
 	return {
 		onSpeakersChanged: (speakers) => {
-			speakingUserIds = new Set(speakers.map((s) => s.identity));
-			const levels = new Map<string, number>();
-			for (const s of speakers) levels.set(s.identity, s.audioLevel);
-			audioLevels = levels;
+			const activeSpeakers = new Set(speakers.map((s) => s.identity));
+			const newLevels = new Map<string, number>();
+			for (const s of speakers) newLevels.set(s.identity, s.audioLevel);
+
+			const merged = new Set(activeSpeakers);
+
+			// Clear holdover timers for anyone speaking again
+			for (const id of activeSpeakers) {
+				const timer = speakingHoldTimers.get(id);
+				if (timer) { clearTimeout(timer); speakingHoldTimers.delete(id); }
+			}
+
+			// Hold users who just stopped — decay their level, remove after 800ms
+			for (const id of speakingUserIds) {
+				if (!activeSpeakers.has(id)) {
+					merged.add(id);
+					newLevels.set(id, (audioLevels.get(id) ?? 0) * 0.35);
+					if (!speakingHoldTimers.has(id)) {
+						speakingHoldTimers.set(id, setTimeout(() => {
+							speakingHoldTimers.delete(id);
+							const next = new Set(speakingUserIds);
+							next.delete(id);
+							speakingUserIds = next;
+							const nextLevels = new Map(audioLevels);
+							nextLevels.delete(id);
+							audioLevels = nextLevels;
+						}, 800));
+					}
+				}
+			}
+
+			speakingUserIds = merged;
+			audioLevels = newLevels;
 		},
 		onParticipantConnected: (identity) => {
 			connectedParticipantIds = new Set([...connectedParticipantIds, identity]);

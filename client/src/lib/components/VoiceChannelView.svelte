@@ -92,19 +92,19 @@
 		const map = new Map<string, VideoTrackRef>();
 		const room = getRoom();
 
-		for (const t of getVideoTracks()) {
-			if (t.source === Track.Source.Camera) {
-				const track = t.track;
-				map.set(t.participant.identity, {
-					attach: (el) => track.attach(el),
-					detach: (el) => track.detach(el)
-				});
-			}
+	for (const t of getVideoTracks()) {
+		if (t.source === Track.Source.Camera && !t.publication.isMuted) {
+			const track = t.track;
+			map.set(t.participant.identity, {
+				attach: (el) => track.attach(el),
+				detach: (el) => track.detach(el)
+			});
 		}
+	}
 
-		if (room) {
-			for (const t of getLocalVideoTracks()) {
-				if (t.source === Track.Source.Camera && t.publication.track) {
+	if (room) {
+		for (const t of getLocalVideoTracks()) {
+			if (t.source === Track.Source.Camera && t.publication.track && !t.publication.isMuted) {
 					const track = t.publication.track;
 					map.set(room.localParticipant.identity, {
 						attach: (el) => track.attach(el),
@@ -151,7 +151,116 @@
 			}
 		}
 
-		return tiles;
+	return tiles;
+	});
+
+	// --- Screen share user set ---
+
+	const screenShareUserIds = $derived.by((): Set<string> => {
+		const ids = new Set<string>();
+		const user = getUser();
+		for (const tile of screenTiles) {
+			if (tile.id === 'local-screen') {
+				if (user) ids.add(user.id);
+			} else {
+				ids.add(tile.id.replace('-screen', ''));
+			}
+		}
+		return ids;
+	});
+
+	// --- Focus mode ---
+
+	let focusedTileId = $state<string | null>(null);
+
+	const focusedScreen = $derived(
+		focusedTileId ? screenTiles.find((t) => t.id === focusedTileId) ?? null : null
+	);
+
+	const focusedParticipant = $derived(
+		focusedTileId && !focusedScreen
+			? participants.find((p) => p.userId === focusedTileId) ?? null
+			: null
+	);
+
+	// Auto-focus new screen shares
+	let prevScreenCount = 0;
+	$effect(() => {
+		const count = screenTiles.length;
+		if (count > prevScreenCount && !focusedTileId && count > 0) {
+			focusedTileId = screenTiles[count - 1].id;
+		}
+		prevScreenCount = count;
+	});
+
+	// Clear focus when tile disappears
+	$effect(() => {
+		if (!focusedTileId) return;
+		const exists =
+			screenTiles.some((t) => t.id === focusedTileId) ||
+			participants.some((p) => p.userId === focusedTileId);
+		if (!exists) focusedTileId = null;
+	});
+
+	function toggleFocus(tileId: string) {
+		focusedTileId = focusedTileId === tileId ? null : tileId;
+	}
+
+	// --- Fullscreen ---
+
+	let isFullscreen = $state(false);
+
+	$effect(() => {
+		function onFsChange() {
+			isFullscreen = !!document.fullscreenElement;
+		}
+		document.addEventListener('fullscreenchange', onFsChange);
+		return () => document.removeEventListener('fullscreenchange', onFsChange);
+	});
+
+	function enterFullscreen(event: MouseEvent) {
+		const container = (event.currentTarget as HTMLElement).closest('[data-fs-target]') as HTMLElement;
+		if (container?.requestFullscreen) container.requestFullscreen();
+	}
+
+	// --- Keyboard shortcuts ---
+
+	function cycleFocus(direction: number) {
+		const allIds = [...screenTiles.map((t) => t.id), ...participants.map((p) => p.userId)];
+		if (allIds.length === 0) return;
+		if (!focusedTileId) {
+			focusedTileId = allIds[0];
+			return;
+		}
+		const idx = allIds.indexOf(focusedTileId);
+		const next = (idx + direction + allIds.length) % allIds.length;
+		focusedTileId = allIds[next];
+	}
+
+	$effect(() => {
+		if (!isConnected) return;
+		function onKeydown(e: KeyboardEvent) {
+			if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+			if (e.key === 'Escape') {
+				if (document.fullscreenElement) document.exitFullscreen();
+				else if (focusedTileId) focusedTileId = null;
+			} else if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+				if (document.fullscreenElement) {
+					document.exitFullscreen();
+				} else if (focusedScreen) {
+					const el = document.querySelector('.focused-tile.screen[data-fs-target]') as HTMLElement;
+					el?.requestFullscreen();
+				}
+			} else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+				e.preventDefault();
+				cycleFocus(1);
+			} else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+				e.preventDefault();
+				cycleFocus(-1);
+			}
+		}
+		document.addEventListener('keydown', onKeydown);
+		return () => document.removeEventListener('keydown', onKeydown);
 	});
 
 	// Svelte action: attach/detach a video track to a <video> element
@@ -199,57 +308,223 @@
 	{:else if isConnected}
 		<!-- ── Connected view ── -->
 		<div class="voice-connected">
+			{#snippet fsParticipantStrip()}
+				<div class="fs-participant-strip">
+					<span class="fs-count">{participants.length} in call</span>
+					{#each participants as p (p.userId)}
+						{@const fsTrack = cameraTrackMap.get(p.userId)}
+						<div class="fs-avatar-tile" class:has-video={!!fsTrack} class:speaking={isSpeaking(p.userId)} title={p.displayName}>
+							{#if fsTrack}
+								<!-- svelte-ignore a11y_media_has_caption -->
+								<video autoplay playsinline muted class="fs-avatar-video" use:attachVideo={fsTrack}></video>
+							{:else if p.avatarUrl}
+								<img class="fs-avatar" src={p.avatarUrl} alt="" />
+							{:else}
+								<div class="fs-avatar-placeholder">{p.displayName.charAt(0).toUpperCase()}</div>
+							{/if}
+							{#if p.isMuted}<span class="fs-mute">🔇</span>{/if}
+						</div>
+					{/each}
+					<button class="fs-exit-btn" onclick={() => document.exitFullscreen()} title="Exit fullscreen">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+							<polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" />
+							<line x1="14" y1="10" x2="21" y2="3" /><line x1="3" y1="21" x2="10" y2="14" />
+						</svg>
+					</button>
+				</div>
+			{/snippet}
+
+			{#if focusedTileId}
+				<!-- ── Spotlight layout ── -->
+				<div class="spotlight-layout">
+					<div class="focused-tile-wrap">
+						{#if focusedScreen}
+						<div class="focused-tile screen" data-fs-target>
+							<!-- svelte-ignore a11y_media_has_caption -->
+							<video autoplay playsinline muted={focusedScreen.isLocal} use:attachVideo={focusedScreen}></video>
+							{#if isFullscreen}
+								{@render fsParticipantStrip()}
+							{:else}
+								<div class="focused-overlay">
+									<span class="screen-name">{focusedScreen.displayName}</span>
+									<span class="screen-badge">{focusedScreen.isLocal ? 'Your Screen' : 'Screen'}</span>
+									<button class="fs-btn" onclick={(e) => { e.stopPropagation(); enterFullscreen(e); }} title="Fullscreen (F)">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+											<polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
+											<line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+										</svg>
+									</button>
+									<button class="unpin-btn" onclick={() => (focusedTileId = null)} title="Unpin">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+											<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+										</svg>
+									</button>
+								</div>
+							{/if}
+						</div>
+						{:else if focusedParticipant}
+							{@const fp = focusedParticipant}
+							{@const cTrack = cameraTrackMap.get(fp.userId)}
+							{@const speaking = isSpeaking(fp.userId)}
+							{@const audioLevel = getAudioLevel(fp.userId)}
+							<div class="focused-tile participant" class:speaking style="--audio-level: {audioLevel}">
+								<div class="focused-media">
+									{#if cTrack}
+										<!-- svelte-ignore a11y_media_has_caption -->
+										<video autoplay playsinline muted={fp.userId === getUser()?.id} class="focused-video" use:attachVideo={cTrack}></video>
+									{:else}
+										<div class="focused-avatar-wrap">
+											{#if fp.avatarUrl}
+												<img class="focused-avatar" src={fp.avatarUrl} alt="" />
+											{:else}
+												<div class="focused-avatar-placeholder">{fp.displayName.charAt(0).toUpperCase()}</div>
+											{/if}
+										</div>
+									{/if}
+								</div>
+							<div class="focused-overlay">
+								<span class="focused-name">{fp.displayName}</span>
+								{#if screenShareUserIds.has(fp.userId)}
+									<span class="tile-indicator screen-share-badge" title="Sharing screen">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+											<rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+										</svg>
+									</span>
+								{/if}
+								{#if fp.isMuted}<span class="tile-indicator" title="Muted">🔇</span>{/if}
+								{#if fp.isDeafened}<span class="tile-indicator" title="Deafened">🔕</span>{/if}
+								<button class="unpin-btn" onclick={() => (focusedTileId = null)} title="Unpin">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+											<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+										</svg>
+									</button>
+								</div>
+							</div>
+						{/if}
+					</div>
+
+					<div class="thumbnail-strip">
+						{#each screenTiles as tile (tile.id)}
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="thumb-tile screen-thumb"
+								class:thumb-active={tile.id === focusedTileId}
+								onclick={() => toggleFocus(tile.id)}
+							>
+							<div class="thumb-media">
+								<!-- svelte-ignore a11y_media_has_caption -->
+								<video autoplay playsinline muted class="thumb-video" use:attachVideo={tile}></video>
+							</div>
+							<span class="thumb-name">{tile.displayName}</span>
+							</div>
+						{/each}
+						{#each participants as p (p.userId)}
+							{@const thumbTrack = cameraTrackMap.get(p.userId)}
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="thumb-tile"
+								class:speaking={isSpeaking(p.userId)}
+								class:thumb-active={p.userId === focusedTileId}
+								onclick={() => toggleFocus(p.userId)}
+							>
+								<div class="thumb-media">
+									{#if thumbTrack}
+										<!-- svelte-ignore a11y_media_has_caption -->
+										<video autoplay playsinline muted class="thumb-video" use:attachVideo={thumbTrack}></video>
+									{:else if p.avatarUrl}
+										<img class="thumb-avatar" src={p.avatarUrl} alt="" />
+									{:else}
+										<div class="thumb-placeholder">{p.displayName.charAt(0).toUpperCase()}</div>
+									{/if}
+							{#if p.isMuted}
+								<span class="thumb-mute">🔇</span>
+							{/if}
+							{#if screenShareUserIds.has(p.userId)}
+								<span class="thumb-screen-share" title="Sharing screen">
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10">
+										<rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+									</svg>
+								</span>
+							{/if}
+						</div>
+						<span class="thumb-name">{p.displayName}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+			{:else}
+				<!-- ── Normal grid layout ── -->
 			{#if screenTiles.length > 0}
 				<div class="screen-tiles">
 					{#each screenTiles as tile (tile.id)}
-						<div class="screen-tile">
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div class="screen-tile" data-fs-target onclick={() => toggleFocus(tile.id)}>
 							<!-- svelte-ignore a11y_media_has_caption -->
 							<video autoplay playsinline muted={tile.isLocal} use:attachVideo={tile}></video>
-							<div class="screen-overlay">
-								<span class="screen-name">{tile.displayName}</span>
-								<span class="screen-badge">{tile.isLocal ? 'Your Screen' : 'Screen'}</span>
-							</div>
+							{#if isFullscreen}
+								{@render fsParticipantStrip()}
+							{:else}
+								<div class="screen-overlay">
+									<span class="screen-name">{tile.displayName}</span>
+									<span class="screen-badge">{tile.isLocal ? 'Your Screen' : 'Screen'}</span>
+									<button class="fs-btn" onclick={(e) => { e.stopPropagation(); enterFullscreen(e); }} title="Fullscreen">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+											<polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
+											<line x1="21" y1="3" x2="14" y2="10" /><line x1="3" y1="21" x2="10" y2="14" />
+										</svg>
+									</button>
+								</div>
+							{/if}
 						</div>
 					{/each}
 				</div>
 			{/if}
 
-			<div class="participant-grid {gridClass}">
-				{#each participants as p (p.userId)}
-					{@const speaking = isSpeaking(p.userId)}
-					{@const audioLevel = getAudioLevel(p.userId)}
-					{@const cameraTrack = cameraTrackMap.get(p.userId)}
-					<div
-						class="participant-tile"
-						class:speaking
-						class:muted={p.isMuted}
-						class:deafened={p.isDeafened}
-						style="--audio-level: {audioLevel}"
-					>
-						<div class="tile-media">
-							{#if cameraTrack}
-								<!-- svelte-ignore a11y_media_has_caption -->
-								<video
-									autoplay
-									playsinline
-									muted={p.userId === getUser()?.id}
-									class="tile-video"
-									use:attachVideo={cameraTrack}
-								></video>
-							{:else}
-								<div class="avatar-wrap">
-									{#if p.avatarUrl}
-										<img class="tile-avatar" src={p.avatarUrl} alt="" />
-									{:else}
-										<div class="tile-avatar-placeholder">
-											{p.displayName.charAt(0).toUpperCase()}
-										</div>
-									{/if}
-								</div>
-							{/if}
-						</div>
+				<div class="participant-grid {gridClass}">
+					{#each participants as p (p.userId)}
+						{@const speaking = isSpeaking(p.userId)}
+						{@const audioLevel = getAudioLevel(p.userId)}
+						{@const cameraTrack = cameraTrackMap.get(p.userId)}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div
+							class="participant-tile"
+							class:speaking
+							class:muted={p.isMuted}
+							class:deafened={p.isDeafened}
+							style="--audio-level: {audioLevel}"
+							onclick={() => toggleFocus(p.userId)}
+						>
+							<div class="tile-media">
+								{#if cameraTrack}
+									<!-- svelte-ignore a11y_media_has_caption -->
+									<video
+										autoplay
+										playsinline
+										muted={p.userId === getUser()?.id}
+										class="tile-video"
+										use:attachVideo={cameraTrack}
+									></video>
+								{:else}
+									<div class="avatar-wrap">
+										{#if p.avatarUrl}
+											<img class="tile-avatar" src={p.avatarUrl} alt="" />
+										{:else}
+											<div class="tile-avatar-placeholder">
+												{p.displayName.charAt(0).toUpperCase()}
+											</div>
+										{/if}
+									</div>
+								{/if}
+							</div>
 						<div class="tile-footer">
 							<span class="tile-name">{p.displayName}</span>
+							{#if screenShareUserIds.has(p.userId)}
+								<span class="tile-indicator screen-share-badge" title="Sharing screen">
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+										<rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
+									</svg>
+								</span>
+							{/if}
 							{#if p.isMuted}
 								<span class="tile-indicator" title="Muted">🔇</span>
 							{/if}
@@ -258,8 +533,9 @@
 							{/if}
 						</div>
 					</div>
-				{/each}
-			</div>
+					{/each}
+				</div>
+			{/if}
 
 			<!-- Controls bar -->
 			<div class="voice-controls">
@@ -469,6 +745,7 @@
 		background: #000;
 		border-radius: 8px;
 		overflow: hidden;
+		cursor: pointer;
 	}
 
 	.screen-tile video {
@@ -540,6 +817,7 @@
 	/* Participant tile */
 
 	.participant-tile {
+		position: relative;
 		max-width:20rem;
 		display: flex;
 		flex-direction: column;
@@ -551,6 +829,7 @@
 		overflow: hidden;
 		transition: border-color 0.1s, box-shadow 0.15s;
 		padding-bottom: 0.5rem;
+		cursor: pointer;
 	}
 
 	.participant-tile.speaking {
@@ -860,4 +1139,400 @@
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
+	/* ── Spotlight layout ── */
+
+	.spotlight-layout {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.focused-tile-wrap {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 8px;
+		min-height: 0;
+	}
+
+	.focused-tile {
+		position: relative;
+		border-radius: 10px;
+		overflow: hidden;
+		max-height: 100%;
+		max-width: 100%;
+	}
+
+	.focused-tile.screen {
+		background: #000;
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.focused-tile.screen video {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		display: block;
+	}
+
+	.focused-tile.participant {
+		background: var(--bg-surface, #2b2d31);
+		border: 2px solid transparent;
+		transition: border-color 0.1s, box-shadow 0.15s;
+		width: 100%;
+	}
+
+	.focused-tile.participant.speaking {
+		border-color: #2ecc71;
+		box-shadow:
+			0 0 0 1px #2ecc71,
+			0 0 calc(6px + 18px * var(--audio-level, 0))
+				rgba(46, 204, 113, calc(0.35 + 0.4 * var(--audio-level, 0)));
+	}
+
+	.focused-media {
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+	}
+
+	.focused-video {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.focused-avatar-wrap {
+		width: 35%;
+		aspect-ratio: 1;
+	}
+
+	.focused-avatar {
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.focused-avatar-placeholder {
+		width: 100%;
+		height: 100%;
+		border-radius: 50%;
+		background: var(--bg-active, rgba(255, 255, 255, 0.1));
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 3rem;
+		font-weight: 700;
+		color: var(--text-muted);
+	}
+
+	.focused-overlay {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		padding: 0.5rem 0.75rem;
+		background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.focused-name {
+		font-size: 0.85rem;
+		color: white;
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.unpin-btn {
+		background: rgba(255, 255, 255, 0.15);
+		border: none;
+		color: white;
+		cursor: pointer;
+		padding: 4px;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin-left: auto;
+		transition: background 0.1s;
+	}
+
+	.unpin-btn:hover {
+		background: rgba(255, 255, 255, 0.3);
+	}
+
+	/* Thumbnail strip */
+
+	.thumbnail-strip {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		padding: 10px 12px;
+		overflow-x: auto;
+		flex-shrink: 0;
+		border-top: 1px solid var(--border);
+		background: var(--bg-surface, #2b2d31);
+	}
+
+	.thumb-tile {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 4px;
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.thumb-media {
+		position: relative;
+		width: 64px;
+		height: 64px;
+		border-radius: 10px;
+		border: 2px solid transparent;
+		overflow: hidden;
+		background: var(--bg-active, rgba(255, 255, 255, 0.1));
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: border-color 0.15s;
+	}
+
+	.thumb-tile:hover .thumb-media {
+		border-color: var(--text-muted);
+	}
+
+	.thumb-tile.thumb-active .thumb-media {
+		border-color: var(--accent, #5865f2);
+	}
+
+	.thumb-tile.speaking .thumb-media {
+		border-color: #2ecc71;
+	}
+
+	.thumb-tile.screen-thumb .thumb-media {
+		color: var(--text-muted);
+	}
+
+	.thumb-tile.screen-thumb.thumb-active .thumb-media {
+		color: var(--accent, #5865f2);
+	}
+
+	.thumb-video {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.thumb-avatar {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.thumb-placeholder {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.1rem;
+		font-weight: 700;
+		color: var(--text-muted);
+	}
+
+	.thumb-mute {
+		position: absolute;
+		bottom: -2px;
+		right: -2px;
+		font-size: 0.55rem;
+		background: var(--bg-surface, #2b2d31);
+		border-radius: 50%;
+		padding: 1px;
+		line-height: 1;
+	}
+
+	.thumb-name {
+		font-size: 0.65rem;
+		color: var(--text-muted);
+		max-width: 72px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-align: center;
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
+
+	.thumb-tile:hover .thumb-name {
+		opacity: 1;
+	}
+
+	/* Screen share badge */
+
+	.screen-share-badge {
+		display: inline-flex;
+		align-items: center;
+		color: var(--accent, #5865f2);
+	}
+
+	.thumb-screen-share {
+		position: absolute;
+		top: 2px;
+		left: 2px;
+		color: var(--accent, #5865f2);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--bg-surface, #2b2d31);
+		border-radius: 3px;
+		padding: 1px;
+		line-height: 1;
+	}
+
+	/* Fullscreen button */
+
+	.fs-btn {
+		background: rgba(255, 255, 255, 0.15);
+		border: none;
+		color: white;
+		cursor: pointer;
+		padding: 4px;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: background 0.1s;
+	}
+
+	.fs-btn:hover {
+		background: rgba(255, 255, 255, 0.3);
+	}
+
+	/* Fullscreen participant strip */
+
+	.fs-participant-strip {
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		padding: 12px 16px;
+		background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		z-index: 10;
+	}
+
+	.screen-tile:fullscreen,
+	.focused-tile.screen:fullscreen {
+		width: 100vw;
+		height: 100vh;
+		max-width: none;
+		max-height: none;
+		border-radius: 0;
+		background: #000;
+	}
+
+	.screen-tile:fullscreen video {
+		max-height: none;
+	}
+
+	.fs-count {
+		font-size: 0.7rem;
+		color: rgba(255, 255, 255, 0.7);
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+
+	.fs-avatar-tile {
+		position: relative;
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		overflow: hidden;
+		flex-shrink: 0;
+		border: 2px solid transparent;
+		transition: border-color 0.15s;
+	}
+
+	.fs-avatar-tile.has-video {
+		width: 56px;
+		height: 42px;
+		border-radius: 8px;
+	}
+
+	.fs-avatar-tile.speaking {
+		border-color: #2ecc71;
+		box-shadow: 0 0 8px rgba(46, 204, 113, 0.5);
+	}
+
+	.fs-avatar,
+	.fs-avatar-video {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		display: block;
+	}
+
+	.fs-avatar-placeholder {
+		width: 100%;
+		height: 100%;
+		background: rgba(255, 255, 255, 0.15);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.8rem;
+		font-weight: 700;
+		color: white;
+	}
+
+	.fs-mute {
+		position: absolute;
+		bottom: -2px;
+		right: -2px;
+		font-size: 0.5rem;
+		background: rgba(0, 0, 0, 0.7);
+		border-radius: 50%;
+		padding: 1px;
+		line-height: 1;
+	}
+
+	.fs-exit-btn {
+		background: rgba(255, 255, 255, 0.15);
+		border: none;
+		color: white;
+		cursor: pointer;
+		padding: 8px;
+		border-radius: 6px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		margin-left: auto;
+		flex-shrink: 0;
+		transition: background 0.1s;
+	}
+
+	.fs-exit-btn:hover {
+		background: rgba(255, 255, 255, 0.3);
+	}
+
 </style>
