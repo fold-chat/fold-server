@@ -30,6 +30,7 @@
 			<span class="nav-group-label">User</span>
 			<a class="nav-item" class:active={isActive('/settings/profile')} href="/settings/profile">Profile</a>
 			<a class="nav-item" class:active={isActive('/settings/appearance')} href="/settings/appearance">Appearance</a>
+			<a class="nav-item" class:active={isActive('/settings/devices')} href="/settings/devices">Devices</a>
 		</div>
 
 		{#if showServerGroup}

@@ -16,10 +16,20 @@ import {
 	getParticipantVideoTrack as lkGetParticipantVideoTrack,
 	getParticipantScreenTrack as lkGetParticipantScreenTrack,
 	getSignalRtt,
+	switchAudioInput as lkSwitchAudioInput,
+	switchVideoInput as lkSwitchVideoInput,
+	switchAudioOutput as lkSwitchAudioOutput,
 	type LiveKitCallbacks,
 	type ScreenSharePreset
 } from '$lib/voice/livekit.js';
 import { Track, ConnectionState } from 'livekit-client';
+import {
+	getSelectedAudioInputId,
+	getSelectedVideoInputId,
+	getSelectedAudioOutputId,
+	registerDeviceCallbacks,
+	clearDeviceCallbacks
+} from '$lib/stores/devices.svelte.js';
 
 // --- State ---
 
@@ -342,11 +352,18 @@ export async function joinVoice(channelId: string) {
 			resp.token,
 			resp.encryption_key,
 			resp.key_index,
-			makeLiveKitCallbacks()
+			makeLiveKitCallbacks(),
+			getSelectedAudioInputId() ?? undefined,
+			getSelectedAudioOutputId() ?? undefined
 		);
 
 		// joiningChannelId stays set until webhook VOICE_STATE_UPDATE arrives
 		startLatencyPolling();
+		registerDeviceCallbacks({
+			onAudioInput: (id) => lkSwitchAudioInput(id).catch(() => {}),
+			onVideoInput: (id) => lkSwitchVideoInput(id).catch(() => {}),
+			onAudioOutput: (id) => lkSwitchAudioOutput(id).catch(() => {})
+		});
 		return resp;
 	} catch (e: any) {
 		joiningChannelId = null;
@@ -364,6 +381,7 @@ export async function leaveCurrentVoice() {
 
 	joiningChannelId = null;
 	stopLatencyPolling();
+	clearDeviceCallbacks();
 	// Disconnect from LiveKit first
 	await disconnectFromRoom(false);
 	speakingUserIds = new Set();
@@ -421,7 +439,7 @@ export async function toggleDeafen() {
 export async function toggleCamera() {
 	const newEnabled = !cameraActive;
 	try {
-		await lkSetCamera(newEnabled);
+		await lkSetCamera(newEnabled, getSelectedVideoInputId() ?? undefined);
 		cameraActive = lkIsCameraEnabled();
 		updateVideoTrackState();
 	} catch {
@@ -483,6 +501,7 @@ export async function pttKeyUp() {
 
 export function resetVoiceState() {
 	stopLatencyPolling();
+	clearDeviceCallbacks();
 	voiceStates = new Map();
 	currentVoiceChannelId = null;
 	joiningChannelId = null;

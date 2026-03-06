@@ -137,7 +137,9 @@ export async function connectToRoom(
 	token: string,
 	encryptionKey: string | undefined,
 	keyIndex: number | undefined,
-	cbs: LiveKitCallbacks
+	cbs: LiveKitCallbacks,
+	audioInputDeviceId?: string,
+	audioOutputDeviceId?: string
 ): Promise<Room> {
 	// Disconnect existing room if any
 	if (room) {
@@ -219,9 +221,18 @@ export async function connectToRoom(
 	// Enable microphone if permission was granted
 	if (micAllowed) {
 		try {
-			await room.localParticipant.setMicrophoneEnabled(true);
+			await room.localParticipant.setMicrophoneEnabled(true, audioInputDeviceId ? { deviceId: audioInputDeviceId } : undefined);
 		} catch {
 			console.warn('[Voice] Failed to enable microphone');
+		}
+	}
+
+	// Set audio output device if specified
+	if (audioOutputDeviceId) {
+		try {
+			await room.switchActiveDevice('audiooutput', audioOutputDeviceId);
+		} catch {
+			console.warn('[Voice] Failed to set audio output device');
 		}
 	}
 
@@ -254,14 +265,31 @@ export async function updateEncryptionKey(encryptionKey: string): Promise<void> 
 
 // --- Local track controls ---
 
-export async function setMicrophoneEnabled(enabled: boolean): Promise<void> {
+export async function setMicrophoneEnabled(enabled: boolean, deviceId?: string): Promise<void> {
 	if (!room) return;
-	await room.localParticipant.setMicrophoneEnabled(enabled);
+	await room.localParticipant.setMicrophoneEnabled(enabled, deviceId ? { deviceId } : undefined);
 }
 
-export async function setCameraEnabled(enabled: boolean): Promise<void> {
+export async function setCameraEnabled(enabled: boolean, deviceId?: string): Promise<void> {
 	if (!room) return;
-	await room.localParticipant.setCameraEnabled(enabled);
+	await room.localParticipant.setCameraEnabled(enabled, deviceId ? { deviceId } : undefined);
+}
+
+// --- Mid-call device switching ---
+
+export async function switchAudioInput(deviceId: string): Promise<void> {
+	if (!room) return;
+	await room.switchActiveDevice('audioinput', deviceId);
+}
+
+export async function switchVideoInput(deviceId: string): Promise<void> {
+	if (!room) return;
+	await room.switchActiveDevice('videoinput', deviceId);
+}
+
+export async function switchAudioOutput(deviceId: string): Promise<void> {
+	if (!room) return;
+	await room.switchActiveDevice('audiooutput', deviceId);
 }
 
 /**
