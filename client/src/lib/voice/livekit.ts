@@ -10,8 +10,87 @@ import {
 	type LocalTrackPublication,
 	ConnectionState,
 	ExternalE2EEKeyProvider,
-	type E2EEOptions
+	type E2EEOptions,
+	type ScreenShareCaptureOptions,
+	type TrackPublishOptions,
+	ScreenSharePresets
 } from 'livekit-client';
+
+// --- Screen share presets ---
+
+export type ScreenSharePreset = 'auto' | 'detail' | 'presentation' | 'gaming' | 'gaming-hfr' | '4k' | 'low';
+
+export const SCREEN_SHARE_PRESETS: Record<ScreenSharePreset, { label: string; desc: string; warn?: string }> = {
+	auto: { label: 'Auto', desc: 'Browser defaults' },
+	detail: { label: 'Detail', desc: '1080p 5fps — text & code' },
+	presentation: { label: 'Presentation', desc: '1080p 15fps — slides' },
+	gaming: { label: 'Gaming', desc: '1080p 30fps — smooth motion' },
+	'gaming-hfr': { label: 'Gaming 60fps', desc: '1080p 60fps — ultra smooth', warn: 'High CPU & bandwidth. 60fps capture not supported on all systems.' },
+	'4k': { label: '4K', desc: '2160p 30fps — maximum clarity', warn: 'Very high bandwidth (~10 Mbps upload). Viewers also need sufficient bandwidth.' },
+	low: { label: 'Low', desc: '720p 10fps — save bandwidth' }
+};
+
+function getScreenShareOpts(preset: ScreenSharePreset): {
+	capture?: ScreenShareCaptureOptions;
+	publish?: TrackPublishOptions;
+} {
+	switch (preset) {
+		case 'detail':
+			return {
+				capture: { resolution: { width: 1920, height: 1080, frameRate: 5 }, contentHint: 'detail' },
+				publish: {
+					screenShareEncoding: { maxBitrate: 1_500_000, maxFramerate: 5 },
+					screenShareSimulcastLayers: [ScreenSharePresets.h720fps5, ScreenSharePresets.h360fps3]
+				}
+			};
+		case 'presentation':
+			return {
+				capture: { resolution: { width: 1920, height: 1080, frameRate: 15 } },
+				publish: {
+					screenShareEncoding: { maxBitrate: 2_500_000, maxFramerate: 15 },
+					screenShareSimulcastLayers: [ScreenSharePresets.h720fps15, ScreenSharePresets.h360fps3]
+				}
+			};
+		case 'gaming':
+			return {
+				capture: { resolution: { width: 1920, height: 1080, frameRate: 30 }, contentHint: 'motion' },
+				publish: {
+					screenShareEncoding: { maxBitrate: 4_000_000, maxFramerate: 30 },
+					screenShareSimulcastLayers: [ScreenSharePresets.h720fps15, ScreenSharePresets.h360fps3]
+				}
+			};
+		case 'gaming-hfr':
+			return {
+				capture: { resolution: { width: 1920, height: 1080, frameRate: 60 }, contentHint: 'motion' },
+				publish: {
+					screenShareEncoding: { maxBitrate: 6_000_000, maxFramerate: 60 },
+					screenShareSimulcastLayers: [ScreenSharePresets.h720fps30, ScreenSharePresets.h360fps15]
+				}
+			};
+		case '4k':
+			return {
+				capture: { resolution: { width: 3840, height: 2160, frameRate: 30 } },
+				publish: {
+					screenShareEncoding: { maxBitrate: 10_000_000, maxFramerate: 30 },
+					screenShareSimulcastLayers: [ScreenSharePresets.h1080fps30, ScreenSharePresets.h720fps15]
+				}
+			};
+		case 'low':
+			return {
+				capture: { resolution: { width: 1280, height: 720, frameRate: 10 } },
+				publish: {
+					screenShareEncoding: { maxBitrate: 1_000_000, maxFramerate: 10 },
+					screenShareSimulcastLayers: [ScreenSharePresets.h360fps3]
+				}
+			};
+		default:
+			return {
+				publish: {
+					screenShareSimulcastLayers: [ScreenSharePresets.h720fps5, ScreenSharePresets.h360fps3]
+				}
+			};
+	}
+}
 
 // --- Types ---
 
@@ -89,6 +168,10 @@ export async function connectToRoom(
 	room = new Room({
 		adaptiveStream: true,
 		dynacast: true,
+		publishDefaults: {
+			simulcast: true,
+			screenShareSimulcastLayers: [ScreenSharePresets.h720fps5, ScreenSharePresets.h360fps3]
+		},
 		...(e2eeOptions ? { e2ee: e2eeOptions } : {})
 	});
 
@@ -181,9 +264,77 @@ export async function setCameraEnabled(enabled: boolean): Promise<void> {
 	await room.localParticipant.setCameraEnabled(enabled);
 }
 
-export async function setScreenShareEnabled(enabled: boolean): Promise<void> {
+/**
+ * Update an active screen share for a new preset.
+ * Swaps the capture track via getDisplayMedia + replaceTrack when resolution
+ * differs (avoids stop/restart which loses user-gesture context).
+ * Bitrate, framerate, contentHint always updated in-place.
+ */
+export async function updateScreenShareEncoding(preset: ScreenSharePreset): Promise<void> {
 	if (!room) return;
-	await room.localParticipant.setScreenShareEnabled(enabled);
+	const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+	if (!pub?.track) return;
+
+	const opts = getScreenShareOpts(preset);
+	const track = pub.track;
+
+	// If target resolution differs, get a new capture and swap the track
+	const targetRes = opts.capture?.resolution;
+	if (targetRes) {
+		const curH = track.mediaStreamTrack.getSettings().height ?? 0;
+		if (curH && Math.abs(curH - targetRes.height) > 100) {
+			const stream = await navigator.mediaDevices.getDisplayMedia({
+				video: {
+					width: { ideal: targetRes.width },
+					height: { ideal: targetRes.height },
+					frameRate: { ideal: targetRes.frameRate ?? 30 }
+				}
+			});
+			const newMediaTrack = stream.getVideoTracks()[0];
+			if (newMediaTrack) {
+				newMediaTrack.contentHint = opts.capture?.contentHint ?? '';
+				await track.replaceTrack(newMediaTrack);
+			}
+		}
+	}
+
+	// Update content hint on current track
+	track.mediaStreamTrack.contentHint = opts.capture?.contentHint ?? '';
+
+	// Apply frame rate constraint to capture
+	if (opts.capture?.resolution?.frameRate) {
+		try {
+			await track.mediaStreamTrack.applyConstraints({
+				frameRate: { max: opts.capture.resolution.frameRate }
+			});
+		} catch { /* not supported for all display media */ }
+	}
+
+	// Update sender encoding (bitrate + framerate)
+	const sender = track.sender;
+	if (sender && opts.publish?.screenShareEncoding) {
+		try {
+			const params = sender.getParameters();
+			if (params.encodings?.length > 0) {
+				const enc = opts.publish.screenShareEncoding;
+				params.encodings[0].maxBitrate = enc.maxBitrate;
+				if (enc.maxFramerate !== undefined) {
+					params.encodings[0].maxFramerate = enc.maxFramerate;
+				}
+				await sender.setParameters(params);
+			}
+		} catch { /* sender update failed */ }
+	}
+}
+
+export async function setScreenShareEnabled(enabled: boolean, preset: ScreenSharePreset = 'auto'): Promise<void> {
+	if (!room) return;
+	if (!enabled) {
+		await room.localParticipant.setScreenShareEnabled(false);
+		return;
+	}
+	const opts = getScreenShareOpts(preset);
+	await room.localParticipant.setScreenShareEnabled(true, opts.capture, opts.publish);
 }
 
 export function isCameraEnabled(): boolean {

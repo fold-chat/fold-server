@@ -8,6 +8,7 @@ import {
 	setMicrophoneEnabled,
 	setCameraEnabled as lkSetCamera,
 	setScreenShareEnabled as lkSetScreenShare,
+	updateScreenShareEncoding as lkUpdateScreenShareEncoding,
 	isCameraEnabled as lkIsCameraEnabled,
 	isScreenShareEnabled as lkIsScreenShareEnabled,
 	getVideoTracks,
@@ -15,7 +16,8 @@ import {
 	getParticipantVideoTrack as lkGetParticipantVideoTrack,
 	getParticipantScreenTrack as lkGetParticipantScreenTrack,
 	getSignalRtt,
-	type LiveKitCallbacks
+	type LiveKitCallbacks,
+	type ScreenSharePreset
 } from '$lib/voice/livekit.js';
 import { Track, ConnectionState } from 'livekit-client';
 
@@ -58,6 +60,7 @@ let videoTrackRevision = $state(0);
 let pttEnabled = $state(false);
 let pttKey = $state<string | null>(null);
 let pttActive = $state(false);
+let screenSharePreset = $state<ScreenSharePreset>('auto');
 
 // Latency polling
 let voiceLatencyMs = $state(0);
@@ -183,6 +186,14 @@ export function isPttActive(): boolean {
 
 export function getVoiceLatencyMs(): number {
 	return voiceLatencyMs;
+}
+
+export function getScreenSharePreset(): ScreenSharePreset {
+	return screenSharePreset;
+}
+
+export function setScreenSharePreset(preset: ScreenSharePreset) {
+	screenSharePreset = preset;
 }
 
 export function isServerMuted(): boolean {
@@ -421,11 +432,27 @@ export async function toggleCamera() {
 export async function toggleScreenShare() {
 	const newEnabled = !screenShareActive;
 	try {
-		await lkSetScreenShare(newEnabled);
+		await lkSetScreenShare(newEnabled, screenSharePreset);
 		screenShareActive = lkIsScreenShareEnabled();
 		updateVideoTrackState();
 	} catch {
 		console.warn('[Voice] Failed to toggle screen share');
+	}
+}
+
+export async function applyScreenSharePreset(preset: ScreenSharePreset) {
+	screenSharePreset = preset;
+	try {
+		if (screenShareActive) {
+			await lkUpdateScreenShareEncoding(preset);
+		} else {
+			await lkSetScreenShare(true, preset);
+			screenShareActive = lkIsScreenShareEnabled();
+			updateVideoTrackState();
+		}
+	} catch {
+		screenShareActive = lkIsScreenShareEnabled();
+		updateVideoTrackState();
 	}
 }
 

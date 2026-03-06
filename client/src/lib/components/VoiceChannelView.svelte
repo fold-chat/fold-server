@@ -17,10 +17,12 @@
 		toggleDeafen,
 		toggleCamera,
 		toggleScreenShare,
+		applyScreenSharePreset,
 		leaveCurrentVoice,
-		getVoiceLatencyMs
+		getVoiceLatencyMs,
+		getScreenSharePreset
 	} from '$lib/stores/voice.svelte.js';
-	import { getRoom, getVideoTracks, getLocalVideoTracks } from '$lib/voice/livekit.js';
+	import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, type ScreenSharePreset } from '$lib/voice/livekit.js';
 	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { Track } from 'livekit-client';
@@ -172,6 +174,16 @@
 	// --- Focus mode ---
 
 	let focusedTileId = $state<string | null>(null);
+	let showPresetMenu = $state(false);
+
+	$effect(() => {
+		if (!showPresetMenu) return;
+		function onDown(e: MouseEvent) {
+			if (!(e.target as HTMLElement).closest('.screen-share-group')) showPresetMenu = false;
+		}
+		document.addEventListener('mousedown', onDown);
+		return () => document.removeEventListener('mousedown', onDown);
+	});
 
 	const focusedScreen = $derived(
 		focusedTileId ? screenTiles.find((t) => t.id === focusedTileId) ?? null : null
@@ -278,6 +290,54 @@
 		};
 	}
 
+	// --- Screen resolution tracking ---
+
+	let screenResolutions = $state<Map<string, { width: number; height: number }>>(new Map());
+
+	function trackScreenRes(el: HTMLVideoElement, tileId: string) {
+		let id = tileId;
+		function onDims() {
+			if (el.videoWidth && el.videoHeight) {
+				const cur = screenResolutions.get(id);
+				if (!cur || cur.width !== el.videoWidth || cur.height !== el.videoHeight) {
+					screenResolutions = new Map(screenResolutions).set(id, { width: el.videoWidth, height: el.videoHeight });
+				}
+			}
+		}
+		el.addEventListener('loadedmetadata', onDims);
+		el.addEventListener('resize', onDims);
+		onDims();
+		const poll = setInterval(onDims, 2000);
+		return {
+			update(newId: string) {
+				if (newId !== id) {
+					const next = new Map(screenResolutions);
+					next.delete(id);
+					screenResolutions = next;
+					id = newId;
+				}
+				onDims();
+			},
+			destroy() {
+				el.removeEventListener('loadedmetadata', onDims);
+				el.removeEventListener('resize', onDims);
+				clearInterval(poll);
+				const next = new Map(screenResolutions);
+				next.delete(id);
+				screenResolutions = next;
+			}
+		};
+	}
+
+	function formatRes(w: number, h: number): string {
+		if (h >= 2160) return '4K';
+		if (h >= 1440) return '1440p';
+		if (h >= 1080) return '1080p';
+		if (h >= 720) return '720p';
+		if (h >= 480) return '480p';
+		return `${h}p`;
+	}
+
 	// --- Lobby join ---
 
 	async function handleJoin() {
@@ -316,7 +376,7 @@
 						<div class="fs-avatar-tile" class:has-video={!!fsTrack} class:speaking={isSpeaking(p.userId)} title={p.displayName}>
 							{#if fsTrack}
 								<!-- svelte-ignore a11y_media_has_caption -->
-								<video autoplay playsinline muted class="fs-avatar-video" use:attachVideo={fsTrack}></video>
+								<video autoplay playsinline muted class="fs-avatar-video" class:mirror={p.userId === getUser()?.id} use:attachVideo={fsTrack}></video>
 							{:else if p.avatarUrl}
 								<img class="fs-avatar" src={p.avatarUrl} alt="" />
 							{:else}
@@ -339,15 +399,18 @@
 				<div class="spotlight-layout">
 					<div class="focused-tile-wrap">
 						{#if focusedScreen}
+						{@const screenDims = screenResolutions.get(focusedScreen.id)}
 						<div class="focused-tile screen" data-fs-target>
 							<!-- svelte-ignore a11y_media_has_caption -->
-							<video autoplay playsinline muted={focusedScreen.isLocal} use:attachVideo={focusedScreen}></video>
+							<video autoplay playsinline muted={focusedScreen.isLocal} use:attachVideo={focusedScreen} use:trackScreenRes={focusedScreen.id}></video>
 							{#if isFullscreen}
+								{#if screenDims}<span class="fs-res-badge" title="{screenDims.width}×{screenDims.height}">{formatRes(screenDims.width, screenDims.height)}</span>{/if}
 								{@render fsParticipantStrip()}
 							{:else}
 								<div class="focused-overlay">
 									<span class="screen-name">{focusedScreen.displayName}</span>
 									<span class="screen-badge">{focusedScreen.isLocal ? 'Your Screen' : 'Screen'}</span>
+									{#if screenDims}<span class="screen-badge res-badge" title="{screenDims.width}×{screenDims.height}">{formatRes(screenDims.width, screenDims.height)}</span>{/if}
 									<button class="fs-btn" onclick={(e) => { e.stopPropagation(); enterFullscreen(e); }} title="Fullscreen (F)">
 										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 											<polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
@@ -371,7 +434,7 @@
 								<div class="focused-media">
 									{#if cTrack}
 										<!-- svelte-ignore a11y_media_has_caption -->
-										<video autoplay playsinline muted={fp.userId === getUser()?.id} class="focused-video" use:attachVideo={cTrack}></video>
+										<video autoplay playsinline muted={fp.userId === getUser()?.id} class="focused-video" class:mirror={fp.userId === getUser()?.id} use:attachVideo={cTrack}></video>
 									{:else}
 										<div class="focused-avatar-wrap">
 											{#if fp.avatarUrl}
@@ -430,7 +493,7 @@
 								<div class="thumb-media">
 									{#if thumbTrack}
 										<!-- svelte-ignore a11y_media_has_caption -->
-										<video autoplay playsinline muted class="thumb-video" use:attachVideo={thumbTrack}></video>
+										<video autoplay playsinline muted class="thumb-video" class:mirror={p.userId === getUser()?.id} use:attachVideo={thumbTrack}></video>
 									{:else if p.avatarUrl}
 										<img class="thumb-avatar" src={p.avatarUrl} alt="" />
 									{:else}
@@ -457,16 +520,19 @@
 			{#if screenTiles.length > 0}
 				<div class="screen-tiles">
 					{#each screenTiles as tile (tile.id)}
+						{@const tileDims = screenResolutions.get(tile.id)}
 						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<div class="screen-tile" data-fs-target onclick={() => toggleFocus(tile.id)}>
 							<!-- svelte-ignore a11y_media_has_caption -->
-							<video autoplay playsinline muted={tile.isLocal} use:attachVideo={tile}></video>
+							<video autoplay playsinline muted={tile.isLocal} use:attachVideo={tile} use:trackScreenRes={tile.id}></video>
 							{#if isFullscreen}
+								{#if tileDims}<span class="fs-res-badge" title="{tileDims.width}×{tileDims.height}">{formatRes(tileDims.width, tileDims.height)}</span>{/if}
 								{@render fsParticipantStrip()}
 							{:else}
 								<div class="screen-overlay">
 									<span class="screen-name">{tile.displayName}</span>
 									<span class="screen-badge">{tile.isLocal ? 'Your Screen' : 'Screen'}</span>
+									{#if tileDims}<span class="screen-badge res-badge" title="{tileDims.width}×{tileDims.height}">{formatRes(tileDims.width, tileDims.height)}</span>{/if}
 									<button class="fs-btn" onclick={(e) => { e.stopPropagation(); enterFullscreen(e); }} title="Fullscreen">
 										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
 											<polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" />
@@ -502,6 +568,7 @@
 										playsinline
 										muted={p.userId === getUser()?.id}
 										class="tile-video"
+										class:mirror={p.userId === getUser()?.id}
 										use:attachVideo={cameraTrack}
 									></video>
 								{:else}
@@ -608,18 +675,47 @@
 						</svg>
 					</button>
 
-					<button
-						class="ctrl-btn"
-						class:active={isScreenShareActive()}
-						title={isScreenShareActive() ? 'Stop sharing' : 'Share screen'}
-						onclick={toggleScreenShare}
-					>
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-							<rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-							<line x1="8" y1="21" x2="16" y2="21" />
-							<line x1="12" y1="17" x2="12" y2="21" />
-						</svg>
-					</button>
+					<div class="screen-share-group">
+						<button
+							class="ctrl-btn ss-main"
+							class:active={isScreenShareActive()}
+							title={isScreenShareActive() ? 'Stop sharing' : 'Share screen'}
+							onclick={toggleScreenShare}
+						>
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+								<rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+								<line x1="8" y1="21" x2="16" y2="21" />
+								<line x1="12" y1="17" x2="12" y2="21" />
+							</svg>
+						</button>
+						<button
+							class="ctrl-btn ss-chevron"
+							class:active={isScreenShareActive()}
+							title="Screen share quality"
+							onclick={() => (showPresetMenu = !showPresetMenu)}
+						>
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+								<polyline points="6 9 12 15 18 9" />
+							</svg>
+						</button>
+						{#if showPresetMenu}
+						<div class="preset-menu">
+								{#each Object.entries(SCREEN_SHARE_PRESETS) as [key, preset]}
+									<button
+										class="preset-item"
+										class:selected={getScreenSharePreset() === key}
+										onclick={() => { applyScreenSharePreset(key as ScreenSharePreset); showPresetMenu = false; }}
+									>
+										<span class="preset-label">{preset.label}</span>
+										<span class="preset-desc">{preset.desc}</span>
+										{#if preset.warn}
+											<span class="preset-warn">⚠ {preset.warn}</span>
+										{/if}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
 				{/if}
 
 				<button
@@ -783,6 +879,28 @@
 		color: white;
 		padding: 0.1rem 0.35rem;
 		border-radius: 3px;
+	}
+
+	video.mirror {
+		transform: scaleX(-1);
+	}
+
+	.res-badge {
+		background: rgba(46, 204, 113, 0.3);
+		font-variant-numeric: tabular-nums;
+	}
+
+	.fs-res-badge {
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		font-size: 0.6rem;
+		background: rgba(0, 0, 0, 0.6);
+		color: white;
+		padding: 2px 6px;
+		border-radius: 3px;
+		z-index: 2;
+		font-variant-numeric: tabular-nums;
 	}
 
 	/* Participant grid */
@@ -980,6 +1098,74 @@
 	.disconnect-btn:hover:not(:disabled) {
 		background: rgba(231, 76, 60, 0.15);
 		color: var(--danger, #e74c3c);
+	}
+
+	/* Screen share split button */
+
+	.screen-share-group {
+		position: relative;
+		display: flex;
+	}
+
+	.ss-main {
+		border-radius: 6px 0 0 6px;
+		border-right: none;
+	}
+
+	.ss-chevron {
+		border-radius: 0 6px 6px 0;
+		padding: 0.45rem 0.25rem;
+	}
+
+	.preset-menu {
+		position: absolute;
+		bottom: calc(100% + 6px);
+		right: 0;
+		background: var(--bg-surface, #2b2d31);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		padding: 4px;
+		min-width: 200px;
+		z-index: 20;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	}
+
+	.preset-item {
+		width: 100%;
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		padding: 6px 10px;
+		border: none;
+		background: none;
+		color: var(--text);
+		cursor: pointer;
+		border-radius: 4px;
+		text-align: left;
+	}
+
+	.preset-item:hover {
+		background: var(--bg-hover, rgba(255, 255, 255, 0.06));
+	}
+
+	.preset-item.selected {
+		background: rgba(88, 101, 242, 0.15);
+	}
+
+	.preset-label {
+		font-size: 0.8rem;
+		font-weight: 500;
+	}
+
+	.preset-desc {
+		font-size: 0.65rem;
+		color: var(--text-muted);
+	}
+
+	.preset-warn {
+		font-size: 0.6rem;
+		color: var(--warning, #f0a020);
+		line-height: 1.3;
 	}
 
 	/* ── Joining overlay ── */
@@ -1187,6 +1373,7 @@
 		border: 2px solid transparent;
 		transition: border-color 0.1s, box-shadow 0.15s;
 		width: 100%;
+		max-width: 50rem;
 	}
 
 	.focused-tile.participant.speaking {
