@@ -4,9 +4,12 @@
 	import { getVoiceModeration, setServerMuteGlobal, clearServerMute, setServerDeafGlobal, clearServerDeaf, type VoiceModeration } from '$lib/api/voice.js';
 	import { getRolesList } from '$lib/stores/roles.svelte.js';
 	import { hasServerPermission, getUser } from '$lib/stores/auth.svelte.js';
+	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import type { ApiError } from '$lib/api/client.js';
 	import { onMount } from 'svelte';
+
+	const PAGE_SIZE = 10;
 
 	let members = $state<Member[]>([]);
 	let moderation = $state<Map<string, VoiceModeration>>(new Map());
@@ -16,11 +19,49 @@
 	let confirmAction = $state<{ type: 'ban' | 'unban'; member: Member } | null>(null);
 	let banReason = $state('');
 
+	// Filters
+	let search = $state('');
+	let roleFilter = $state('');
+	let bannedFilter = $state<'all' | 'active' | 'banned'>('all');
+	let currentPage = $state(1);
+
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
 	const canBan = $derived(hasServerPermission(PermissionName.BAN_MEMBERS));
 	const canMute = $derived(hasServerPermission(PermissionName.MUTE_MEMBERS));
 	const canDeafen = $derived(hasServerPermission(PermissionName.DEAFEN_MEMBERS));
+	const canEdit = $derived(canManageRoles || canMute || canDeafen || canBan);
 	const currentUser = $derived(getUser());
+
+	const filteredMembers = $derived.by(() => {
+		let result = members;
+		const q = search.toLowerCase().trim();
+		if (q) {
+			result = result.filter(m =>
+				m.username.toLowerCase().includes(q) ||
+				(m.display_name?.toLowerCase().includes(q) ?? false)
+			);
+		}
+		if (roleFilter) {
+			result = result.filter(m => parseMemberRoles(m).some(r => r.id === roleFilter));
+		}
+		if (bannedFilter === 'active') {
+			result = result.filter(m => !isBanned(m));
+		} else if (bannedFilter === 'banned') {
+			result = result.filter(m => isBanned(m));
+		}
+		return result;
+	});
+
+	const totalPages = $derived(Math.max(1, Math.ceil(filteredMembers.length / PAGE_SIZE)));
+	const pageMembers = $derived(filteredMembers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE));
+	const showingFrom = $derived(filteredMembers.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1);
+	const showingTo = $derived(Math.min(currentPage * PAGE_SIZE, filteredMembers.length));
+
+	// Reset page when filters change
+	$effect(() => {
+		search; roleFilter; bannedFilter;
+		currentPage = 1;
+	});
 
 	async function loadModeration() {
 		try {
@@ -125,6 +166,25 @@
 		return member.banned_at != null;
 	}
 
+	function formatDate(dateStr: string): string {
+		try {
+			const d = new Date(dateStr + 'Z');
+			return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+		} catch {
+			return dateStr;
+		}
+	}
+
+	function formatDateTime(dateStr: string): string {
+		try {
+			const d = new Date(dateStr + 'Z');
+			return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+				+ ' at ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+		} catch {
+			return dateStr;
+		}
+	}
+
 	function joinMethodLabel(method: string | null): string {
 		switch (method) {
 			case 'invite': return 'Invite';
@@ -180,6 +240,10 @@
 			banReason = '';
 		}
 	}
+
+	function toggleEdit(memberId: string) {
+		editingMember = editingMember === memberId ? null : memberId;
+	}
 </script>
 
 <div class="settings-card">
@@ -187,44 +251,78 @@
 		<h1>Members</h1>
 	</div>
 
-		{#if error}
-			<div class="error-message">{error}</div>
-		{/if}
+	{#if error}
+		<div class="error-message">{error}</div>
+	{/if}
 
-		{#if loading}
-			<p class="muted">Loading...</p>
-		{:else}
-			<div class="member-list">
-				{#each members as member}
-					<div class="member-item" class:banned={isBanned(member)} title={isBanned(member) ? banTooltip(member) : ''}>
-						<div class="member-info">
-							{#if member.avatar_url}
-								<img src={member.avatar_url} alt="" class="avatar" class:banned-avatar={isBanned(member)} />
-							{:else}
-								<div class="avatar placeholder" class:banned-avatar={isBanned(member)}>{member.username.charAt(0).toUpperCase()}</div>
-							{/if}
-							<div class="member-details">
-								<span class="member-name" class:banned-text={isBanned(member)}>
-									{member.display_name || member.username}
-								{#if isBanned(member)}
-										<span class="banned-badge">Banned</span>
+	{#if loading}
+		<p class="muted">Loading...</p>
+	{:else}
+		<div class="toolbar">
+			<input
+				type="text"
+				class="search-input"
+				placeholder="Search members..."
+				bind:value={search}
+			/>
+			<select class="filter-select" bind:value={roleFilter}>
+				<option value="">All Roles</option>
+				{#each getRolesList() as role}
+					<option value={role.id}>{role.name}</option>
+				{/each}
+			</select>
+			{#if canBan}
+				<select class="filter-select" bind:value={bannedFilter}>
+					<option value="all">All</option>
+					<option value="active">Active</option>
+					<option value="banned">Banned</option>
+				</select>
+			{/if}
+		</div>
+
+		<table class="members-table">
+			<thead>
+				<tr>
+					<th class="col-user">User</th>
+					<th class="col-joined">Joined</th>
+					<th class="col-roles">Roles</th>
+					{#if canEdit}
+						<th class="col-edit"></th>
+					{/if}
+				</tr>
+			</thead>
+			<tbody>
+				{#each pageMembers as member}
+					<tr class="member-row" class:banned={isBanned(member)} title={isBanned(member) ? banTooltip(member) : ''}>
+						<td class="col-user">
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div class="user-cell" onclick={() => openMemberProfile(member.id)}>
+								{#if member.avatar_url}
+									<img src={member.avatar_url} alt="" class="avatar" class:banned-avatar={isBanned(member)} />
+								{:else}
+									<div class="avatar placeholder" class:banned-avatar={isBanned(member)}>{member.username.charAt(0).toUpperCase()}</div>
+								{/if}
+								<div class="user-info">
+									<span class="member-name" class:banned-text={isBanned(member)}>
+										{member.display_name || member.username}
+										{#if isBanned(member)}
+											<span class="banned-badge">Banned</span>
+										{/if}
+									</span>
+									{#if member.display_name}
+										<span class="member-username">@{member.username}</span>
 									{/if}
-									{#if isServerMuted(member)}
-										<span class="mod-badge muted-badge">Server Muted</span>
-									{/if}
-									{#if isServerDeafened(member)}
-										<span class="mod-badge deafened-badge">Server Deafened</span>
-									{/if}
-								</span>
-							{#if member.display_name}
-								<span class="member-username">@{member.username}</span>
-							{/if}
-							<span class="join-badge" class:join-invite={member.join_method === 'invite'} class:join-setup={member.join_method === 'setup'} title={joinMethodTooltip(member)}>
-								{joinMethodLabel(member.join_method)}
-							</span>
+								</div>
 							</div>
+						</td>
+						<td class="col-joined">
+							<span class="joined-date">{formatDate(member.created_at)}</span>
+							<span class="join-method" title={joinMethodTooltip(member)}>{joinMethodLabel(member.join_method)}</span>
+						</td>
+						<td class="col-roles">
 							{#if !isBanned(member)}
-								<div class="member-roles">
+								<div class="roles-cell">
 									{#each parseMemberRoles(member) as role}
 										<span class="role-chip" style="border-color: {role.color || '#99aab5'}">
 											<span class="role-dot" style="background: {role.color || '#99aab5'}"></span>
@@ -233,61 +331,113 @@
 									{/each}
 								</div>
 							{/if}
-							<div class="member-actions">
-								{#if !isBanned(member) && canManageRoles}
-									<button class="btn-sm" onclick={() => (editingMember = editingMember === member.id ? null : member.id)}>
-										{editingMember === member.id ? 'Close' : 'Roles'}
-									</button>
-								{/if}
-								{#if !isBanned(member) && currentUser?.id !== member.id}
-									{#if canMute}
-										<button class="btn-sm" class:btn-active={isServerMuted(member)} onclick={() => handleToggleMute(member)}>
-											{isServerMuted(member) ? 'Unmute' : 'Mute'}
-										</button>
-									{/if}
-									{#if canDeafen}
-										<button class="btn-sm" class:btn-active={isServerDeafened(member)} onclick={() => handleToggleDeafen(member)}>
-											{isServerDeafened(member) ? 'Undeafen' : 'Deafen'}
-										</button>
-									{/if}
-								{/if}
-								{#if !isOwner(member) && currentUser?.id !== member.id && canBan}
-									{#if isBanned(member)}
-										<button class="btn-sm" onclick={() => promptUnban(member)}>Unban</button>
-									{:else}
-										<button class="btn-sm btn-danger" onclick={() => promptBan(member)}>Ban</button>
-									{/if}
-								{/if}
-							</div>
-						</div>
-
-						{#if editingMember === member.id && canManageRoles}
-							<div class="role-editor">
-								{#each getRolesList() as role}
-									{#if role.id !== 'owner'}
-										<label class="role-toggle">
-											<input
-												type="checkbox"
-												checked={memberHasRole(member, role.id)}
-												onchange={() => {
-													if (memberHasRole(member, role.id)) {
-														handleRemove(member.id, role.id);
-													} else {
-														handleAssign(member.id, role.id);
-													}
-												}}
-											/>
-											<span class="role-dot" style="background: {role.color || '#99aab5'}"></span>
-											{role.name}
-										</label>
-									{/if}
-								{/each}
-							</div>
+						</td>
+						{#if canEdit}
+							<td class="col-edit">
+								<button class="edit-btn" class:active={editingMember === member.id} onclick={() => toggleEdit(member.id)} title="Edit member">
+									<span class="material-symbols-outlined">edit</span>
+								</button>
+							</td>
 						{/if}
-					</div>
+					</tr>
+					{#if editingMember === member.id}
+						<tr class="expand-row">
+							<td colspan={canEdit ? 4 : 3}>
+								<div class="edit-panel">
+									{#if canManageRoles && !isBanned(member)}
+										<div class="edit-group">
+											<div class="edit-group-label">Roles</div>
+											<div class="edit-roles">
+												{#each getRolesList() as role}
+													{#if role.id !== 'owner'}
+														<label class="edit-role-item">
+															<input
+																type="checkbox"
+																checked={memberHasRole(member, role.id)}
+																onchange={() => {
+																	if (memberHasRole(member, role.id)) {
+																		handleRemove(member.id, role.id);
+																	} else {
+																		handleAssign(member.id, role.id);
+																	}
+																}}
+															/>
+															<span class="edit-role-dot" style="background: {role.color || '#99aab5'}"></span>
+															<span class="edit-role-name">{role.name}</span>
+														</label>
+													{/if}
+												{/each}
+											</div>
+										</div>
+									{/if}
+									{#if !isBanned(member) && currentUser?.id !== member.id && (canMute || canDeafen)}
+										<div class="edit-group">
+											<div class="edit-group-label">Voice Moderation</div>
+											<div class="edit-btn-row">
+												{#if canMute}
+													<button class="btn-sm" class:btn-active={isServerMuted(member)} onclick={() => handleToggleMute(member)}>
+														{isServerMuted(member) ? 'Unmute' : 'Server Mute'}
+													</button>
+												{/if}
+												{#if canDeafen}
+													<button class="btn-sm" class:btn-active={isServerDeafened(member)} onclick={() => handleToggleDeafen(member)}>
+														{isServerDeafened(member) ? 'Undeafen' : 'Server Deafen'}
+													</button>
+												{/if}
+											</div>
+										</div>
+									{/if}
+									{#if isBanned(member) && canBan}
+										<div class="edit-group">
+											<div class="edit-group-label">Ban Info</div>
+											<div class="ban-info">
+												{#if member.banned_at}
+													<div class="ban-info-row"><span class="ban-info-label">Banned</span> {formatDateTime(member.banned_at)}</div>
+												{/if}
+												{#if member.banned_by_username}
+													<div class="ban-info-row"><span class="ban-info-label">By</span> {member.banned_by_username}</div>
+												{/if}
+												{#if member.ban_reason}
+													<div class="ban-info-row"><span class="ban-info-label">Reason</span> {member.ban_reason}</div>
+												{:else}
+													<div class="ban-info-row"><span class="ban-info-label">Reason</span> <span class="ban-info-none">No reason given</span></div>
+												{/if}
+											</div>
+										</div>
+									{/if}
+									{#if !isOwner(member) && currentUser?.id !== member.id && canBan}
+										<div class="edit-group">
+											<div class="edit-btn-row">
+												{#if isBanned(member)}
+													<button class="btn-sm" onclick={() => promptUnban(member)}>Unban</button>
+												{:else}
+													<button class="btn-sm btn-danger" onclick={() => promptBan(member)}>Ban</button>
+												{/if}
+											</div>
+										</div>
+									{/if}
+								</div>
+							</td>
+						</tr>
+					{/if}
 				{/each}
+			</tbody>
+		</table>
+
+		<div class="pagination">
+			<span class="pagination-info">
+				{#if filteredMembers.length > 0}
+					Showing {showingFrom} to {showingTo} of {filteredMembers.length} members
+				{:else}
+					No members found
+				{/if}
+			</span>
+			<div class="pagination-buttons">
+				<button class="btn-sm" disabled={currentPage <= 1} onclick={() => currentPage--}>Previous</button>
+				<button class="btn-sm" disabled={currentPage >= totalPages} onclick={() => currentPage++}>Next</button>
 			</div>
-		{/if}
+		</div>
+	{/if}
 </div>
 
 {#if confirmAction}
@@ -316,25 +466,96 @@
 {/if}
 
 <style>
-	.member-list {
+	/* Toolbar */
+	.toolbar {
 		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
+		gap: 0.5rem;
+		margin-bottom: 1rem;
+		flex-wrap: wrap;
 	}
 
-	.member-item {
+	.search-input {
+		flex: 1;
+		min-width: 150px;
+		padding: 0.4rem 0.6rem;
+		background: var(--bg);
+		border: 1px solid var(--border);
 		border-radius: 4px;
-		padding: 0.5rem 0.75rem;
+		color: var(--text);
+		font-size: 0.85rem;
+		font-family: inherit;
 	}
 
-	.member-item:hover {
+	.search-input::placeholder {
+		color: var(--text-muted);
+	}
+
+	.filter-select {
+		padding: 0.4rem 0.6rem;
+		background: var(--bg);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		color: var(--text);
+		font-size: 0.85rem;
+		font-family: inherit;
+		cursor: pointer;
+	}
+
+	/* Table */
+	.members-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.85rem;
+	}
+
+	.members-table thead th {
+		text-align: left;
+		font-size: 0.7rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-muted);
+		padding: 0.5rem 0.5rem;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.members-table tbody td {
+		padding: 0.5rem;
+		vertical-align: middle;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+	}
+
+	.member-row:hover {
 		background: var(--bg-hover, rgba(255, 255, 255, 0.03));
 	}
 
-	.member-info {
+	.col-user {
+		width: 35%;
+	}
+
+	.col-joined {
+		width: 20%;
+	}
+
+	.col-roles {
+		width: 35%;
+	}
+
+	.col-edit {
+		width: 10%;
+		text-align: center;
+	}
+
+	/* User cell */
+	.user-cell {
 		display: flex;
 		align-items: center;
-		gap: 0.75rem;
+		gap: 0.6rem;
+		cursor: pointer;
+	}
+
+	.user-cell:hover .member-name {
+		color: var(--accent, #5865f2);
 	}
 
 	.avatar {
@@ -355,27 +576,43 @@
 		font-weight: 600;
 	}
 
-	.member-details {
+	.user-info {
 		display: flex;
 		flex-direction: column;
-		min-width: 120px;
+		min-width: 0;
 	}
 
 	.member-name {
 		font-weight: 500;
-		font-size: 0.875rem;
+		font-size: 0.85rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 
 	.member-username {
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: var(--text-muted);
 	}
 
-	.member-roles {
+	/* Joined column */
+	.joined-date {
+		display: block;
+		font-size: 0.8rem;
+	}
+
+	.join-method {
+		display: block;
+		font-size: 0.65rem;
+		color: var(--text-muted);
+		cursor: default;
+	}
+
+	/* Roles column */
+	.roles-cell {
 		display: flex;
-		gap: 0.35rem;
+		gap: 0.3rem;
 		flex-wrap: wrap;
-		flex: 1;
 	}
 
 	.role-chip {
@@ -396,31 +633,170 @@
 		flex-shrink: 0;
 	}
 
-	.role-editor {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-		margin-top: 0.5rem;
-		padding: 0.5rem;
-		background: var(--bg, rgba(0, 0, 0, 0.2));
+	/* Edit button */
+	.edit-btn {
+		background: none;
+		border: 1px solid var(--border);
 		border-radius: 4px;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 0.2rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 	}
 
-	.role-toggle {
+	.edit-btn:hover,
+	.edit-btn.active {
+		color: var(--text);
+		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+	}
+
+	.edit-btn .material-symbols-outlined {
+		font-size: 16px;
+	}
+
+	/* Edit panel (expand row) */
+	.expand-row td {
+		padding: 0 !important;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.edit-panel {
+		padding: 0.75rem 1rem;
+		background: var(--bg, rgba(0, 0, 0, 0.2));
+		border-top: 1px solid var(--border);
+	}
+
+	.edit-group {
+		margin-bottom: 0.75rem;
+	}
+
+	.edit-group:last-child {
+		margin-bottom: 0;
+	}
+
+	.edit-group-label {
+		font-size: 0.7rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--text-muted);
+		margin-bottom: 0.4rem;
+	}
+
+	.edit-roles {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+		gap: 0.4rem 1rem;
+	}
+
+	.edit-role-item {
 		display: flex;
 		align-items: center;
-		gap: 0.35rem;
+		gap: 0.4rem;
 		font-size: 0.8rem;
 		cursor: pointer;
+		white-space: nowrap;
 	}
 
-	.member-actions {
-		display: flex;
-		gap: 0.35rem;
-		align-items: center;
+	.edit-role-item input[type='checkbox'] {
+		width: auto;
 		flex-shrink: 0;
 	}
 
+	.edit-role-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		flex-shrink: 0;
+	}
+
+	.edit-role-name {
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.edit-btn-row {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		align-items: center;
+	}
+
+	.ban-info {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		font-size: 0.8rem;
+	}
+
+	.ban-info-row {
+		color: var(--text);
+	}
+
+	.ban-info-label {
+		color: var(--text-muted);
+		margin-right: 0.35rem;
+	}
+
+	.ban-info-none {
+		color: var(--text-muted);
+		font-style: italic;
+	}
+
+	/* Pagination */
+	.pagination {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+	}
+
+	.pagination-info {
+		font-size: 0.8rem;
+		color: var(--text-muted);
+	}
+
+	.pagination-buttons {
+		display: flex;
+		gap: 0.35rem;
+	}
+
+	/* Banned states */
+	.banned {
+		opacity: 0.55;
+	}
+
+	.banned:hover {
+		opacity: 0.8;
+	}
+
+	.banned-text {
+		color: var(--text-muted) !important;
+	}
+
+	.banned-avatar {
+		filter: grayscale(100%);
+	}
+
+	.banned-badge {
+		font-size: 0.6rem;
+		color: #e74c3c;
+		background: rgba(231, 76, 60, 0.15);
+		padding: 0.05rem 0.3rem;
+		border-radius: 3px;
+		margin-left: 0.3rem;
+		font-weight: 500;
+	}
+
+	.btn-active {
+		color: #e67e22;
+		border-color: rgba(230, 126, 34, 0.4);
+	}
+
+	/* Modal */
 	.modal-overlay {
 		position: fixed;
 		inset: 0;
@@ -477,75 +853,4 @@
 		justify-content: flex-end;
 		gap: 0.5rem;
 	}
-
-	.banned {
-		opacity: 0.55;
-	}
-
-	.banned:hover {
-		opacity: 0.8;
-	}
-
-	.banned-text {
-		color: var(--text-muted) !important;
-	}
-
-	.banned-avatar {
-		filter: grayscale(100%);
-	}
-
-	.banned-badge {
-		font-size: 0.65rem;
-		color: #e74c3c;
-		background: rgba(231, 76, 60, 0.15);
-		padding: 0.05rem 0.3rem;
-		border-radius: 3px;
-		margin-left: 0.35rem;
-		font-weight: 500;
-	}
-
-	.mod-badge {
-		font-size: 0.6rem;
-		padding: 0.05rem 0.3rem;
-		border-radius: 3px;
-		margin-left: 0.35rem;
-		font-weight: 500;
-	}
-
-	.muted-badge {
-		color: #e67e22;
-		background: rgba(230, 126, 34, 0.15);
-	}
-
-	.deafened-badge {
-		color: #e74c3c;
-		background: rgba(231, 76, 60, 0.15);
-	}
-
-	.btn-active {
-		color: #e67e22;
-		border-color: rgba(230, 126, 34, 0.4);
-	}
-
-	.join-badge {
-		font-size: 0.6rem;
-		color: var(--text-muted);
-		background: rgba(255, 255, 255, 0.05);
-		padding: 0.05rem 0.35rem;
-		border-radius: 3px;
-		margin-left: 0.35rem;
-		font-weight: 500;
-		cursor: default;
-	}
-
-	.join-badge.join-invite {
-		color: #3498db;
-		background: rgba(52, 152, 219, 0.12);
-	}
-
-	.join-badge.join-setup {
-		color: #f39c12;
-		background: rgba(243, 156, 18, 0.12);
-	}
-
 </style>
