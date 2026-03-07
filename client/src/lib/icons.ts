@@ -21,9 +21,21 @@ export const ICON_GROUPS: IconGroup[] = [
 		icons: ['code', 'terminal', 'bug_report', 'build', 'science', 'data_object']
 	},
 	{
-		label: 'Fun',
+		label: 'Gaming',
 		icons: [
 			'sports_esports',
+			'stadia_controller',
+			'casino',
+			'extension',
+			'token',
+			'sword_rose',
+			'strategy',
+			'trophy'
+		]
+	},
+	{
+		label: 'Fun',
+		icons: [
 			'local_cafe',
 			'restaurant',
 			'palette',
