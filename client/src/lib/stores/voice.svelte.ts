@@ -1,5 +1,5 @@
 import type { VoiceState } from '$lib/api/voice.js';
-import { getVoiceToken, leaveVoice as leaveVoiceApi, leaveVoiceBeacon, updateVoiceState as updateVoiceStateApi } from '$lib/api/voice.js';
+import { getVoiceToken, leaveVoice as leaveVoiceApi, leaveVoiceBeacon, updateVoiceState as updateVoiceStateApi, serverUnmute, serverUndeafen } from '$lib/api/voice.js';
 import { getUser } from '$lib/stores/auth.svelte.js';
 import {
 	connectToRoom,
@@ -406,8 +406,17 @@ export async function leaveCurrentVoice() {
 	currentEncryptionKey = null;
 }
 
-export async function toggleMute() {
-	if (serverMuted) return; // server-muted — cannot override
+export async function toggleMute(canMuteMembers = false) {
+	if (serverMuted) {
+		if (!canMuteMembers || !currentVoiceChannelId) return;
+		// Privileged user lifts their own server mute
+		const me = getUser();
+		if (!me) return;
+		try {
+			await serverUnmute(currentVoiceChannelId, me.id);
+		} catch { /* ignore */ }
+		return;
+	}
 	const newMuted = !localAudioMuted;
 	localAudioMuted = newMuted;
 	try {
@@ -419,8 +428,16 @@ export async function toggleMute() {
 	}
 }
 
-export async function toggleDeafen() {
-	if (serverDeafened) return; // server-deafened — cannot override
+export async function toggleDeafen(canDeafenMembers = false) {
+	if (serverDeafened) {
+		if (!canDeafenMembers || !currentVoiceChannelId) return;
+		const me = getUser();
+		if (!me) return;
+		try {
+			await serverUndeafen(currentVoiceChannelId, me.id);
+		} catch { /* ignore */ }
+		return;
+	}
 	const newDeafened = !localDeafened;
 	localDeafened = newDeafened;
 	if (newDeafened && !localAudioMuted) {

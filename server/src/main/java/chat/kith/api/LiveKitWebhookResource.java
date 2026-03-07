@@ -1,8 +1,10 @@
 package chat.kith.api;
 
+import chat.kith.db.VoiceModerationRepository;
 import chat.kith.db.VoiceStateRepository;
 import chat.kith.event.*;
 import chat.kith.service.LiveKitService;
+import livekit.LivekitModels;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.livekit.server.WebhookReceiver;
 import jakarta.inject.Inject;
@@ -25,6 +27,7 @@ public class LiveKitWebhookResource {
 
     @Inject LiveKitService liveKitService;
     @Inject VoiceStateRepository voiceStateRepo;
+    @Inject VoiceModerationRepository voiceModerationRepo;
     @Inject EventBus eventBus;
 
     @POST
@@ -87,6 +90,7 @@ public class LiveKitWebhookResource {
             case "participant_joined" -> {
                 if (userId != null) {
                     voiceStateRepo.upsert(userId, channelId, 0, 0);
+                    applyPersistentModeration(userId, channelId);
                     publishVoiceStates(channelId);
                 }
             }
@@ -125,6 +129,7 @@ public class LiveKitWebhookResource {
 
         // Single source of truth — voice state is created when user actually connects
         voiceStateRepo.upsert(userId, channelId, 0, 0);
+        applyPersistentModeration(userId, channelId);
         publishVoiceStates(channelId);
     }
 
@@ -149,6 +154,41 @@ public class LiveKitWebhookResource {
         String channelId = roomName.substring("voice-".length());
         voiceStateRepo.deleteByChannel(channelId);
         publishVoiceStates(channelId);
+    }
+
+    /** Re-apply persistent server mute/deafen when a user joins a voice channel */
+    private void applyPersistentModeration(String userId, String channelId) {
+        var mod = voiceModerationRepo.findByUser(userId);
+        if (mod.isEmpty()) return;
+        boolean muted = ((Long) mod.get().get("server_mute")).intValue() != 0;
+        boolean deaf = ((Long) mod.get().get("server_deaf")).intValue() != 0;
+        if (!muted && !deaf) return;
+
+        if (muted) voiceStateRepo.setServerMute(userId, channelId, true);
+        if (deaf) voiceStateRepo.setServerDeaf(userId, channelId, true);
+
+        // Best-effort LiveKit enforcement
+        String roomName = "voice-" + channelId;
+        try {
+            if (muted) {
+                var participant = liveKitService.getParticipant(roomName, userId);
+                for (var track : participant.getTracksList()) {
+                    if (track.getType() == LivekitModels.TrackType.AUDIO) {
+                        liveKitService.muteTrack(roomName, userId, track.getSid(), true);
+                        break;
+                    }
+                }
+            }
+            if (deaf) {
+                var perm = LivekitModels.ParticipantPermission.newBuilder()
+                        .setCanSubscribe(false)
+                        .setCanPublish(true)
+                        .build();
+                liveKitService.updateParticipant(roomName, userId, perm);
+            }
+        } catch (Exception e) {
+            LOG.debugf("LiveKit moderation re-apply for %s: %s", userId, e.getMessage());
+        }
     }
 
     private void publishVoiceStates(String channelId) {

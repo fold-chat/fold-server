@@ -22,9 +22,10 @@
 		getVoiceLatencyMs,
 		getScreenSharePreset
 	} from '$lib/stores/voice.svelte.js';
-	import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, type ScreenSharePreset } from '$lib/voice/livekit.js';
+import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, type ScreenSharePreset } from '$lib/voice/livekit.js';
 	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
+	import { serverMute, serverUnmute, serverDeafen, serverUndeafen, disconnectUser } from '$lib/api/voice.js';
 	import { goto } from '$app/navigation';
 	import { Track } from 'livekit-client';
 
@@ -33,6 +34,8 @@
 	const isConnected = $derived(getCurrentVoiceChannelId() === channelId);
 	const isJoining = $derived(getJoiningChannelId() === channelId && !isConnected);
 	const canVideo = $derived(hasChannelPermission(channelId, PermissionName.VIDEO));
+	const canMuteMembers = $derived(hasChannelPermission(channelId, PermissionName.MUTE_MEMBERS));
+	const canDeafenMembers = $derived(hasChannelPermission(channelId, PermissionName.DEAFEN_MEMBERS));
 	const voiceUsers = $derived(getVoiceStatesForChannel(channelId));
 
 	// --- Participant list for connected grid ---
@@ -43,6 +46,8 @@
 		avatarUrl: string | null;
 		isMuted: boolean;
 		isDeafened: boolean;
+		serverMute: boolean;
+		serverDeaf: boolean;
 	}
 
 	const participants = $derived.by((): ParticipantInfo[] => {
@@ -53,7 +58,9 @@
 			displayName: s.display_name || s.username,
 			avatarUrl: s.avatar_url,
 			isMuted: s.self_mute || s.server_mute,
-			isDeafened: s.self_deaf || s.server_deaf
+			isDeafened: s.self_deaf || s.server_deaf,
+			serverMute: s.server_mute,
+			serverDeaf: s.server_deaf
 		}));
 		// Local user fallback — webhook voice_state may lag behind LiveKit connection
 		if (isConnected && user && !vs.some((s) => s.user_id === user.id)) {
@@ -62,11 +69,35 @@
 				displayName: user.display_name || user.username,
 				avatarUrl: user.avatar_url,
 				isMuted: isLocalAudioMuted() || isServerMuted(),
-				isDeafened: isLocalDeafened() || isServerDeafened()
+				isDeafened: isLocalDeafened() || isServerDeafened(),
+				serverMute: isServerMuted(),
+				serverDeaf: isServerDeafened()
 			});
 		}
 		return list;
 	});
+
+	// --- Moderation actions ---
+
+	const canModerate = $derived(canMuteMembers || canDeafenMembers);
+
+	async function doServerMute(p: ParticipantInfo) {
+		try {
+			if (p.serverMute) await serverUnmute(channelId, p.userId);
+			else await serverMute(channelId, p.userId);
+		} catch { /* ignore */ }
+	}
+
+	async function doServerDeafen(p: ParticipantInfo) {
+		try {
+			if (p.serverDeaf) await serverUndeafen(channelId, p.userId);
+			else await serverDeafen(channelId, p.userId);
+		} catch { /* ignore */ }
+	}
+
+	async function doDisconnect(p: ParticipantInfo) {
+		try { await disconnectUser(channelId, p.userId); } catch { /* ignore */ }
+	}
 
 	const gridClass = $derived.by(() => {
 		const n = participants.length;
@@ -584,6 +615,40 @@
 									</div>
 								{/if}
 							</div>
+							{#if canModerate && p.userId !== getUser()?.id}
+								<div class="tile-mod-overlay">
+									{#if canMuteMembers}
+										<button class="mod-btn" class:active={p.serverMute} title={p.serverMute ? 'Server Unmute' : 'Server Mute'} onclick={(e) => { e.stopPropagation(); doServerMute(p); }}>
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+												{#if p.serverMute}
+													<line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+												{:else}
+													<path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" /><path d="M19 10v2a7 7 0 01-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
+												{/if}
+											</svg>
+										</button>
+									{/if}
+									{#if canDeafenMembers}
+										<button class="mod-btn" class:active={p.serverDeaf} title={p.serverDeaf ? 'Server Undeafen' : 'Server Deafen'} onclick={(e) => { e.stopPropagation(); doServerDeafen(p); }}>
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+												{#if p.serverDeaf}
+													<line x1="1" y1="1" x2="23" y2="23" /><path d="M3 12v6a9 9 0 009 3M21 12v6" /><path d="M3 14h2a2 2 0 012 2v2a2 2 0 01-2 2H3v-6zM21 14h-2a2 2 0 00-2 2v2a2 2 0 002 2h2v-6z" />
+												{:else}
+													<path d="M3 18v-6a9 9 0 0118 0v6" /><path d="M3 14h2a2 2 0 012 2v2a2 2 0 01-2 2H3v-6zM21 14h-2a2 2 0 00-2 2v2a2 2 0 002 2h2v-6z" />
+												{/if}
+											</svg>
+										</button>
+									{/if}
+									{#if canMuteMembers}
+										<button class="mod-btn danger" title="Disconnect" onclick={(e) => { e.stopPropagation(); doDisconnect(p); }}>
+											<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+												<path d="M10.68 13.31a16 16 0 003.41 2.6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7 2 2 0 011.72 2v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91" />
+												<line x1="23" y1="1" x2="1" y2="23" />
+											</svg>
+										</button>
+									{/if}
+								</div>
+							{/if}
 						<div class="tile-footer">
 							<span class="tile-name">{p.displayName}</span>
 							{#if screenShareUserIds.has(p.userId)}
@@ -617,10 +682,10 @@
 				<button
 					class="ctrl-btn"
 					class:active={isLocalAudioMuted() || isServerMuted()}
-					class:server-enforced={isServerMuted()}
-					title={isServerMuted() ? 'Server muted' : isLocalAudioMuted() ? 'Unmute' : 'Mute'}
-					onclick={toggleMute}
-					disabled={isServerMuted()}
+					class:server-enforced={isServerMuted() && !canMuteMembers}
+					title={isServerMuted() ? (canMuteMembers ? 'Remove server mute' : 'Server muted') : isLocalAudioMuted() ? 'Unmute' : 'Mute'}
+					onclick={() => toggleMute(canMuteMembers)}
+					disabled={isServerMuted() && !canMuteMembers}
 				>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
 						{#if isLocalAudioMuted()}
@@ -641,10 +706,10 @@
 				<button
 					class="ctrl-btn"
 					class:active={isLocalDeafened() || isServerDeafened()}
-					class:server-enforced={isServerDeafened()}
-					title={isServerDeafened() ? 'Server deafened' : isLocalDeafened() ? 'Undeafen' : 'Deafen'}
-					onclick={toggleDeafen}
-					disabled={isServerDeafened()}
+					class:server-enforced={isServerDeafened() && !canDeafenMembers}
+					title={isServerDeafened() ? (canDeafenMembers ? 'Remove server deafen' : 'Server deafened') : isLocalDeafened() ? 'Undeafen' : 'Deafen'}
+					onclick={() => toggleDeafen(canDeafenMembers)}
+					disabled={isServerDeafened() && !canDeafenMembers}
 				>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
 						{#if isLocalDeafened()}
@@ -1046,6 +1111,54 @@
 	.tile-indicator {
 		font-size: 0.65rem;
 		flex-shrink: 0;
+	}
+
+	/* Tile moderation overlay */
+
+	.tile-mod-overlay {
+		position: absolute;
+		top: 4px;
+		right: 4px;
+		display: flex;
+		gap: 3px;
+		opacity: 0;
+		transition: opacity 0.12s;
+		z-index: 2;
+	}
+
+	.participant-tile:hover .tile-mod-overlay {
+		opacity: 1;
+	}
+
+	.mod-btn {
+		background: rgba(0, 0, 0, 0.6);
+		border: none;
+		color: var(--text-muted);
+		cursor: pointer;
+		padding: 4px;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: background 0.1s, color 0.1s;
+	}
+
+	.mod-btn:hover {
+		background: rgba(0, 0, 0, 0.85);
+		color: var(--text);
+	}
+
+	.mod-btn.active {
+		color: var(--accent, #5865f2);
+	}
+
+	.mod-btn.danger {
+		color: var(--danger, #e74c3c);
+	}
+
+	.mod-btn.danger:hover {
+		color: var(--danger, #e74c3c);
+		background: rgba(231, 76, 60, 0.3);
 	}
 
 	/* Voice controls bar */

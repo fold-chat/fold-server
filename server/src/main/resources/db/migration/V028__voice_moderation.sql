@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS voice_moderation (
+    user_id TEXT PRIMARY KEY REFERENCES user(id) ON DELETE CASCADE,
+    server_mute INTEGER NOT NULL DEFAULT 0,
+    server_deaf INTEGER NOT NULL DEFAULT 0
+);

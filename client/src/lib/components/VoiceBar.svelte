@@ -44,7 +44,7 @@
 				class="vb-btn"
 				class:active={isLocalAudioMuted() || isServerMuted()}
 				title={isLocalAudioMuted() ? 'Unmute' : 'Mute'}
-				onclick={toggleMute}
+				onclick={() => toggleMute()}
 				disabled={isServerMuted()}
 			>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
@@ -65,7 +65,7 @@
 				class="vb-btn"
 				class:active={isLocalDeafened() || isServerDeafened()}
 				title={isLocalDeafened() ? 'Undeafen' : 'Deafen'}
-				onclick={toggleDeafen}
+				onclick={() => toggleDeafen()}
 				disabled={isServerDeafened()}
 			>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">

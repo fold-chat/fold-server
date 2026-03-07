@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { getMembers, banMember, unbanMember, type Member } from '$lib/api/users.js';
 	import { assignRole, removeRole } from '$lib/api/roles.js';
+	import { getVoiceModeration, setServerMuteGlobal, clearServerMute, setServerDeafGlobal, clearServerDeaf, type VoiceModeration } from '$lib/api/voice.js';
 	import { getRolesList } from '$lib/stores/roles.svelte.js';
 	import { hasServerPermission, getUser } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
@@ -8,6 +9,7 @@
 	import { onMount } from 'svelte';
 
 	let members = $state<Member[]>([]);
+	let moderation = $state<Map<string, VoiceModeration>>(new Map());
 	let loading = $state(true);
 	let error = $state('');
 	let editingMember = $state<string | null>(null);
@@ -16,17 +18,67 @@
 
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
 	const canBan = $derived(hasServerPermission(PermissionName.BAN_MEMBERS));
+	const canMute = $derived(hasServerPermission(PermissionName.MUTE_MEMBERS));
+	const canDeafen = $derived(hasServerPermission(PermissionName.DEAFEN_MEMBERS));
 	const currentUser = $derived(getUser());
+
+	async function loadModeration() {
+		try {
+			const list = await getVoiceModeration();
+			moderation = new Map(list.map((m) => [m.user_id, m]));
+		} catch {
+			// User may not have permission — ignore
+		}
+	}
 
 	onMount(async () => {
 		try {
 			members = await getMembers();
+			if (hasServerPermission(PermissionName.MUTE_MEMBERS) || hasServerPermission(PermissionName.DEAFEN_MEMBERS)) {
+				await loadModeration();
+			}
 		} catch {
 			error = 'Failed to load members';
 		} finally {
 			loading = false;
 		}
 	});
+
+	function isServerMuted(member: Member): boolean {
+		return (moderation.get(member.id)?.server_mute ?? 0) !== 0;
+	}
+
+	function isServerDeafened(member: Member): boolean {
+		return (moderation.get(member.id)?.server_deaf ?? 0) !== 0;
+	}
+
+	async function handleToggleMute(member: Member) {
+		error = '';
+		try {
+			if (isServerMuted(member)) {
+				await clearServerMute(member.id);
+			} else {
+				await setServerMuteGlobal(member.id);
+			}
+			await loadModeration();
+		} catch (err) {
+			error = (err as ApiError).message || 'Failed to update mute';
+		}
+	}
+
+	async function handleToggleDeafen(member: Member) {
+		error = '';
+		try {
+			if (isServerDeafened(member)) {
+				await clearServerDeaf(member.id);
+			} else {
+				await setServerDeafGlobal(member.id);
+			}
+			await loadModeration();
+		} catch (err) {
+			error = (err as ApiError).message || 'Failed to update deafen';
+		}
+	}
 
 	function parseMemberRoles(member: Member) {
 		if (!member.roles) return [];
@@ -154,8 +206,14 @@
 							<div class="member-details">
 								<span class="member-name" class:banned-text={isBanned(member)}>
 									{member.display_name || member.username}
-									{#if isBanned(member)}
+								{#if isBanned(member)}
 										<span class="banned-badge">Banned</span>
+									{/if}
+									{#if isServerMuted(member)}
+										<span class="mod-badge muted-badge">Server Muted</span>
+									{/if}
+									{#if isServerDeafened(member)}
+										<span class="mod-badge deafened-badge">Server Deafened</span>
 									{/if}
 								</span>
 							{#if member.display_name}
@@ -180,6 +238,18 @@
 									<button class="btn-sm" onclick={() => (editingMember = editingMember === member.id ? null : member.id)}>
 										{editingMember === member.id ? 'Close' : 'Roles'}
 									</button>
+								{/if}
+								{#if !isBanned(member) && currentUser?.id !== member.id}
+									{#if canMute}
+										<button class="btn-sm" class:btn-active={isServerMuted(member)} onclick={() => handleToggleMute(member)}>
+											{isServerMuted(member) ? 'Unmute' : 'Mute'}
+										</button>
+									{/if}
+									{#if canDeafen}
+										<button class="btn-sm" class:btn-active={isServerDeafened(member)} onclick={() => handleToggleDeafen(member)}>
+											{isServerDeafened(member) ? 'Undeafen' : 'Deafen'}
+										</button>
+									{/if}
 								{/if}
 								{#if !isOwner(member) && currentUser?.id !== member.id && canBan}
 									{#if isBanned(member)}
@@ -432,6 +502,29 @@
 		border-radius: 3px;
 		margin-left: 0.35rem;
 		font-weight: 500;
+	}
+
+	.mod-badge {
+		font-size: 0.6rem;
+		padding: 0.05rem 0.3rem;
+		border-radius: 3px;
+		margin-left: 0.35rem;
+		font-weight: 500;
+	}
+
+	.muted-badge {
+		color: #e67e22;
+		background: rgba(230, 126, 34, 0.15);
+	}
+
+	.deafened-badge {
+		color: #e74c3c;
+		background: rgba(231, 76, 60, 0.15);
+	}
+
+	.btn-active {
+		color: #e67e22;
+		border-color: rgba(230, 126, 34, 0.4);
 	}
 
 	.join-badge {

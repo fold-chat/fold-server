@@ -6,6 +6,7 @@ import chat.kith.auth.RateLimitPolicy;
 import chat.kith.auth.RateLimitService;
 import chat.kith.db.ChannelRepository;
 import chat.kith.db.VoiceKeyRepository;
+import chat.kith.db.VoiceModerationRepository;
 import chat.kith.db.VoiceStateRepository;
 import chat.kith.config.KithLiveKitConfig;
 import chat.kith.config.RuntimeConfigService;
@@ -36,6 +37,7 @@ public class VoiceResource {
     @Inject KithLiveKitConfig liveKitConfig;
     @Inject VoiceStateRepository voiceStateRepo;
     @Inject VoiceKeyRepository voiceKeyRepo;
+    @Inject VoiceModerationRepository voiceModerationRepo;
     @Inject ChannelRepository channelRepo;
     @Inject PermissionService permissionService;
     @Inject RateLimitService rateLimitService;
@@ -218,6 +220,8 @@ public class VoiceResource {
         }
 
         voiceStateRepo.setServerMute(userId, channelId, muted);
+        voiceModerationRepo.setServerMute(userId, muted);
+        if (!muted) voiceModerationRepo.clearIfClean(userId);
         publishVoiceStates(channelId);
         return Response.ok(Map.of("user_id", userId, "channel_id", channelId, "server_mute", muted)).build();
     }
@@ -254,6 +258,8 @@ public class VoiceResource {
         }
 
         voiceStateRepo.setServerDeaf(userId, channelId, deaf);
+        voiceModerationRepo.setServerDeaf(userId, deaf);
+        if (!deaf) voiceModerationRepo.clearIfClean(userId);
         publishVoiceStates(channelId);
         return Response.ok(Map.of("user_id", userId, "channel_id", channelId, "server_deaf", deaf)).build();
     }
@@ -376,6 +382,151 @@ public class VoiceResource {
         eventBus.publish(Event.of(EventType.VOICE_KEY_ROTATE, keyData, Scope.channel(channelId)));
 
         return Response.ok(Map.of("channel_id", channelId, "key_index", newKey.get("key_index"))).build();
+    }
+
+    // --- Server-wide voice moderation (settings page) ---
+
+    @GET
+    @Path("/moderation")
+    public Response listModeration() {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MUTE_MEMBERS);
+        return Response.ok(voiceModerationRepo.findAll()).build();
+    }
+
+    @POST
+    @Path("/moderation/{userId}/mute")
+    public Response setServerMute(@PathParam("userId") String userId) {
+        var sc = sc();
+        var rl = checkRate("voice_moderation", sc.getUserId(), RateLimitPolicy.VOICE_MODERATION);
+        if (rl != null) return rl;
+        permissionService.requireServerPermission(sc.getUserId(), Permission.MUTE_MEMBERS);
+
+        voiceModerationRepo.setServerMute(userId, true);
+
+        var vs = voiceStateRepo.findByUser(userId);
+        if (vs.isPresent()) {
+            String channelId = (String) vs.get().get("channel_id");
+            voiceStateRepo.setServerMute(userId, channelId, true);
+            String roomName = "voice-" + channelId;
+            try {
+                var participant = liveKitService.getParticipant(roomName, userId);
+                String audioTrackSid = null;
+                for (var track : participant.getTracksList()) {
+                    if (track.getType() == LivekitModels.TrackType.AUDIO) {
+                        audioTrackSid = track.getSid();
+                        break;
+                    }
+                }
+                if (audioTrackSid != null) {
+                    liveKitService.muteTrack(roomName, userId, audioTrackSid, true);
+                }
+            } catch (IOException e) {
+                LOG.warnf("LiveKit muteTrack failed: %s", e.getMessage());
+            }
+            publishVoiceStates(channelId);
+        }
+
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/moderation/{userId}/deafen")
+    public Response setServerDeaf(@PathParam("userId") String userId) {
+        var sc = sc();
+        var rl = checkRate("voice_moderation", sc.getUserId(), RateLimitPolicy.VOICE_MODERATION);
+        if (rl != null) return rl;
+        permissionService.requireServerPermission(sc.getUserId(), Permission.DEAFEN_MEMBERS);
+
+        voiceModerationRepo.setServerDeaf(userId, true);
+
+        var vs = voiceStateRepo.findByUser(userId);
+        if (vs.isPresent()) {
+            String channelId = (String) vs.get().get("channel_id");
+            voiceStateRepo.setServerDeaf(userId, channelId, true);
+            String roomName = "voice-" + channelId;
+            try {
+                var perm = LivekitModels.ParticipantPermission.newBuilder()
+                        .setCanSubscribe(false)
+                        .setCanPublish(true)
+                        .build();
+                liveKitService.updateParticipant(roomName, userId, perm);
+            } catch (IOException e) {
+                LOG.warnf("LiveKit updateParticipant failed: %s", e.getMessage());
+            }
+            publishVoiceStates(channelId);
+        }
+
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/moderation/{userId}/unmute")
+    public Response clearServerMute(@PathParam("userId") String userId) {
+        var sc = sc();
+        var rl = checkRate("voice_moderation", sc.getUserId(), RateLimitPolicy.VOICE_MODERATION);
+        if (rl != null) return rl;
+        permissionService.requireServerPermission(sc.getUserId(), Permission.MUTE_MEMBERS);
+
+        voiceModerationRepo.setServerMute(userId, false);
+        voiceModerationRepo.clearIfClean(userId);
+
+        // If user is currently in voice, also update voice_state + LiveKit
+        var vs = voiceStateRepo.findByUser(userId);
+        if (vs.isPresent()) {
+            String channelId = (String) vs.get().get("channel_id");
+            voiceStateRepo.setServerMute(userId, channelId, false);
+            String roomName = "voice-" + channelId;
+            try {
+                var participant = liveKitService.getParticipant(roomName, userId);
+                String audioTrackSid = null;
+                for (var track : participant.getTracksList()) {
+                    if (track.getType() == LivekitModels.TrackType.AUDIO) {
+                        audioTrackSid = track.getSid();
+                        break;
+                    }
+                }
+                if (audioTrackSid != null) {
+                    liveKitService.muteTrack(roomName, userId, audioTrackSid, false);
+                }
+            } catch (IOException e) {
+                LOG.warnf("LiveKit muteTrack failed: %s", e.getMessage());
+            }
+            publishVoiceStates(channelId);
+        }
+
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/moderation/{userId}/undeafen")
+    public Response clearServerDeaf(@PathParam("userId") String userId) {
+        var sc = sc();
+        var rl = checkRate("voice_moderation", sc.getUserId(), RateLimitPolicy.VOICE_MODERATION);
+        if (rl != null) return rl;
+        permissionService.requireServerPermission(sc.getUserId(), Permission.DEAFEN_MEMBERS);
+
+        voiceModerationRepo.setServerDeaf(userId, false);
+        voiceModerationRepo.clearIfClean(userId);
+
+        // If user is currently in voice, also update voice_state + LiveKit
+        var vs = voiceStateRepo.findByUser(userId);
+        if (vs.isPresent()) {
+            String channelId = (String) vs.get().get("channel_id");
+            voiceStateRepo.setServerDeaf(userId, channelId, false);
+            String roomName = "voice-" + channelId;
+            try {
+                var perm = LivekitModels.ParticipantPermission.newBuilder()
+                        .setCanSubscribe(true)
+                        .setCanPublish(true)
+                        .build();
+                liveKitService.updateParticipant(roomName, userId, perm);
+            } catch (IOException e) {
+                LOG.warnf("LiveKit updateParticipant failed: %s", e.getMessage());
+            }
+            publishVoiceStates(channelId);
+        }
+
+        return Response.noContent().build();
     }
 
     // --- Stats (admin only) ---

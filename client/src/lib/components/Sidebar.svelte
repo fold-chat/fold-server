@@ -209,6 +209,18 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 		return hasChannelPermission(id, PermissionName.VIDEO);
 	});
 
+	const canMuteMembersInVoice = $derived.by(() => {
+		const id = getCurrentVoiceChannelId();
+		if (!id) return false;
+		return hasChannelPermission(id, PermissionName.MUTE_MEMBERS);
+	});
+
+	const canDeafenMembersInVoice = $derived.by(() => {
+		const id = getCurrentVoiceChannelId();
+		if (!id) return false;
+		return hasChannelPermission(id, PermissionName.DEAFEN_MEMBERS);
+	});
+
 	// --- Voice user context menu ---
 	let voiceCtxMenu = $state<{ x: number; y: number; vu: VoiceState; channelId: string } | null>(null);
 
@@ -425,7 +437,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 
 	{#if getCurrentVoiceChannelId() || getJoiningChannelId()}
 			<div class="rail-voice">
-				<button class="voice-control-btn" class:active={isLocalAudioMuted() || isServerMuted()} title={isLocalAudioMuted() ? 'Unmute' : 'Mute'} onclick={toggleMute} disabled={isServerMuted()}>
+				<button class="voice-control-btn" class:active={isLocalAudioMuted() || isServerMuted()} title={isLocalAudioMuted() ? 'Unmute' : 'Mute'} onclick={() => toggleMute(canMuteMembersInVoice)} disabled={isServerMuted() && !canMuteMembersInVoice}>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 						{#if isLocalAudioMuted()}
 							<line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" />
@@ -434,7 +446,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 						{/if}
 					</svg>
 				</button>
-				<button class="voice-control-btn" class:active={isLocalDeafened() || isServerDeafened()} title={isLocalDeafened() ? 'Undeafen' : 'Deafen'} onclick={toggleDeafen} disabled={isServerDeafened()}>
+				<button class="voice-control-btn" class:active={isLocalDeafened() || isServerDeafened()} title={isLocalDeafened() ? 'Undeafen' : 'Deafen'} onclick={() => toggleDeafen(canDeafenMembersInVoice)} disabled={isServerDeafened() && !canDeafenMembersInVoice}>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 						{#if isLocalDeafened()}
 							<line x1="1" y1="1" x2="23" y2="23" /><path d="M3 12v6a9 9 0 009 3M21 12v6" /><path d="M3 14h2a2 2 0 012 2v2a2 2 0 01-2 2H3v-6zM21 14h-2a2 2 0 00-2 2v2a2 2 0 002 2h2v-6z" />
@@ -638,10 +650,10 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 				<button
 					class="voice-control-btn"
 					class:active={isLocalAudioMuted() || isServerMuted()}
-					class:server-enforced={isServerMuted()}
-					title={isServerMuted() ? 'Server muted' : isLocalAudioMuted() ? 'Unmute' : 'Mute'}
-					onclick={toggleMute}
-					disabled={isServerMuted()}
+					class:server-enforced={isServerMuted() && !canMuteMembersInVoice}
+					title={isServerMuted() ? (canMuteMembersInVoice ? 'Remove server mute' : 'Server muted') : isLocalAudioMuted() ? 'Unmute' : 'Mute'}
+					onclick={() => toggleMute(canMuteMembersInVoice)}
+					disabled={isServerMuted() && !canMuteMembersInVoice}
 				>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 						{#if isLocalAudioMuted()}
@@ -661,10 +673,10 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 				<button
 					class="voice-control-btn"
 					class:active={isLocalDeafened() || isServerDeafened()}
-					class:server-enforced={isServerDeafened()}
-					title={isServerDeafened() ? 'Server deafened' : isLocalDeafened() ? 'Undeafen' : 'Deafen'}
-					onclick={toggleDeafen}
-					disabled={isServerDeafened()}
+					class:server-enforced={isServerDeafened() && !canDeafenMembersInVoice}
+					title={isServerDeafened() ? (canDeafenMembersInVoice ? 'Remove server deafen' : 'Server deafened') : isLocalDeafened() ? 'Undeafen' : 'Deafen'}
+					onclick={() => toggleDeafen(canDeafenMembersInVoice)}
+					disabled={isServerDeafened() && !canDeafenMembersInVoice}
 				>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 						{#if isLocalDeafened()}

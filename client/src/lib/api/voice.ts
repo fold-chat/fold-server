@@ -91,3 +91,29 @@ export interface VoiceStats {
 export function getVoiceStats() {
 	return api<VoiceStats>('/voice/stats');
 }
+
+export interface VoiceModeration {
+	user_id: string;
+	server_mute: number;
+	server_deaf: number;
+}
+
+export function getVoiceModeration() {
+	return api<VoiceModeration[]>('/voice/moderation');
+}
+
+export function setServerMuteGlobal(userId: string) {
+	return api<void>(`/voice/moderation/${userId}/mute`, { method: 'POST' });
+}
+
+export function clearServerMute(userId: string) {
+	return api<void>(`/voice/moderation/${userId}/unmute`, { method: 'POST' });
+}
+
+export function setServerDeafGlobal(userId: string) {
+	return api<void>(`/voice/moderation/${userId}/deafen`, { method: 'POST' });
+}
+
+export function clearServerDeaf(userId: string) {
+	return api<void>(`/voice/moderation/${userId}/undeafen`, { method: 'POST' });
+}
