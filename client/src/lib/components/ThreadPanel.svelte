@@ -10,6 +10,7 @@
 		getPendingThread, setActiveThread, addChannelThread
 	} from '$lib/stores/threads.svelte.js';
 	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
+	import { getChannelById } from '$lib/stores/channels.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { send } from '$lib/stores/ws.svelte.js';
 import { formatTimestamp, renderMarkdown, isEmojiOnly } from '$lib/utils/markdown.js';
@@ -37,7 +38,10 @@ import { formatTimestamp, renderMarkdown, isEmojiOnly } from '$lib/utils/markdow
 	let canLoadMore = $derived(threadId ? hasMoreThreadMessages(threadId) : false);
 	let typingUsers = $derived(threadId ? getThreadTypingUsers(threadId) : []);
 	let isLocked = $derived((thread?.locked ?? 0) !== 0);
+	let threadChannel = $derived(channelId ? getChannelById(channelId) : null);
+	let isArchived = $derived(!!threadChannel?.archived_at);
 	let canSend = $derived(
+		isArchived ? false :
 		channelId && !isLocked
 			? hasChannelPermission(channelId, PermissionName.SEND_MESSAGES)
 			: isLocked
@@ -45,8 +49,8 @@ import { formatTimestamp, renderMarkdown, isEmojiOnly } from '$lib/utils/markdow
 				: false
 	);
 	let canUploadFiles = $derived(channelId ? hasChannelPermission(channelId, PermissionName.UPLOAD_FILES) : false);
-	let canManageMessages = $derived(channelId ? hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES) : false);
-	let canManageOwnMessages = $derived(channelId ? hasChannelPermission(channelId, PermissionName.MANAGE_OWN_MESSAGES) : false);
+	let canManageMessages = $derived(!isArchived && channelId ? hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES) : false);
+	let canManageOwnMessages = $derived(!isArchived && channelId ? hasChannelPermission(channelId, PermissionName.MANAGE_OWN_MESSAGES) : false);
 	let canAddReactions = $derived(channelId ? hasChannelPermission(channelId, PermissionName.ADD_REACTIONS) : false);
 	let currentUserId = $derived(getUser()?.id ?? '');
 	let isVisible = $derived(thread !== null || pending !== null);

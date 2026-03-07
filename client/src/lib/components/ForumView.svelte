@@ -13,7 +13,9 @@ import MessageCompose from './MessageCompose.svelte';
 	let { channelId, channelName, channelTopic = null, channelDescription = null }: { channelId: string; channelName: string; channelTopic?: string | null; channelDescription?: string | null } = $props();
 
 	let threads = $derived(getChannelThreads(channelId));
-	let canCreate = $derived(hasChannelPermission(channelId, PermissionName.CREATE_THREADS));
+	let channel = $derived(getChannelById(channelId));
+	let isArchived = $derived(!!channel?.archived_at);
+	let canCreate = $derived(!isArchived && hasChannelPermission(channelId, PermissionName.CREATE_THREADS));
 	let canUploadFiles = $derived(hasChannelPermission(channelId, PermissionName.UPLOAD_FILES));
 	let categoryName = $derived.by(() => {
 		const ch = getChannelById(channelId);
@@ -123,6 +125,10 @@ import MessageCompose from './MessageCompose.svelte';
 			</button>
 		{/if}
 	</div>
+
+	{#if isArchived}
+		<div class="archived-banner">This channel is archived — no new threads can be created.</div>
+	{/if}
 
 	{#if channelDescription}
 		<div class="forum-description">{channelDescription}</div>
@@ -278,6 +284,15 @@ import MessageCompose from './MessageCompose.svelte';
 		color: var(--text-muted);
 		border-bottom: 1px solid var(--border);
 		line-height: 1.4;
+	}
+
+	.archived-banner {
+		padding: 0.4rem 1rem;
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+		border-bottom: 1px solid var(--border);
+		text-align: center;
 	}
 
 	.new-thread-btn {

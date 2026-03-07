@@ -5,6 +5,7 @@ import chat.kith.auth.KithSecurityContext;
 import chat.kith.auth.RateLimitFilter;
 import chat.kith.auth.RateLimitPolicy;
 import chat.kith.auth.RateLimitService;
+import chat.kith.db.ChannelRepository;
 import chat.kith.db.DatabaseService;
 import chat.kith.db.MessageRepository;
 import chat.kith.db.ReactionRepository;
@@ -32,6 +33,7 @@ import java.util.UUID;
 @Consumes(MediaType.APPLICATION_JSON)
 public class MessageResource {
 
+    @Inject ChannelRepository channelRepo;
     @Inject DatabaseService dbService;
     @Inject MessageRepository messageRepo;
     @Inject ReactionRepository reactionRepo;
@@ -68,11 +70,17 @@ public class MessageResource {
         }
         var msg = msgOpt.get();
 
+        String editChannelId = (String) msg.get("channel_id");
+        var editChannel = channelRepo.findById(editChannelId);
+        if (editChannel.isPresent() && editChannel.get().get("archived_at") != null) {
+            return Response.status(403).entity(Map.of("error", "channel_archived", "message", "Cannot edit messages in an archived channel")).build();
+        }
+
         boolean isAuthor = sc.getUserId().equals(msg.get("author_id"));
         if (isAuthor) {
-            permissionService.requirePermission(sc.getUserId(), (String) msg.get("channel_id"), Permission.MANAGE_OWN_MESSAGES);
+            permissionService.requirePermission(sc.getUserId(), editChannelId, Permission.MANAGE_OWN_MESSAGES);
         } else {
-            permissionService.requirePermission(sc.getUserId(), (String) msg.get("channel_id"), Permission.MANAGE_MESSAGES);
+            permissionService.requirePermission(sc.getUserId(), editChannelId, Permission.MANAGE_MESSAGES);
         }
         if (req.content() == null || req.content().isBlank()) {
             return Response.status(400).entity(Map.of("error", "invalid_content", "message", "Content required")).build();
@@ -102,14 +110,18 @@ public class MessageResource {
         }
 
         var msgToDelete = msgOpt.get();
-        boolean isAuthor = sc.getUserId().equals(msgToDelete.get("author_id"));
-        if (isAuthor) {
-            permissionService.requirePermission(sc.getUserId(), (String) msgToDelete.get("channel_id"), Permission.MANAGE_OWN_MESSAGES);
-        } else {
-            permissionService.requirePermission(sc.getUserId(), (String) msgToDelete.get("channel_id"), Permission.MANAGE_MESSAGES);
+        String channelId = (String) msgToDelete.get("channel_id");
+        var deleteChannel = channelRepo.findById(channelId);
+        if (deleteChannel.isPresent() && deleteChannel.get().get("archived_at") != null) {
+            return Response.status(403).entity(Map.of("error", "channel_archived", "message", "Cannot delete messages in an archived channel")).build();
         }
 
-        String channelId = (String) msgToDelete.get("channel_id");
+        boolean isAuthor = sc.getUserId().equals(msgToDelete.get("author_id"));
+        if (isAuthor) {
+            permissionService.requirePermission(sc.getUserId(), channelId, Permission.MANAGE_OWN_MESSAGES);
+        } else {
+            permissionService.requirePermission(sc.getUserId(), channelId, Permission.MANAGE_MESSAGES);
+        }
 
         // Check if message has an attached thread
         var attachedThread = threadRepo.findByParentMessageId(id);
