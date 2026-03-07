@@ -12,6 +12,7 @@ export interface Channel {
 	settings: string | null;
 	icon: string | null;
 	icon_url: string | null;
+	archived_at: string | null;
 }
 
 export interface Category {
@@ -35,6 +36,14 @@ export function updateChannel(id: string, data: Partial<Pick<Channel, 'name' | '
 
 export function deleteChannel(id: string) {
 	return api<void>(`/channels/${id}`, { method: 'DELETE' });
+}
+
+export function archiveChannel(id: string) {
+	return api<Channel>(`/channels/${id}/archive`, { method: 'PATCH' });
+}
+
+export function unarchiveChannel(id: string) {
+	return api<Channel>(`/channels/${id}/unarchive`, { method: 'PATCH' });
 }
 
 export function getCategories() {

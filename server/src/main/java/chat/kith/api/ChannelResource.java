@@ -129,6 +129,55 @@ public class ChannelResource {
                 .orElse(Response.status(500).build());
     }
 
+    @PATCH
+    @Path("/{id}/archive")
+    public Response archive(@PathParam("id") String id) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
+        var existing = channelRepo.findById(id);
+        if (existing.isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+        var ch = existing.get();
+        if ("VOICE".equals(ch.get("type"))) {
+            return Response.status(400).entity(Map.of("error", "invalid_type", "message", "Voice channels cannot be archived")).build();
+        }
+        if (ch.get("archived_at") != null) {
+            return Response.status(400).entity(Map.of("error", "already_archived", "message", "Channel is already archived")).build();
+        }
+        channelRepo.archive(id);
+        var updated = channelRepo.findById(id);
+        updated.ifPresent(c -> {
+            eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, withCategory(c), Scope.server()));
+            auditLogService.log(sc().getUserId(), "CHANNEL_ARCHIVE", "channel", id);
+        });
+        return updated
+                .map(c -> Response.ok(c).build())
+                .orElse(Response.status(500).build());
+    }
+
+    @PATCH
+    @Path("/{id}/unarchive")
+    public Response unarchive(@PathParam("id") String id) {
+        permissionService.requireServerPermission(sc().getUserId(), Permission.MANAGE_CHANNELS);
+        var existing = channelRepo.findById(id);
+        if (existing.isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+        var ch = existing.get();
+        if (ch.get("archived_at") == null) {
+            return Response.status(400).entity(Map.of("error", "not_archived", "message", "Channel is not archived")).build();
+        }
+        channelRepo.unarchive(id);
+        var updated = channelRepo.findById(id);
+        updated.ifPresent(c -> {
+            eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, withCategory(c), Scope.server()));
+            auditLogService.log(sc().getUserId(), "CHANNEL_UNARCHIVE", "channel", id);
+        });
+        return updated
+                .map(c -> Response.ok(c).build())
+                .orElse(Response.status(500).build());
+    }
+
     @DELETE
     @Path("/{id}")
     public Response delete(@PathParam("id") String id) {
@@ -188,8 +237,12 @@ public class ChannelResource {
         var rl = checkRate("message_send", sc.getUserId(), RateLimitPolicy.MESSAGE_SEND);
         if (rl != null) return rl;
 
-        if (channelRepo.findById(channelId).isEmpty()) {
+        var channelOpt = channelRepo.findById(channelId);
+        if (channelOpt.isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
+        }
+        if (channelOpt.get().get("archived_at") != null) {
+            return Response.status(403).entity(Map.of("error", "channel_archived", "message", "Cannot send messages in an archived channel")).build();
         }
         boolean hasAttachments = req.attachment_ids() != null && !req.attachment_ids().isEmpty();
         if ((req.content() == null || req.content().isBlank()) && !hasAttachments) {
@@ -247,8 +300,12 @@ public class ChannelResource {
         var rl = checkRate("thread_create", sc.getUserId(), RateLimitPolicy.THREAD_CREATE);
         if (rl != null) return rl;
 
-        if (channelRepo.findById(channelId).isEmpty()) {
+        var threadChannelOpt = channelRepo.findById(channelId);
+        if (threadChannelOpt.isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
+        }
+        if (threadChannelOpt.get().get("archived_at") != null) {
+            return Response.status(403).entity(Map.of("error", "channel_archived", "message", "Cannot create threads in an archived channel")).build();
         }
 
         if (threadReq.content() == null || threadReq.content().isBlank()) {

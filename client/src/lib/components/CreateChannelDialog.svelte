@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { createChannel as createChannelApi, updateChannel as updateChannelApi } from '$lib/api/channels.js';
+	import { createChannel as createChannelApi, updateChannel as updateChannelApi, archiveChannel as archiveChannelApi, unarchiveChannel as unarchiveChannelApi } from '$lib/api/channels.js';
 	import type { Channel } from '$lib/api/channels.js';
 	import { getChannelPermissions, updateChannelPermission, deleteChannelPermission, type ChannelPermissionOverride } from '$lib/api/roles.js';
 	import { getRolesList } from '$lib/stores/roles.svelte.js';
@@ -25,6 +25,9 @@
 	} = $props();
 
 	let isEdit = $derived(!!channel);
+	let isArchivable = $derived(isEdit && channel != null && channel.type !== 'VOICE');
+	let isArchived = $derived(!!channel?.archived_at);
+	let archiving = $state(false);
 
 	let channelType = $state('TEXT');
 	let name = $state('');
@@ -105,6 +108,7 @@
 		selectedIcon = null;
 		customIconUrl = null;
 		uploading = false;
+		archiving = false;
 		activeTab = 'general';
 		overrides = [];
 		selectedRoleId = null;
@@ -198,6 +202,23 @@
 			permError = (err as ApiError).message || 'Failed to save';
 		} finally {
 			permSaving = false;
+		}
+	}
+
+	async function handleArchiveToggle() {
+		if (!channel) return;
+		archiving = true;
+		error = '';
+		try {
+			const updated = isArchived
+				? await unarchiveChannelApi(channel.id)
+				: await archiveChannelApi(channel.id);
+			reset();
+			onsave(updated);
+		} catch (e: any) {
+			error = e?.message || (isArchived ? 'Failed to unarchive channel' : 'Failed to archive channel');
+		} finally {
+			archiving = false;
 		}
 	}
 
@@ -402,6 +423,20 @@
 						bind:value={description}
 					></textarea>
 				</div>
+
+				{#if isArchivable}
+					<div class="archive-section">
+						<button
+							class="archive-btn"
+							class:unarchive={isArchived}
+							onclick={handleArchiveToggle}
+							disabled={archiving}
+						>
+							{archiving ? (isArchived ? 'Unarchiving...' : 'Archiving...') : (isArchived ? 'Unarchive Channel' : 'Archive Channel')}
+						</button>
+						<p class="archive-hint">{isArchived ? 'This channel is archived. No new messages can be sent.' : 'Archiving hides the channel and prevents new messages.'}</p>
+					</div>
+				{/if}
 
 				{#if error}
 					<p class="error">{error}</p>
@@ -758,6 +793,47 @@
 	.upload-btn:hover {
 		background: var(--bg-hover, rgba(255, 255, 255, 0.05));
 		color: var(--text);
+	}
+
+	/* Archive section */
+	.archive-section {
+		padding: 0.75rem 0;
+		border-top: 1px solid var(--border);
+		margin-top: 0.5rem;
+	}
+
+	.archive-btn {
+		padding: 0.4rem 0.75rem;
+		border-radius: 4px;
+		border: 1px solid var(--border);
+		background: none;
+		color: var(--text-muted);
+		font-size: 0.8rem;
+		cursor: pointer;
+		transition: background 0.12s, color 0.12s, border-color 0.12s;
+	}
+
+	.archive-btn:hover:not(:disabled) {
+		background: rgba(231, 76, 60, 0.1);
+		border-color: var(--danger, #e74c3c);
+		color: var(--danger, #e74c3c);
+	}
+
+	.archive-btn.unarchive:hover:not(:disabled) {
+		background: rgba(46, 204, 113, 0.1);
+		border-color: #2ecc71;
+		color: #2ecc71;
+	}
+
+	.archive-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.archive-hint {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+		margin: 0.35rem 0 0;
 	}
 
 	/* Error */

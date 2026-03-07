@@ -551,12 +551,14 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 			{@const unread = getUnreadCount(channel.id)}
 			{@const mentions = getMentionCount(channel.id)}
 			{@const isVoice = channel.type === 'VOICE'}
+			{@const isArchived = !!channel.archived_at}
 			{@const voiceUsers = isVoice ? getVoiceStatesForChannel(channel.id) : []}
 				<div class="channel-wrapper">
 				<button
 					class="channel-item"
 					class:active={getActiveChannelId() === channel.id}
 					class:unread={unread > 0}
+					class:archived={isArchived}
 				class:voice={isVoice}
 					class:voice-connected={isVoice && getCurrentVoiceChannelId() === channel.id}
 					class:drop-before={dropMark?.id === channel.id && dropMark?.position === 'before'}
@@ -578,6 +580,9 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 						<span class="channel-icon material-symbols-outlined">{channel.icon ?? DEFAULT_ICONS[channel.type] ?? 'tag'}</span>
 					{/if}
 					<span class="channel-name">{channel.name}</span>
+					{#if isArchived}
+						<span class="archived-badge">archived</span>
+					{/if}
 					{#if !isVoice}
 						{#if mentions > 0}
 							<span class="mention-badge">{mentions > 99 ? '99+' : mentions}</span>
@@ -1145,6 +1150,25 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 	.channel-item.unread {
 		color: var(--text);
 		font-weight: 600;
+	}
+
+	.channel-item.archived {
+		opacity: 0.45;
+	}
+
+	.channel-item.archived:hover {
+		opacity: 0.65;
+	}
+
+	.archived-badge {
+		font-size: 0.55rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-muted);
+		background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+		padding: 0.05rem 0.3rem;
+		border-radius: 3px;
+		flex-shrink: 0;
 	}
 
 	/* Voice channel specific */

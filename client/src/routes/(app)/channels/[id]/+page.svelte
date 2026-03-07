@@ -26,7 +26,8 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 		if (!channel?.category_id) return null;
 		return getCategories().find(c => c.id === channel!.category_id)?.name ?? null;
 	});
-	let canSend = $derived(hasChannelPermission(channelId, PermissionName.SEND_MESSAGES));
+	let isArchived = $derived(!!channel?.archived_at);
+	let canSend = $derived(!isArchived && hasChannelPermission(channelId, PermissionName.SEND_MESSAGES));
 	let canUploadFiles = $derived(hasChannelPermission(channelId, PermissionName.UPLOAD_FILES));
 	let canManageMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_MESSAGES));
 	let canManageOwnMessages = $derived(hasChannelPermission(channelId, PermissionName.MANAGE_OWN_MESSAGES));
@@ -248,6 +249,9 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 					{/if}
 				</div>
 			</div>
+		{#if isArchived}
+				<div class="archived-banner">This channel is archived — no new messages can be sent.</div>
+			{/if}
 			{#if channel?.description}
 				<div class="channel-description">{channel.description}</div>
 			{/if}
@@ -364,6 +368,15 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 		color: var(--text-muted);
 		border-bottom: 1px solid var(--border);
 		line-height: 1.4;
+	}
+
+	.archived-banner {
+		padding: 0.4rem 1rem;
+		font-size: 0.78rem;
+		color: var(--text-muted);
+		background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+		border-bottom: 1px solid var(--border);
+		text-align: center;
 	}
 
 </style>

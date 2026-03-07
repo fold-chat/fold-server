@@ -40,6 +40,14 @@ public class ChannelRepository {
         db.execute("DELETE FROM channel WHERE id = ?", id);
     }
 
+    public void archive(String id) {
+        db.execute("UPDATE channel SET archived_at = datetime('now') WHERE id = ?", id);
+    }
+
+    public void unarchive(String id) {
+        db.execute("UPDATE channel SET archived_at = NULL WHERE id = ?", id);
+    }
+
     public List<Map<String, Object>> findByCategoryId(String categoryId) {
         return db.query("SELECT * FROM channel WHERE category_id = ?", categoryId);
     }

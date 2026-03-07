@@ -129,16 +129,18 @@ export function reorderChannelsLocal(items: { id: string; position: number; cate
 
 /** Get channels grouped by category (null category = uncategorized) */
 export function getChannelsByCategory(): { category: Category | null; channels: Channel[] }[] {
-	const uncategorized = channels.filter((c) => !c.category_id);
+	const showAll = hasServerPermission(PermissionName.MANAGE_CHANNELS);
+	// Non-managers cannot see archived channels
+	const visible = showAll ? channels : channels.filter((c) => !c.archived_at);
+	const uncategorized = visible.filter((c) => !c.category_id);
 	const grouped: { category: Category | null; channels: Channel[] }[] = [];
 
 	if (uncategorized.length > 0) {
 		grouped.push({ category: null, channels: uncategorized });
 	}
 
-	const showAll = hasServerPermission(PermissionName.MANAGE_CHANNELS);
 	for (const cat of categories) {
-		const catChannels = channels.filter((c) => c.category_id === cat.id);
+		const catChannels = visible.filter((c) => c.category_id === cat.id);
 		if (catChannels.length > 0 || showAll) {
 			grouped.push({ category: cat, channels: catChannels });
 		}
