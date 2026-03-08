@@ -37,6 +37,9 @@ def collect_icons() -> set[str]:
             icons.update(re.findall(
                 r'material-symbols-outlined[^>]*>([a-z_]+)', content
             ))
+            # Svelte template expressions: ternaries like {x ? 'icon_a' : 'icon_b'}
+            for m in re.finditer(r'material-symbols-outlined[^>]*>\{[^}]+\}', content):
+                icons.update(re.findall(r"'([a-z_]+)'", m.group()))
             # icon: 'xxx' patterns (e.g. density options)
             icons.update(re.findall(r"icon:\s*'([a-z_]+)'", content))
 
