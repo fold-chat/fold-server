@@ -500,6 +500,10 @@
 		position: relative;
 	}
 
+	.builtin-select:hover {
+		background: none;
+	}
+
 	.theme-card.active .builtin-select { color: var(--text); }
 
 	.clone-btn {
@@ -547,7 +551,7 @@
 
 	.theme-card:hover {
 		border-color: var(--accent);
-		background: var(--bg-hover);
+		background: none;
 	}
 
 	.theme-card.active {
@@ -649,6 +653,10 @@
 		cursor: pointer;
 		color: var(--text-muted);
 		width: 100%;
+	}
+
+	.custom-select:hover {
+		background: none;
 	}
 
 	.custom-card.active .custom-select { color: var(--text); }
