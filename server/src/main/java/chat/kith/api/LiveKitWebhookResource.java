@@ -41,8 +41,10 @@ public class LiveKitWebhookResource {
             if (liveKitService.isManaged()) {
                 // Managed mode: validate X-Kith-Central-Secret from central service
                 String centralSecret = headers.getHeaderString("X-Kith-Central-Secret");
-                if (centralSecret == null || centralSecret.isBlank()) {
-                    return Response.status(401).entity(Map.of("error", "missing_secret")).build();
+                String expected = liveKitService.getManagedWebhookSecret();
+                if (centralSecret == null || centralSecret.isBlank() || expected == null || !expected.equals(centralSecret)) {
+                    LOG.warnf("Managed webhook rejected: invalid or missing X-Kith-Central-Secret");
+                    return Response.status(401).entity(Map.of("error", "invalid_secret")).build();
                 }
                 // Parse the webhook body as JSON and process events
                 processManagedWebhook(body);

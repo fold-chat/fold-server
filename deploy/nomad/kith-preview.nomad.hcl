@@ -44,7 +44,8 @@ job "kith-pr-__PR_NUMBER__" {
         KITH_ADMIN_USERNAME = "admin"
         KITH_ADMIN_PASSWORD = "preview-admin-pw"
         KITH_PORT           = "8080"
-        KITH_LIVEKIT_MODE   = "off"
+        KITH_LIVEKIT_MODE        = "off"
+        KITH_LIVEKIT_WEBHOOK_URL = "https://pr-__PR_NUMBER__-preview.fold.chat"
         JAVA_OPTS           = "--enable-native-access=ALL-UNNAMED -Djava.security.egd=file:/dev/./urandom"
       }
 

@@ -65,6 +65,9 @@ public interface KithLiveKitConfig {
     /** Public IP for NAT traversal (maps to node_ip in LiveKit config) */
     Optional<String> publicIp();
 
+    /** Public URL for central to forward webhooks to (required for managed mode) */
+    Optional<String> webhookUrl();
+
     // --- Webhook ---
 
     /** Webhook secret (defaults to api-secret if not set) */

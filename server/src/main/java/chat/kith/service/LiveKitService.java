@@ -54,6 +54,8 @@ public class LiveKitService {
     // Managed mode: last known LiveKit URL from central service response
     private volatile String managedLiveKitUrl;
     private volatile boolean managedAvailable;
+    private volatile String managedWebhookSecret;
+    private volatile String managedAccountId;
 
     @PostConstruct
     void init() {
@@ -92,12 +94,22 @@ public class LiveKitService {
             managedAvailable = false;
             return;
         }
+
+        String webhookUrl = config.webhookUrl().orElse("");
+        if (webhookUrl.isBlank()) {
+            LOG.error("[BOOT] LiveKit (managed) ... FAIL (kith.livekit.webhook-url required for managed mode)");
+            managedAvailable = false;
+            return;
+        }
+        // Strip trailing slashes — central appends the webhook path
+        webhookUrl = webhookUrl.replaceAll("/+$", "");
+
         httpClient = HttpClient.newHttpClient();
 
         // Register instance with central service
         try {
             var body = MAPPER.writeValueAsString(Map.of(
-                    "webhook_url", "", // TODO: set when public URL is known
+                    "webhook_url", webhookUrl,
                     "name", "Kith Server",
                     "kith_version", "0.1.0"
             ));
@@ -109,10 +121,17 @@ public class LiveKitService {
                     .build();
             var resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() == 200) {
+                var json = MAPPER.readTree(resp.body());
+                if (json.has("webhook_secret")) {
+                    this.managedWebhookSecret = json.get("webhook_secret").asText();
+                }
+                if (json.has("account_id")) {
+                    this.managedAccountId = json.get("account_id").asText();
+                }
                 managedAvailable = true;
                 // Managed mode can't query LiveKit rooms — clear all stale voice_state
                 voiceStateRepo.clearAll();
-                LOG.info("[BOOT] LiveKit (managed) ... OK");
+                LOG.infof("[BOOT] LiveKit (managed) ... OK (webhook_url=%s)", webhookUrl);
             } else if (resp.statusCode() == 403) {
                 LOG.error("[BOOT] LiveKit (managed) ... FAILED (invalid API key)");
                 managedAvailable = false;
@@ -191,6 +210,11 @@ public class LiveKitService {
     /** Get the effective webhook secret (falls back to api secret) */
     public String getWebhookSecret() {
         return config.webhookSecret().filter(s -> !s.isBlank()).orElse(apiSecret);
+    }
+
+    /** Webhook secret received from central during managed registration */
+    public String getManagedWebhookSecret() {
+        return managedWebhookSecret;
     }
 
     /** Result from managed token generation — includes both token and LiveKit URL */
@@ -276,7 +300,9 @@ public class LiveKitService {
     /** Mute/unmute a participant's published track */
     public void muteTrack(String roomName, String identity, String trackSid, boolean muted) throws IOException {
         if (isManaged()) {
-            LOG.debugf("muteTrack skipped in managed mode (Phase 4 will proxy via central)");
+            String prefixed = managedRoomName(roomName);
+            var body = MAPPER.writeValueAsString(Map.of("track_sid", trackSid, "muted", muted));
+            centralPost("/api/v1/voice/rooms/" + prefixed + "/participants/" + identity + "/mute", body);
             return;
         }
         var call = roomService.mutePublishedTrack(roomName, identity, trackSid, muted);
@@ -289,7 +315,8 @@ public class LiveKitService {
     /** Remove a participant from a room */
     public void removeParticipant(String roomName, String identity) throws IOException {
         if (isManaged()) {
-            LOG.debugf("removeParticipant skipped in managed mode (Phase 4 will proxy via central)");
+            String prefixed = managedRoomName(roomName);
+            centralDelete("/api/v1/voice/rooms/" + prefixed + "/participants/" + identity);
             return;
         }
         var call = roomService.removeParticipant(roomName, identity);
@@ -303,7 +330,12 @@ public class LiveKitService {
     public void updateParticipant(String roomName, String identity,
                                   LivekitModels.ParticipantPermission permission) throws IOException {
         if (isManaged()) {
-            LOG.debugf("updateParticipant skipped in managed mode (Phase 4 will proxy via central)");
+            String prefixed = managedRoomName(roomName);
+            var bodyMap = new java.util.LinkedHashMap<String, Object>();
+            bodyMap.put("can_subscribe", permission.getCanSubscribe());
+            bodyMap.put("can_publish", permission.getCanPublish());
+            var body = MAPPER.writeValueAsString(bodyMap);
+            centralPatch("/api/v1/voice/rooms/" + prefixed + "/participants/" + identity, body);
             return;
         }
         var call = roomService.updateParticipant(roomName, identity, null, null, permission);
@@ -316,7 +348,27 @@ public class LiveKitService {
     /** Get a specific participant in a room */
     public LivekitModels.ParticipantInfo getParticipant(String roomName, String identity) throws IOException {
         if (isManaged()) {
-            throw new IOException("getParticipant not available in managed mode (Phase 4 will proxy via central)");
+            // Managed mode: proxy via central, return parsed participant info
+            String prefixed = managedRoomName(roomName);
+            var json = centralGet("/api/v1/voice/rooms/" + prefixed + "/participants/" + identity);
+            // Build a minimal ParticipantInfo from JSON response
+            var builder = LivekitModels.ParticipantInfo.newBuilder()
+                    .setIdentity(json.path("identity").asText(""))
+                    .setName(json.path("name").asText(""))
+                    .setSid(json.path("sid").asText(""));
+            var tracks = json.path("tracks");
+            if (tracks.isArray()) {
+                for (var t : tracks) {
+                    var tb = LivekitModels.TrackInfo.newBuilder()
+                            .setSid(t.path("sid").asText(""))
+                            .setMuted(t.path("muted").asBoolean(false));
+                    String type = t.path("type").asText("");
+                    if ("AUDIO".equals(type)) tb.setType(LivekitModels.TrackType.AUDIO);
+                    else if ("VIDEO".equals(type)) tb.setType(LivekitModels.TrackType.VIDEO);
+                    builder.addTracks(tb.build());
+                }
+            }
+            return builder.build();
         }
         var call = roomService.getParticipant(roomName, identity);
         var response = call.execute();
@@ -328,7 +380,27 @@ public class LiveKitService {
 
     /** List all active rooms */
     public List<LivekitModels.Room> listRooms() {
-        if (isManaged() || roomService == null) return Collections.emptyList();
+        if (isManaged()) {
+            try {
+                var json = centralGet("/api/v1/voice/rooms");
+                var rooms = json.path("rooms");
+                if (!rooms.isArray()) return Collections.emptyList();
+                var result = new java.util.ArrayList<LivekitModels.Room>();
+                for (var r : rooms) {
+                    result.add(LivekitModels.Room.newBuilder()
+                            .setName(r.path("name").asText(""))
+                            .setNumParticipants(r.path("num_participants").asInt(0))
+                            .setNumPublishers(r.path("num_publishers").asInt(0))
+                            .setSid(r.path("sid").asText(""))
+                            .build());
+                }
+                return result;
+            } catch (IOException e) {
+                LOG.warnf("Failed to list rooms via central: %s", e.getMessage());
+                return Collections.emptyList();
+            }
+        }
+        if (roomService == null) return Collections.emptyList();
         try {
             var call = roomService.listRooms();
             var response = call.execute();
@@ -343,7 +415,27 @@ public class LiveKitService {
 
     /** List participants in a specific room */
     public List<LivekitModels.ParticipantInfo> listParticipants(String roomName) {
-        if (isManaged() || roomService == null) return Collections.emptyList();
+        if (isManaged()) {
+            try {
+                String prefixed = managedRoomName(roomName);
+                var json = centralGet("/api/v1/voice/rooms/" + prefixed + "/participants");
+                var participants = json.path("participants");
+                if (!participants.isArray()) return Collections.emptyList();
+                var result = new java.util.ArrayList<LivekitModels.ParticipantInfo>();
+                for (var p : participants) {
+                    result.add(LivekitModels.ParticipantInfo.newBuilder()
+                            .setIdentity(p.path("identity").asText(""))
+                            .setName(p.path("name").asText(""))
+                            .setSid(p.path("sid").asText(""))
+                            .build());
+                }
+                return result;
+            } catch (IOException e) {
+                LOG.warnf("Failed to list participants via central: %s", e.getMessage());
+                return Collections.emptyList();
+            }
+        }
+        if (roomService == null) return Collections.emptyList();
         try {
             var call = roomService.listParticipants(roomName);
             var response = call.execute();
@@ -417,6 +509,95 @@ public class LiveKitService {
             if (Files.isExecutable(Path.of(dir, path))) return true;
         }
         return false;
+    }
+
+    // --- Managed mode helpers ---
+
+    /** Prefix local room name with account_id for central service */
+    private String managedRoomName(String roomName) {
+        if (managedAccountId == null) throw new IllegalStateException("managedAccountId not set");
+        // "voice-{channelId}" → "{accountId}-voice-{channelId}"
+        return managedAccountId + "-" + roomName;
+    }
+
+    private String centralApiKey() {
+        return runtimeConfig.getString("kith.livekit.central-api-key",
+                config.centralApiKey().orElse(null));
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode centralGet(String path) throws IOException {
+        String centralUrl = config.centralUrl().orElseThrow();
+        try {
+            var req = HttpRequest.newBuilder()
+                    .uri(URI.create(centralUrl + path))
+                    .header("Authorization", "Bearer " + centralApiKey())
+                    .GET()
+                    .build();
+            var resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 400) {
+                throw new IOException("Central GET " + path + " returned " + resp.statusCode());
+            }
+            return MAPPER.readTree(resp.body());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Central request interrupted", e);
+        }
+    }
+
+    private void centralPost(String path, String body) throws IOException {
+        String centralUrl = config.centralUrl().orElseThrow();
+        try {
+            var req = HttpRequest.newBuilder()
+                    .uri(URI.create(centralUrl + path))
+                    .header("Authorization", "Bearer " + centralApiKey())
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+            var resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 400) {
+                throw new IOException("Central POST " + path + " returned " + resp.statusCode());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Central request interrupted", e);
+        }
+    }
+
+    private void centralDelete(String path) throws IOException {
+        String centralUrl = config.centralUrl().orElseThrow();
+        try {
+            var req = HttpRequest.newBuilder()
+                    .uri(URI.create(centralUrl + path))
+                    .header("Authorization", "Bearer " + centralApiKey())
+                    .DELETE()
+                    .build();
+            var resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 400) {
+                throw new IOException("Central DELETE " + path + " returned " + resp.statusCode());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Central request interrupted", e);
+        }
+    }
+
+    private void centralPatch(String path, String body) throws IOException {
+        String centralUrl = config.centralUrl().orElseThrow();
+        try {
+            var req = HttpRequest.newBuilder()
+                    .uri(URI.create(centralUrl + path))
+                    .header("Authorization", "Bearer " + centralApiKey())
+                    .header("Content-Type", "application/json")
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+            var resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 400) {
+                throw new IOException("Central PATCH " + path + " returned " + resp.statusCode());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Central request interrupted", e);
+        }
     }
 
     /** Convert ws:// or wss:// URL to http:// or https:// for API calls */

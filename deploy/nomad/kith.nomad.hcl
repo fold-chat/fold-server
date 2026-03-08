@@ -39,7 +39,8 @@ job "kith-main" {
         KITH_CORS_ORIGINS = "https://__KITH_DOMAIN__"
         KITH_DEV          = "false"
         KITH_PORT         = "8080"
-        KITH_LIVEKIT_MODE = "embedded"
+        KITH_LIVEKIT_MODE        = "off"
+        KITH_LIVEKIT_WEBHOOK_URL = "https://__KITH_DOMAIN__"
         JAVA_OPTS         = "--enable-native-access=ALL-UNNAMED"
       }
 
