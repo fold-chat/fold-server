@@ -102,8 +102,8 @@ server.tool(
     const db = getDb();
     try {
       const insertUser = db.prepare(
-        `INSERT INTO user (id, username, display_name, password_hash, bio)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO user (id, username, display_name, password_hash, bio, join_method, created_at, last_seen_at, status_text)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       );
       const assignRole = db.prepare(
         "INSERT OR IGNORE INTO user_role (user_id, role_id) VALUES (?, 'member')"
@@ -120,6 +120,15 @@ server.tool(
 
       const created: { id: string; username: string; display_name: string }[] =
         [];
+
+      const now = Date.now();
+      const ninetyDays = 90 * 24 * 60 * 60 * 1000;
+      const statusTexts = [
+        null, null, null, null, null, null, null, // ~70% no status
+        "🎮 Gaming", "📚 Reading", "🎵 Listening to music",
+        "💻 Coding", "☕ Coffee break", "🌙 Do not disturb",
+        "🏖️ On vacation", "🔨 Building something", "📱 On mobile",
+      ];
 
       db.transaction(() => {
         for (let i = 0; i < count; i++) {
@@ -138,7 +147,22 @@ server.tool(
           const displayName = faker.person.fullName();
           const bio = faker.person.bio();
 
-          insertUser.run(id, username, displayName, hash, bio);
+          // Spread created_at over last 90 days
+          const createdMs = now - ninetyDays + Math.random() * ninetyDays;
+          const createdAt = new Date(createdMs).toISOString().replace("T", " ").slice(0, 19);
+
+          // 70% registration, 30% invite
+          const joinMethod = Math.random() < 0.7 ? "registration" : "invite";
+
+          // last_seen_at: 80% seen in last 7 days, 20% older
+          const seenMs = Math.random() < 0.8
+            ? now - Math.random() * 7 * 24 * 60 * 60 * 1000
+            : createdMs + Math.random() * (now - createdMs);
+          const lastSeenAt = new Date(seenMs).toISOString().replace("T", " ").slice(0, 19);
+
+          const statusText = statusTexts[Math.floor(Math.random() * statusTexts.length)];
+
+          insertUser.run(id, username, displayName, hash, bio, joinMethod, createdAt, lastSeenAt, statusText);
           assignRole.run(id);
           created.push({ id, username, display_name: displayName });
         }
