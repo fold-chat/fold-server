@@ -45,6 +45,32 @@ public class RoleRepository {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
     }
 
+    public void setDefault(String roleId) {
+        db.transactionVoid(tx -> {
+            tx.execute("UPDATE role SET is_default = 0 WHERE is_default = 1");
+            tx.execute("UPDATE role SET is_default = 1 WHERE id = ?", roleId);
+        });
+    }
+
+    public int nextPosition() {
+        var rows = db.query("SELECT COALESCE(MAX(position), 0) + 1 AS next_pos FROM role");
+        return ((Long) rows.getFirst().get("next_pos")).intValue();
+    }
+
+    public void batchUpdatePositions(List<IdPosition> items) {
+        db.transactionVoid(tx -> {
+            // Negative offsets to avoid UNIQUE constraint conflicts mid-transaction
+            for (int i = 0; i < items.size(); i++) {
+                tx.execute("UPDATE role SET position = ? WHERE id = ?", -(i + 1), items.get(i).id());
+            }
+            for (var item : items) {
+                tx.execute("UPDATE role SET position = ? WHERE id = ?", item.position(), item.id());
+            }
+        });
+    }
+
+    public record IdPosition(String id, int position) {}
+
     public boolean existsByPosition(int position, String excludeId) {
         var rows = db.query(
                 "SELECT 1 FROM role WHERE position = ? AND id != ?",

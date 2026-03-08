@@ -56,35 +56,6 @@ export function hasPermission(permissions: string[], perm: Permission): boolean 
 
 // Grouped for UI display
 export const PERMISSION_GROUPS = {
-	Channel: [
-		{ name: PermissionName.VIEW_CHANNEL, label: 'View Channel', desc: 'View channel and read messages' },
-		{ name: PermissionName.SEND_MESSAGES, label: 'Send Messages', desc: 'Send messages in channel' },
-		{
-			name: PermissionName.MANAGE_OWN_MESSAGES,
-			label: 'Manage Own Messages',
-			desc: 'Edit/delete own messages'
-		},
-		{
-			name: PermissionName.MANAGE_MESSAGES,
-			label: 'Manage Messages',
-			desc: 'Edit/delete/pin any message'
-		},
-		{ name: PermissionName.UPLOAD_FILES, label: 'Upload Files', desc: 'Upload files/attachments' },
-		{ name: PermissionName.ADD_REACTIONS, label: 'Add Reactions', desc: 'Add emoji reactions' },
-		{
-			name: PermissionName.MENTION_EVERYONE,
-			label: 'Mention Everyone',
-			desc: 'Use @everyone/@here mentions'
-		},
-		{ name: PermissionName.CREATE_THREADS, label: 'Create Threads', desc: 'Create threads from messages' },
-		{
-			name: PermissionName.MANAGE_OWN_THREADS,
-			label: 'Manage Own Threads',
-			desc: 'Lock/archive/delete own threads'
-		},
-		{ name: PermissionName.MANAGE_THREADS, label: 'Manage Threads', desc: 'Lock/archive/delete any thread' },
-		{ name: PermissionName.SEND_IN_LOCKED_THREADS, label: 'Send in Locked Threads', desc: 'Post replies in locked threads' }
-	],
 	Server: [
 		{
 			name: PermissionName.MANAGE_CHANNELS,
@@ -124,6 +95,35 @@ export const PERMISSION_GROUPS = {
 			desc: 'Bypass all permission checks (except Owner)'
 		}
 	],
+	'Text Channel': [
+		{ name: PermissionName.VIEW_CHANNEL, label: 'View Channel', desc: 'View channel and read messages' },
+		{ name: PermissionName.SEND_MESSAGES, label: 'Send Messages', desc: 'Send messages in channel' },
+		{
+			name: PermissionName.MANAGE_OWN_MESSAGES,
+			label: 'Manage Own Messages',
+			desc: 'Edit/delete own messages'
+		},
+		{
+			name: PermissionName.MANAGE_MESSAGES,
+			label: 'Manage Messages',
+			desc: 'Edit/delete/pin any message'
+		},
+		{ name: PermissionName.UPLOAD_FILES, label: 'Upload Files', desc: 'Upload files/attachments' },
+		{ name: PermissionName.ADD_REACTIONS, label: 'Add Reactions', desc: 'Add emoji reactions' },
+		{
+			name: PermissionName.MENTION_EVERYONE,
+			label: 'Mention Everyone',
+			desc: 'Use @everyone/@here mentions'
+		},
+		{ name: PermissionName.CREATE_THREADS, label: 'Create Threads', desc: 'Create threads from messages' },
+		{
+			name: PermissionName.MANAGE_OWN_THREADS,
+			label: 'Manage Own Threads',
+			desc: 'Lock/archive/delete own threads'
+		},
+		{ name: PermissionName.MANAGE_THREADS, label: 'Manage Threads', desc: 'Lock/archive/delete any thread' },
+		{ name: PermissionName.SEND_IN_LOCKED_THREADS, label: 'Send in Locked Threads', desc: 'Post replies in locked threads' }
+	],
 	Voice: [
 		{ name: PermissionName.USE_VOICE, label: 'Use Voice', desc: 'Connect to voice channels' },
 		{ name: PermissionName.VIDEO, label: 'Video', desc: 'Share video in voice' },
@@ -141,3 +141,67 @@ export const PERMISSION_GROUPS = {
 		}
 	]
 } as const;
+
+// Dependency hierarchy: each perm maps to its direct prerequisites
+export const PERMISSION_DEPS: Record<string, string[]> = {
+	// Text Channel
+	SEND_MESSAGES: ['VIEW_CHANNEL'],
+	MANAGE_OWN_MESSAGES: ['SEND_MESSAGES'],
+	MANAGE_MESSAGES: ['VIEW_CHANNEL'],
+	UPLOAD_FILES: ['SEND_MESSAGES'],
+	ADD_REACTIONS: ['VIEW_CHANNEL'],
+	MENTION_EVERYONE: ['SEND_MESSAGES'],
+	CREATE_THREADS: ['SEND_MESSAGES'],
+	MANAGE_OWN_THREADS: ['CREATE_THREADS'],
+	MANAGE_THREADS: ['VIEW_CHANNEL'],
+	SEND_IN_LOCKED_THREADS: ['SEND_MESSAGES'],
+	// Server
+	MANAGE_INVITES: ['CREATE_INVITES'],
+	// Voice
+	VIDEO: ['USE_VOICE'],
+	MUTE_MEMBERS: ['USE_VOICE'],
+	DEAFEN_MEMBERS: ['USE_VOICE'],
+	MOVE_MEMBERS: ['USE_VOICE'],
+	PRIORITY_SPEAKER: ['USE_VOICE']
+};
+
+/** All transitive prerequisites of a permission */
+export function getAllPrerequisites(perm: string): Set<string> {
+	const result = new Set<string>();
+	const stack = [...(PERMISSION_DEPS[perm] || [])];
+	while (stack.length) {
+		const dep = stack.pop()!;
+		if (!result.has(dep)) {
+			result.add(dep);
+			stack.push(...(PERMISSION_DEPS[dep] || []));
+		}
+	}
+	return result;
+}
+
+/** All perms that transitively depend on this perm */
+export function getAllDependents(perm: string): Set<string> {
+	const result = new Set<string>();
+	const stack = [perm];
+	while (stack.length) {
+		const current = stack.pop()!;
+		for (const [p, deps] of Object.entries(PERMISSION_DEPS)) {
+			if (deps.includes(current) && !result.has(p)) {
+				result.add(p);
+				stack.push(p);
+			}
+		}
+	}
+	return result;
+}
+
+/** Given enabled perms, return the subset that are forced on as prerequisites of other enabled perms */
+export function getForcedPrereqs(enabled: Set<string>): Set<string> {
+	const forced = new Set<string>();
+	for (const perm of enabled) {
+		for (const prereq of getAllPrerequisites(perm)) {
+			forced.add(prereq);
+		}
+	}
+	return forced;
+}

@@ -26,7 +26,6 @@ export function getRoles() {
 export function createRole(data: {
 	name: string;
 	permissions: string[];
-	position: number;
 	color?: string | null;
 }) {
 	return api<Role>('/roles', { method: 'POST', body: JSON.stringify(data) });
@@ -34,13 +33,21 @@ export function createRole(data: {
 
 export function updateRole(
 	id: string,
-	data: { name?: string; permissions?: string[]; position?: number; color?: string | null }
+	data: { name?: string; permissions?: string[]; color?: string | null }
 ) {
 	return api<Role>(`/roles/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
 
+export function reorderRoles(items: { id: string; position: number }[]) {
+	return api<Role[]>('/roles/reorder', { method: 'PATCH', body: JSON.stringify(items) });
+}
+
 export function deleteRole(id: string) {
 	return api<{ deleted: boolean; affected_users: number }>(`/roles/${id}`, { method: 'DELETE' });
+}
+
+export function setDefaultRole(id: string) {
+	return api<Role>(`/roles/${id}/default`, { method: 'PUT' });
 }
 
 export function assignRole(userId: string, roleId: string) {

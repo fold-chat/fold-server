@@ -28,11 +28,10 @@ public class RoleService {
 
     // --- Role CRUD ---
 
-    public Map<String, Object> createRole(String actorId, String name, long permissions, int position, String color) {
+    public Map<String, Object> createRole(String actorId, String name, long permissions, String color) {
         permissionService.requireServerPermission(actorId, Permission.MANAGE_ROLES);
-        checkHierarchy(actorId, position);
-        validatePosition(position, null);
 
+        int position = roleRepo.nextPosition();
         String id = UUID.randomUUID().toString();
         roleRepo.create(id, name, permissions, position, color, false);
         permissionService.invalidateAll();
@@ -43,7 +42,7 @@ public class RoleService {
         return serialized;
     }
 
-    public Map<String, Object> updateRole(String actorId, String roleId, String name, Long permissions, Integer position, String color) {
+    public Map<String, Object> updateRole(String actorId, String roleId, String name, Long permissions, String color) {
         permissionService.requireServerPermission(actorId, Permission.MANAGE_ROLES);
         requireNotOwner(roleId, "Cannot modify the Owner role");
 
@@ -55,15 +54,9 @@ public class RoleService {
 
         String newName = name != null ? name : (String) existing.get("name");
         long newPerms = permissions != null ? permissions : (Long) existing.get("permissions");
-        int newPos = position != null ? position : existingPos;
         String newColor = color != null ? color : (String) existing.get("color");
 
-        if (position != null && position != existingPos) {
-            checkHierarchy(actorId, position);
-            validatePosition(position, roleId);
-        }
-
-        roleRepo.update(roleId, newName, newPerms, newPos, newColor);
+        roleRepo.update(roleId, newName, newPerms, existingPos, newColor);
         permissionService.invalidateAll();
 
         var updated = roleRepo.findById(roleId).orElseThrow();
@@ -77,6 +70,21 @@ public class RoleService {
         }
 
         return serialized;
+    }
+
+    public List<Map<String, Object>> reorderRoles(String actorId, List<RoleRepository.IdPosition> items) {
+        permissionService.requireServerPermission(actorId, Permission.MANAGE_ROLES);
+        for (var item : items) {
+            roleRepo.findById(item.id()).orElseThrow(() -> notFound("Role not found: " + item.id()));
+        }
+        roleRepo.batchUpdatePositions(items);
+        permissionService.invalidateAll();
+
+        var allRoles = roleRepo.findAll().stream().map(this::serializeRole).toList();
+        for (var role : allRoles) {
+            eventBus.publish(Event.of(EventType.ROLE_UPDATE, role, Scope.server()));
+        }
+        return allRoles;
     }
 
     public long deleteRole(String actorId, String roleId) {
@@ -184,6 +192,31 @@ public class RoleService {
 
     public Optional<Map<String, Object>> getDefaultRole() {
         return roleRepo.findDefaultRole();
+    }
+
+    public Map<String, Object> setDefaultRole(String actorId, String roleId) {
+        permissionService.requireServerPermission(actorId, Permission.MANAGE_ROLES);
+        requireNotOwner(roleId, "Cannot set Owner as default role");
+
+        roleRepo.findById(roleId).orElseThrow(() -> notFound("Role not found"));
+
+        // Capture old default before switching
+        var oldDefault = roleRepo.findDefaultRole();
+
+        roleRepo.setDefault(roleId);
+
+        // Broadcast old default with is_default=0
+        oldDefault.ifPresent(old -> {
+            if (!old.get("id").equals(roleId)) {
+                var refreshed = roleRepo.findById((String) old.get("id")).orElseThrow();
+                eventBus.publish(Event.of(EventType.ROLE_UPDATE, serializeRole(refreshed), Scope.server()));
+            }
+        });
+
+        var updated = roleRepo.findById(roleId).orElseThrow();
+        var serialized = serializeRole(updated);
+        eventBus.publish(Event.of(EventType.ROLE_UPDATE, serialized, Scope.server()));
+        return serialized;
     }
 
     // --- Serialization (bitmask → names at API boundary) ---

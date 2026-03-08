@@ -43,7 +43,7 @@ public class RoleResource {
             return Response.status(400).entity(Map.of("error", "invalid_name", "message", "Name required")).build();
         }
         long permissions = req.permissions() != null ? Permission.fromNames(req.permissions()) : 0L;
-        var role = roleService.createRole(sc().getUserId(), req.name().trim(), permissions, req.position(), req.color());
+        var role = roleService.createRole(sc().getUserId(), req.name().trim(), permissions, req.color());
         auditLogService.log(sc().getUserId(), "ROLE_CREATE", "role", (String) role.get("id"), Map.of("name", req.name()));
         return Response.status(201).entity(role).build();
     }
@@ -52,9 +52,21 @@ public class RoleResource {
     @Path("/roles/{id}")
     public Response updateRole(@PathParam("id") String id, UpdateRoleRequest req) {
         Long permissions = req.permissions() != null ? Permission.fromNames(req.permissions()) : null;
-        var role = roleService.updateRole(sc().getUserId(), id, req.name(), permissions, req.position(), req.color());
+        var role = roleService.updateRole(sc().getUserId(), id, req.name(), permissions, req.color());
         auditLogService.log(sc().getUserId(), "ROLE_UPDATE", "role", id);
         return Response.ok(role).build();
+    }
+
+    @PATCH
+    @Path("/roles/reorder")
+    public Response reorderRoles(List<ReorderItem> items) {
+        if (items == null || items.isEmpty()) {
+            return Response.status(400).entity(Map.of("error", "invalid_body", "message", "Items required")).build();
+        }
+        var roles = roleService.reorderRoles(sc().getUserId(), 
+                items.stream().map(i -> new RoleRepository.IdPosition(i.id(), i.position())).toList());
+        auditLogService.log(sc().getUserId(), "ROLE_REORDER", "role", null);
+        return Response.ok(roles).build();
     }
 
     @DELETE
@@ -65,10 +77,19 @@ public class RoleResource {
         return Response.ok(Map.of("deleted", true, "affected_users", userCount)).build();
     }
 
+    @PUT
+    @Path("/roles/{id}/default")
+    public Response setDefaultRole(@PathParam("id") String id) {
+        var role = roleService.setDefaultRole(sc().getUserId(), id);
+        auditLogService.log(sc().getUserId(), "ROLE_SET_DEFAULT", "role", id);
+        return Response.ok(role).build();
+    }
+
     // --- DTOs ---
 
-    public record CreateRoleRequest(String name, List<String> permissions, int position, String color) {}
-    public record UpdateRoleRequest(String name, List<String> permissions, Integer position, String color) {}
+    public record CreateRoleRequest(String name, List<String> permissions, String color) {}
+    public record UpdateRoleRequest(String name, List<String> permissions, String color) {}
+    public record ReorderItem(String id, int position) {}
 
     private KithSecurityContext sc() {
         return (KithSecurityContext) requestContext.getSecurityContext();
