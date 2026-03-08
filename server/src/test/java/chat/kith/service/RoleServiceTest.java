@@ -65,7 +65,7 @@ class RoleServiceTest {
         doNothing().when(permissionService).requireServerPermission(any(), any());
 
         var ex = assertThrows(WebApplicationException.class,
-                () -> roleService.updateRole("actor", "owner", "NewName", null, null, null));
+                () -> roleService.updateRole("actor", "owner", "NewName", null, null));
         assertEquals(403, ex.getResponse().getStatus());
     }
 
@@ -99,86 +99,15 @@ class RoleServiceTest {
     // --- Hierarchy enforcement ---
 
     @Test
-    void createRole_rejectsHigherRankPosition() {
+    void createRole_success() {
         doNothing().when(permissionService).requireServerPermission(any(), any());
-        when(permissionService.isOwner("actor")).thenReturn(false);
-        // Actor has role at position 3
-        when(roleRepo.findUserRoleIds("actor")).thenReturn(List.of("mod"));
-        when(roleRepo.findById("mod")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND, "position", 3L)));
-
-        // Trying to create role at position 2 (higher rank)
-        var ex = assertThrows(WebApplicationException.class,
-                () -> roleService.createRole("actor", "NewRole", VIEW_SEND, 2, "#fff"));
-        assertEquals(403, ex.getResponse().getStatus());
-    }
-
-    @Test
-    void createRole_rejectsSamePosition() {
-        doNothing().when(permissionService).requireServerPermission(any(), any());
-        when(permissionService.isOwner("actor")).thenReturn(false);
-        when(roleRepo.findUserRoleIds("actor")).thenReturn(List.of("mod"));
-        when(roleRepo.findById("mod")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND, "position", 3L)));
-
-        // Position 3 = same as actor's role, can't manage
-        var ex = assertThrows(WebApplicationException.class,
-                () -> roleService.createRole("actor", "NewRole", VIEW_SEND, 3, "#fff"));
-        assertEquals(403, ex.getResponse().getStatus());
-    }
-
-    @Test
-    void createRole_allowsLowerRankPosition() {
-        doNothing().when(permissionService).requireServerPermission(any(), any());
-        when(permissionService.isOwner("actor")).thenReturn(false);
-        when(roleRepo.findUserRoleIds("actor")).thenReturn(List.of("admin"));
-        when(roleRepo.existsByPosition(5, "")).thenReturn(false);
-        // findById: admin for hierarchy check, new role for post-create lookup
-        when(roleRepo.findById(anyString())).thenAnswer(inv -> {
-            String id = inv.getArgument(0);
-            if ("admin".equals(id)) return Optional.of(Map.of("permissions", VIEW_SEND, "position", 2L));
-            return Optional.of(Map.of(
-                    "id", id, "name", "NewRole", "permissions", VIEW_SEND,
-                    "position", 5L, "color", "#fff", "is_default", 0L,
-                    "created_at", "2025-01-01"));
-        });
-
-        assertDoesNotThrow(() -> roleService.createRole("actor", "NewRole", VIEW_SEND, 5, "#fff"));
-    }
-
-    @Test
-    void createRole_ownerBypassesHierarchy() {
-        doNothing().when(permissionService).requireServerPermission(any(), any());
-        when(permissionService.isOwner("owner-user")).thenReturn(true);
-        when(roleRepo.existsByPosition(1, "")).thenReturn(false);
+        when(roleRepo.nextPosition()).thenReturn(5);
         when(roleRepo.findById(any())).thenReturn(Optional.of(Map.of(
-                "id", "new-id", "name", "TopRole", "permissions", 0L,
-                "position", 1L, "color", "#fff", "is_default", 0L,
+                "id", "new-id", "name", "NewRole", "permissions", VIEW_SEND,
+                "position", 5L, "color", "#fff", "is_default", 0L,
                 "created_at", "2025-01-01")));
 
-        assertDoesNotThrow(() -> roleService.createRole("owner-user", "TopRole", 0L, 1, "#fff"));
-    }
-
-    @Test
-    void updateRole_checksBothCurrentAndNewPosition() {
-        doNothing().when(permissionService).requireServerPermission(any(), any());
-        when(permissionService.isOwner("actor")).thenReturn(false);
-        when(roleRepo.findUserRoleIds("actor")).thenReturn(List.of("admin"));
-        // Actor is admin at position 2
-        var adminRole = new HashMap<String, Object>();
-        adminRole.put("permissions", VIEW_SEND);
-        adminRole.put("position", 2L);
-        when(roleRepo.findById("admin")).thenReturn(Optional.of(adminRole));
-        // Target role at position 5
-        var targetRole = new HashMap<String, Object>();
-        targetRole.put("name", "Old");
-        targetRole.put("permissions", VIEW_SEND);
-        targetRole.put("position", 5L);
-        targetRole.put("color", null);
-        when(roleRepo.findById("target-role")).thenReturn(Optional.of(targetRole));
-
-        // Try to move to position 1 (above actor) — should fail
-        var ex = assertThrows(WebApplicationException.class,
-                () -> roleService.updateRole("actor", "target-role", null, null, 1, null));
-        assertEquals(403, ex.getResponse().getStatus());
+        assertDoesNotThrow(() -> roleService.createRole("actor", "NewRole", VIEW_SEND, "#fff"));
     }
 
     @Test
@@ -195,17 +124,48 @@ class RoleServiceTest {
         assertEquals(403, ex.getResponse().getStatus());
     }
 
-    // --- Position uniqueness ---
-
     @Test
-    void createRole_rejectsConflictingPosition() {
+    void updateRole_rejectsIfRoleAboveActor() {
         doNothing().when(permissionService).requireServerPermission(any(), any());
-        when(permissionService.isOwner("actor")).thenReturn(true);
-        when(roleRepo.existsByPosition(5, "")).thenReturn(true);
+        when(permissionService.isOwner("actor")).thenReturn(false);
+        when(roleRepo.findUserRoleIds("actor")).thenReturn(List.of("mod"));
+        when(roleRepo.findById("mod")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND, "position", 3L)));
+        var target = new HashMap<String, Object>();
+        target.put("name", "Admin");
+        target.put("permissions", VIEW_SEND);
+        target.put("position", 2L);
+        target.put("color", null);
+        when(roleRepo.findById("target")).thenReturn(Optional.of(target));
 
         var ex = assertThrows(WebApplicationException.class,
-                () -> roleService.createRole("actor", "NewRole", 0L, 5, null));
-        assertEquals(409, ex.getResponse().getStatus());
+                () -> roleService.updateRole("actor", "target", "NewName", null, null));
+        assertEquals(403, ex.getResponse().getStatus());
+    }
+
+    @Test
+    void assignRole_rejectsIfRoleAboveActor() {
+        doNothing().when(permissionService).requireServerPermission(any(), any());
+        when(permissionService.isOwner("actor")).thenReturn(false);
+        when(roleRepo.findUserRoleIds("actor")).thenReturn(List.of("mod"));
+        when(roleRepo.findById("mod")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND, "position", 3L)));
+        when(roleRepo.findById("target")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND, "position", 2L)));
+
+        var ex = assertThrows(WebApplicationException.class,
+                () -> roleService.assignRole("actor", "user1", "target"));
+        assertEquals(403, ex.getResponse().getStatus());
+    }
+
+    @Test
+    void removeRole_rejectsIfRoleAboveActor() {
+        doNothing().when(permissionService).requireServerPermission(any(), any());
+        when(permissionService.isOwner("actor")).thenReturn(false);
+        when(roleRepo.findUserRoleIds("actor")).thenReturn(List.of("mod"));
+        when(roleRepo.findById("mod")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND, "position", 3L)));
+        when(roleRepo.findById("target")).thenReturn(Optional.of(Map.of("permissions", VIEW_SEND, "position", 2L)));
+
+        var ex = assertThrows(WebApplicationException.class,
+                () -> roleService.removeRole("actor", "user1", "target"));
+        assertEquals(403, ex.getResponse().getStatus());
     }
 
     // --- Cache invalidation ---
@@ -213,14 +173,13 @@ class RoleServiceTest {
     @Test
     void createRole_invalidatesAllPermissions() {
         doNothing().when(permissionService).requireServerPermission(any(), any());
-        when(permissionService.isOwner("actor")).thenReturn(true);
-        when(roleRepo.existsByPosition(5, "")).thenReturn(false);
+        when(roleRepo.nextPosition()).thenReturn(5);
         when(roleRepo.findById(any())).thenReturn(Optional.of(Map.of(
                 "id", "new-id", "name", "Test", "permissions", VIEW_SEND,
                 "position", 5L, "color", "#000", "is_default", 0L,
                 "created_at", "2025-01-01")));
 
-        roleService.createRole("actor", "Test", VIEW_SEND, 5, "#000");
+        roleService.createRole("actor", "Test", VIEW_SEND, "#000");
         verify(permissionService).invalidateAll();
     }
 
@@ -280,14 +239,13 @@ class RoleServiceTest {
     @Test
     void createRole_emitsRoleCreateEvent() {
         doNothing().when(permissionService).requireServerPermission(any(), any());
-        when(permissionService.isOwner("actor")).thenReturn(true);
-        when(roleRepo.existsByPosition(5, "")).thenReturn(false);
+        when(roleRepo.nextPosition()).thenReturn(5);
         when(roleRepo.findById(any())).thenReturn(Optional.of(Map.of(
                 "id", "new-id", "name", "Test", "permissions", VIEW_SEND,
                 "position", 5L, "color", "#000", "is_default", 0L,
                 "created_at", "2025-01-01")));
 
-        roleService.createRole("actor", "Test", VIEW_SEND, 5, "#000");
+        roleService.createRole("actor", "Test", VIEW_SEND, "#000");
 
         var captor = ArgumentCaptor.forClass(chat.kith.event.Event.class);
         verify(eventBus).publish(captor.capture());
@@ -394,7 +352,7 @@ class RoleServiceTest {
         when(roleRepo.findById("missing")).thenReturn(Optional.empty());
 
         var ex = assertThrows(WebApplicationException.class,
-                () -> roleService.updateRole("actor", "missing", "Name", null, null, null));
+                () -> roleService.updateRole("actor", "missing", "Name", null, null));
         assertEquals(404, ex.getResponse().getStatus());
     }
 
@@ -426,7 +384,7 @@ class RoleServiceTest {
                 .when(permissionService).requireServerPermission("actor", Permission.MANAGE_ROLES);
 
         assertThrows(PermissionService.PermissionException.class,
-                () -> roleService.createRole("actor", "Test", 0L, 5, null));
+                () -> roleService.createRole("actor", "Test", 0L, null));
     }
 
     @Test
