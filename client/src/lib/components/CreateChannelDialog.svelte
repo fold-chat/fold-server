@@ -113,6 +113,7 @@
 		overrides = [];
 		selectedRoleId = null;
 		permError = '';
+		lastChannelId = null;
 	}
 
 	async function handleIconUpload(e: Event) {
