@@ -13,6 +13,9 @@ import uk.co.rstl.libsql.Rows;
 import uk.co.rstl.libsql.Statement;
 import uk.co.rstl.libsql.Transaction;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,6 +38,16 @@ public class DatabaseService {
 
     @PostConstruct
     void init() {
+        // Ensure parent directory exists (e.g. /persist/pr-N/ for preview deploys)
+        var dbParent = Path.of(config.path()).getParent();
+        if (dbParent != null) {
+            try {
+                Files.createDirectories(dbParent);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to create database directory: " + dbParent, e);
+            }
+        }
+
         var builder = Database.builder(config.path())
                 .journalMode("WAL")
                 .busyTimeout(5000)
