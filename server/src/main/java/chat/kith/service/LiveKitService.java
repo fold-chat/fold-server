@@ -3,18 +3,13 @@ package chat.kith.service;
 import chat.kith.config.KithLiveKitConfig;
 import chat.kith.config.RuntimeConfigService;
 import chat.kith.db.VoiceStateRepository;
-import com.fasterxml.jackson.databind.JsonNode;
+import chat.kith.livekit.*;
+import chat.kith.livekit.LiveKitDto.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.livekit.server.AccessToken;
-import io.livekit.server.RoomJoin;
-import io.livekit.server.RoomName;
-import io.livekit.server.CanPublish;
-import io.livekit.server.CanSubscribe;
-import io.livekit.server.RoomServiceClient;
+import io.quarkus.rest.client.reactive.QuarkusRestClientBuilder;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import livekit.LivekitModels;
 import org.jboss.logging.Logger;
 
 import java.io.IOException;
@@ -43,7 +38,7 @@ public class LiveKitService {
     @Inject
     VoiceStateRepository voiceStateRepo;
 
-    private RoomServiceClient roomService;
+    private LiveKitRoomService roomService;
     private HttpClient httpClient;
 
     // Resolved at runtime — may come from config, EmbeddedLiveKitManager, or central service
@@ -153,11 +148,11 @@ public class LiveKitService {
             var rooms = listRooms();
             int total = 0;
             for (var room : rooms) {
-                if (!room.getName().startsWith("voice-")) continue;
-                String channelId = room.getName().substring("voice-".length());
-                var participants = listParticipants(room.getName());
+                if (!room.name().startsWith("voice-")) continue;
+                String channelId = room.name().substring("voice-".length());
+                var participants = listParticipants(room.name());
                 for (var p : participants) {
-                    voiceStateRepo.upsert(p.getIdentity(), channelId, 0, 0);
+                    voiceStateRepo.upsert(p.identity(), channelId, 0, 0);
                     total++;
                 }
             }
@@ -172,7 +167,11 @@ public class LiveKitService {
         this.url = url;
         this.apiKey = apiKey;
         this.apiSecret = apiSecret;
-        this.roomService = RoomServiceClient.createClient(httpUrl(url), apiKey, apiSecret);
+        String httpUrl = httpUrl(url);
+        this.roomService = QuarkusRestClientBuilder.newBuilder()
+                .baseUri(URI.create(httpUrl))
+                .register(new LiveKitAuthFilter(apiKey, apiSecret))
+                .build(LiveKitRoomService.class);
     }
 
     /** Effective mode — runtime override first, fallback to @ConfigMapping */
@@ -231,16 +230,14 @@ public class LiveKitService {
             return result.token();
         }
         String roomName = "voice-" + channelId;
-        AccessToken token = new AccessToken(apiKey, apiSecret);
-        token.setIdentity(userId);
-        token.setName(username);
-        token.addGrants(
-                new RoomJoin(true),
-                new RoomName(roomName),
-                new CanPublish(canPublish),
-                new CanSubscribe(canSubscribe)
-        );
-        return token.toJwt();
+        return new LiveKitToken()
+                .identity(userId)
+                .name(username)
+                .roomJoin(true)
+                .room(roomName)
+                .canPublish(canPublish)
+                .canSubscribe(canSubscribe)
+                .toJwt(apiKey, apiSecret);
     }
 
     /**
@@ -305,11 +302,7 @@ public class LiveKitService {
             centralPost("/api/v1/voice/rooms/" + prefixed + "/participants/" + identity + "/mute", body);
             return;
         }
-        var call = roomService.mutePublishedTrack(roomName, identity, trackSid, muted);
-        var response = call.execute();
-        if (!response.isSuccessful()) {
-            throw new IOException("muteTrack failed: " + response.code());
-        }
+        roomService.mutePublishedTrack(new MuteTrackRequest(roomName, identity, trackSid, muted));
     }
 
     /** Remove a participant from a room */
@@ -319,82 +312,42 @@ public class LiveKitService {
             centralDelete("/api/v1/voice/rooms/" + prefixed + "/participants/" + identity);
             return;
         }
-        var call = roomService.removeParticipant(roomName, identity);
-        var response = call.execute();
-        if (!response.isSuccessful()) {
-            throw new IOException("removeParticipant failed: " + response.code());
-        }
+        roomService.removeParticipant(new RemoveParticipantRequest(roomName, identity));
     }
 
     /** Update participant permissions (e.g. canSubscribe=false for server deafen) */
     public void updateParticipant(String roomName, String identity,
-                                  LivekitModels.ParticipantPermission permission) throws IOException {
+                                  ParticipantPermission permission) throws IOException {
         if (isManaged()) {
             String prefixed = managedRoomName(roomName);
             var bodyMap = new java.util.LinkedHashMap<String, Object>();
-            bodyMap.put("can_subscribe", permission.getCanSubscribe());
-            bodyMap.put("can_publish", permission.getCanPublish());
+            bodyMap.put("can_subscribe", permission.canSubscribe());
+            bodyMap.put("can_publish", permission.canPublish());
             var body = MAPPER.writeValueAsString(bodyMap);
             centralPatch("/api/v1/voice/rooms/" + prefixed + "/participants/" + identity, body);
             return;
         }
-        var call = roomService.updateParticipant(roomName, identity, null, null, permission);
-        var response = call.execute();
-        if (!response.isSuccessful()) {
-            throw new IOException("updateParticipant failed: " + response.code());
-        }
+        roomService.updateParticipant(new UpdateParticipantRequest(
+                roomName, identity, null, null, permission));
     }
 
     /** Get a specific participant in a room */
-    public LivekitModels.ParticipantInfo getParticipant(String roomName, String identity) throws IOException {
+    public ParticipantInfo getParticipant(String roomName, String identity) throws IOException {
         if (isManaged()) {
-            // Managed mode: proxy via central, return parsed participant info
             String prefixed = managedRoomName(roomName);
             var json = centralGet("/api/v1/voice/rooms/" + prefixed + "/participants/" + identity);
-            // Build a minimal ParticipantInfo from JSON response
-            var builder = LivekitModels.ParticipantInfo.newBuilder()
-                    .setIdentity(json.path("identity").asText(""))
-                    .setName(json.path("name").asText(""))
-                    .setSid(json.path("sid").asText(""));
-            var tracks = json.path("tracks");
-            if (tracks.isArray()) {
-                for (var t : tracks) {
-                    var tb = LivekitModels.TrackInfo.newBuilder()
-                            .setSid(t.path("sid").asText(""))
-                            .setMuted(t.path("muted").asBoolean(false));
-                    String type = t.path("type").asText("");
-                    if ("AUDIO".equals(type)) tb.setType(LivekitModels.TrackType.AUDIO);
-                    else if ("VIDEO".equals(type)) tb.setType(LivekitModels.TrackType.VIDEO);
-                    builder.addTracks(tb.build());
-                }
-            }
-            return builder.build();
+            return MAPPER.treeToValue(json, ParticipantInfo.class);
         }
-        var call = roomService.getParticipant(roomName, identity);
-        var response = call.execute();
-        if (!response.isSuccessful()) {
-            throw new IOException("getParticipant failed: " + response.code());
-        }
-        return response.body();
+        return roomService.getParticipant(new GetParticipantRequest(roomName, identity));
     }
 
     /** List all active rooms */
-    public List<LivekitModels.Room> listRooms() {
+    public List<Room> listRooms() {
         if (isManaged()) {
             try {
                 var json = centralGet("/api/v1/voice/rooms");
-                var rooms = json.path("rooms");
-                if (!rooms.isArray()) return Collections.emptyList();
-                var result = new java.util.ArrayList<LivekitModels.Room>();
-                for (var r : rooms) {
-                    result.add(LivekitModels.Room.newBuilder()
-                            .setName(r.path("name").asText(""))
-                            .setNumParticipants(r.path("num_participants").asInt(0))
-                            .setNumPublishers(r.path("num_publishers").asInt(0))
-                            .setSid(r.path("sid").asText(""))
-                            .build());
-                }
-                return result;
+                var resp = MAPPER.treeToValue(json, ListRoomsResponse.class);
+                return resp != null && resp.rooms() != null ? resp.rooms() : Collections.emptyList();
             } catch (IOException e) {
                 LOG.warnf("Failed to list rooms via central: %s", e.getMessage());
                 return Collections.emptyList();
@@ -402,34 +355,22 @@ public class LiveKitService {
         }
         if (roomService == null) return Collections.emptyList();
         try {
-            var call = roomService.listRooms();
-            var response = call.execute();
-            if (response.isSuccessful() && response.body() != null) {
-                return response.body();
-            }
-        } catch (IOException e) {
+            var resp = roomService.listRooms(new ListRoomsRequest());
+            return resp != null && resp.rooms() != null ? resp.rooms() : Collections.emptyList();
+        } catch (Exception e) {
             LOG.warnf("Failed to list rooms: %s", e.getMessage());
         }
         return Collections.emptyList();
     }
 
     /** List participants in a specific room */
-    public List<LivekitModels.ParticipantInfo> listParticipants(String roomName) {
+    public List<ParticipantInfo> listParticipants(String roomName) {
         if (isManaged()) {
             try {
                 String prefixed = managedRoomName(roomName);
                 var json = centralGet("/api/v1/voice/rooms/" + prefixed + "/participants");
-                var participants = json.path("participants");
-                if (!participants.isArray()) return Collections.emptyList();
-                var result = new java.util.ArrayList<LivekitModels.ParticipantInfo>();
-                for (var p : participants) {
-                    result.add(LivekitModels.ParticipantInfo.newBuilder()
-                            .setIdentity(p.path("identity").asText(""))
-                            .setName(p.path("name").asText(""))
-                            .setSid(p.path("sid").asText(""))
-                            .build());
-                }
-                return result;
+                var resp = MAPPER.treeToValue(json, ListParticipantsResponse.class);
+                return resp != null && resp.participants() != null ? resp.participants() : Collections.emptyList();
             } catch (IOException e) {
                 LOG.warnf("Failed to list participants via central: %s", e.getMessage());
                 return Collections.emptyList();
@@ -437,12 +378,9 @@ public class LiveKitService {
         }
         if (roomService == null) return Collections.emptyList();
         try {
-            var call = roomService.listParticipants(roomName);
-            var response = call.execute();
-            if (response.isSuccessful() && response.body() != null) {
-                return response.body();
-            }
-        } catch (IOException e) {
+            var resp = roomService.listParticipants(new RoomParticipantsRequest(roomName));
+            return resp != null && resp.participants() != null ? resp.participants() : Collections.emptyList();
+        } catch (Exception e) {
             LOG.warnf("Failed to list participants for room %s: %s", roomName, e.getMessage());
         }
         return Collections.emptyList();
@@ -452,9 +390,8 @@ public class LiveKitService {
     public void deleteRoom(String roomName) {
         if (isManaged() || roomService == null) return;
         try {
-            var call = roomService.deleteRoom(roomName);
-            call.execute();
-        } catch (IOException e) {
+            roomService.deleteRoom(new DeleteRoomRequest(roomName));
+        } catch (Exception e) {
             LOG.warnf("Failed to delete room %s: %s", roomName, e.getMessage());
         }
     }

@@ -32,8 +32,7 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
     implementation("org.bouncycastle:bcprov-jdk18on:1.80")
-    implementation("io.livekit:livekit-server:0.12.0")
-    runtimeOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.1") // retrofit2 Kotlin extensions need this for GraalVM native image
+    implementation("io.quarkus:quarkus-rest-client-jackson")
     implementation("io.github.conorrr:libsql-java:0.2.2")
     compileOnly("org.graalvm.sdk:nativeimage:24.2.0")
     testImplementation("io.quarkus:quarkus-junit5")

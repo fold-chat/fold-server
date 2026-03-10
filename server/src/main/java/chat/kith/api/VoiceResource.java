@@ -13,6 +13,7 @@ import chat.kith.config.RuntimeConfigService;
 import chat.kith.event.*;
 import chat.kith.security.Permission;
 import chat.kith.security.PermissionService;
+import chat.kith.livekit.LiveKitDto.*;
 import chat.kith.service.LiveKitService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -20,7 +21,6 @@ import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import livekit.LivekitModels;
 import org.jboss.logging.Logger;
 
 import java.io.IOException;
@@ -204,14 +204,7 @@ public class VoiceResource {
         String roomName = "voice-" + channelId;
         try {
             var participant = liveKitService.getParticipant(roomName, userId);
-            // Find audio track
-            String audioTrackSid = null;
-            for (var track : participant.getTracksList()) {
-                if (track.getType() == LivekitModels.TrackType.AUDIO) {
-                    audioTrackSid = track.getSid();
-                    break;
-                }
-            }
+            String audioTrackSid = findAudioTrackSid(participant);
             if (audioTrackSid != null) {
                 liveKitService.muteTrack(roomName, userId, audioTrackSid, muted);
             }
@@ -248,11 +241,8 @@ public class VoiceResource {
 
         String roomName = "voice-" + channelId;
         try {
-            var perm = LivekitModels.ParticipantPermission.newBuilder()
-                    .setCanSubscribe(!deaf)
-                    .setCanPublish(true)
-                    .build();
-            liveKitService.updateParticipant(roomName, userId, perm);
+            liveKitService.updateParticipant(roomName, userId,
+                    new ParticipantPermission(!deaf, true, null));
         } catch (IOException e) {
             LOG.warnf("LiveKit updateParticipant failed: %s", e.getMessage());
         }
@@ -410,13 +400,7 @@ public class VoiceResource {
             String roomName = "voice-" + channelId;
             try {
                 var participant = liveKitService.getParticipant(roomName, userId);
-                String audioTrackSid = null;
-                for (var track : participant.getTracksList()) {
-                    if (track.getType() == LivekitModels.TrackType.AUDIO) {
-                        audioTrackSid = track.getSid();
-                        break;
-                    }
-                }
+                String audioTrackSid = findAudioTrackSid(participant);
                 if (audioTrackSid != null) {
                     liveKitService.muteTrack(roomName, userId, audioTrackSid, true);
                 }
@@ -445,11 +429,8 @@ public class VoiceResource {
             voiceStateRepo.setServerDeaf(userId, channelId, true);
             String roomName = "voice-" + channelId;
             try {
-                var perm = LivekitModels.ParticipantPermission.newBuilder()
-                        .setCanSubscribe(false)
-                        .setCanPublish(true)
-                        .build();
-                liveKitService.updateParticipant(roomName, userId, perm);
+                liveKitService.updateParticipant(roomName, userId,
+                        new ParticipantPermission(false, true, null));
             } catch (IOException e) {
                 LOG.warnf("LiveKit updateParticipant failed: %s", e.getMessage());
             }
@@ -478,13 +459,7 @@ public class VoiceResource {
             String roomName = "voice-" + channelId;
             try {
                 var participant = liveKitService.getParticipant(roomName, userId);
-                String audioTrackSid = null;
-                for (var track : participant.getTracksList()) {
-                    if (track.getType() == LivekitModels.TrackType.AUDIO) {
-                        audioTrackSid = track.getSid();
-                        break;
-                    }
-                }
+                String audioTrackSid = findAudioTrackSid(participant);
                 if (audioTrackSid != null) {
                     liveKitService.muteTrack(roomName, userId, audioTrackSid, false);
                 }
@@ -515,11 +490,8 @@ public class VoiceResource {
             voiceStateRepo.setServerDeaf(userId, channelId, false);
             String roomName = "voice-" + channelId;
             try {
-                var perm = LivekitModels.ParticipantPermission.newBuilder()
-                        .setCanSubscribe(true)
-                        .setCanPublish(true)
-                        .build();
-                liveKitService.updateParticipant(roomName, userId, perm);
+                liveKitService.updateParticipant(roomName, userId,
+                        new ParticipantPermission(true, true, null));
             } catch (IOException e) {
                 LOG.warnf("LiveKit updateParticipant failed: %s", e.getMessage());
             }
@@ -553,14 +525,14 @@ public class VoiceResource {
             var rooms = liveKitService.listRooms();
             result.put("active_rooms", rooms.size());
             var roomDetails = rooms.stream()
-                    .filter(r -> r.getName().startsWith("voice-"))
+                    .filter(r -> r.name().startsWith("voice-"))
                     .map(r -> {
                         var rd = new LinkedHashMap<String, Object>();
-                        String chId = r.getName().substring("voice-".length());
+                        String chId = r.name().substring("voice-".length());
                         rd.put("channel_id", chId);
-                        rd.put("room_name", r.getName());
-                        rd.put("participants", r.getNumParticipants());
-                        rd.put("num_publishers", r.getNumPublishers());
+                        rd.put("room_name", r.name());
+                        rd.put("participants", r.numParticipants());
+                        rd.put("num_publishers", r.numPublishers());
                         return rd;
                     })
                     .toList();
@@ -590,6 +562,14 @@ public class VoiceResource {
         }
         voiceStateRepo.delete(userId);
         publishVoiceStates(channelId);
+    }
+
+    private static String findAudioTrackSid(ParticipantInfo participant) {
+        if (participant.tracks() == null) return null;
+        for (var track : participant.tracks()) {
+            if ("AUDIO".equals(track.type())) return track.sid();
+        }
+        return null;
     }
 
     private void publishVoiceStates(String channelId) {

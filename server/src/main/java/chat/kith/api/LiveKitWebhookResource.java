@@ -3,10 +3,11 @@ package chat.kith.api;
 import chat.kith.db.VoiceModerationRepository;
 import chat.kith.db.VoiceStateRepository;
 import chat.kith.event.*;
+import chat.kith.livekit.LiveKitDto;
+import chat.kith.livekit.LiveKitDto.*;
 import chat.kith.service.LiveKitService;
-import livekit.LivekitModels;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.livekit.server.WebhookReceiver;
+import io.jsonwebtoken.Jwts;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
@@ -14,9 +15,10 @@ import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.Response;
 import org.jboss.logging.Logger;
 
-import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import java.util.HexFormat;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.Map;
 
 @Path("/api/v0/webhooks/livekit")
@@ -46,23 +48,15 @@ public class LiveKitWebhookResource {
                     LOG.warnf("Managed webhook rejected: invalid or missing X-Kith-Central-Secret");
                     return Response.status(401).entity(Map.of("error", "invalid_secret")).build();
                 }
-                // Parse the webhook body as JSON and process events
-                processManagedWebhook(body);
             } else {
-                // Standard mode: validate via LiveKit WebhookReceiver
-                String authHeader = headers.getHeaderString("Authorization");
-                var receiver = new WebhookReceiver(liveKitService.getApiKey(), liveKitService.getWebhookSecret());
-                var event = receiver.receive(body, authHeader);
-                String eventType = event.getEvent();
-                LOG.debugf("LiveKit webhook: %s", eventType);
-
-                switch (eventType) {
-                    case "participant_joined" -> handleParticipantJoined(event);
-                    case "participant_left" -> handleParticipantLeft(event);
-                    case "room_finished" -> handleRoomFinished(event);
-                    default -> LOG.debugf("Unhandled LiveKit webhook event: %s", eventType);
+                // Standard mode: validate JWT in Authorization header
+                if (!validateWebhookJwt(body, headers)) {
+                    return Response.status(401).entity(Map.of("error", "invalid_webhook")).build();
                 }
             }
+
+            var event = MAPPER.readValue(body, LiveKitDto.WebhookEvent.class);
+            processEvent(event);
         } catch (Exception e) {
             LOG.warnf("Failed to process LiveKit webhook: %s", e.getMessage());
             return Response.status(400).entity(Map.of("error", "invalid_webhook")).build();
@@ -71,24 +65,47 @@ public class LiveKitWebhookResource {
         return Response.ok().build();
     }
 
-    /** Process webhook forwarded from central service (JSON body, not protobuf) */
-    private void processManagedWebhook(String body) throws Exception {
-        var root = MAPPER.readTree(body);
-        String eventType = root.path("event").asText();
-        var room = root.path("room");
-        String roomName = room.path("name").asText("");
+    /** Validate LiveKit webhook JWT — verifies signature and body SHA-256 hash */
+    private boolean validateWebhookJwt(String body, HttpHeaders headers) {
+        String authHeader = headers.getHeaderString("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) return false;
+        String token = authHeader.substring(7);
 
-        // Central service uses tenant-prefixed room names: "{account_id}-voice-{channel_id}"
-        // Strip the prefix to get the local channel ID
+        try {
+            String secret = liveKitService.getWebhookSecret();
+            var key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+            var claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
+
+            // Verify body hash
+            String expectedHash = claims.get("sha256", String.class);
+            if (expectedHash != null) {
+                var digest = MessageDigest.getInstance("SHA-256");
+                String actualHash = Base64.getEncoder().encodeToString(
+                        digest.digest(body.getBytes(StandardCharsets.UTF_8)));
+                if (!expectedHash.equals(actualHash)) {
+                    LOG.warn("Webhook body hash mismatch");
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            LOG.warnf("Webhook JWT validation failed: %s", e.getMessage());
+            return false;
+        }
+    }
+
+    /** Process a webhook event (works for both managed and standard modes) */
+    private void processEvent(LiveKitDto.WebhookEvent event) {
+        if (event == null || event.event() == null) return;
+
+        String roomName = event.room() != null ? event.room().name() : "";
         String channelId = extractChannelId(roomName);
         if (channelId == null) return;
 
-        var participant = root.path("participant");
-        String userId = participant.path("identity").asText(null);
+        String userId = event.participant() != null ? event.participant().identity() : null;
+        LOG.debugf("LiveKit webhook: %s room=%s channel=%s user=%s", event.event(), roomName, channelId, userId);
 
-        LOG.debugf("Managed webhook: %s room=%s channel=%s user=%s", eventType, roomName, channelId, userId);
-
-        switch (eventType) {
+        switch (event.event()) {
             case "participant_joined" -> {
                 if (userId != null) {
                     voiceStateRepo.upsert(userId, channelId, 0, 0);
@@ -109,53 +126,12 @@ public class LiveKitWebhookResource {
         }
     }
 
-    /** Extract channel ID from tenant-prefixed room name: "{account_id}-voice-{channel_id}" */
+    /** Extract channel ID from room name — handles both tenant-prefixed and plain */
     private static String extractChannelId(String roomName) {
         int idx = roomName.indexOf("-voice-");
-        if (idx < 0) {
-            // Not tenant-prefixed, try plain "voice-" prefix
-            if (roomName.startsWith("voice-")) return roomName.substring("voice-".length());
-            return null;
-        }
-        return roomName.substring(idx + "-voice-".length());
-    }
-
-    private void handleParticipantJoined(livekit.LivekitWebhook.WebhookEvent event) {
-        var room = event.getRoom();
-        var participant = event.getParticipant();
-        String roomName = room.getName();
-        if (!roomName.startsWith("voice-")) return;
-
-        String channelId = roomName.substring("voice-".length());
-        String userId = participant.getIdentity();
-
-        // Single source of truth — voice state is created when user actually connects
-        voiceStateRepo.upsert(userId, channelId, 0, 0);
-        applyPersistentModeration(userId, channelId);
-        publishVoiceStates(channelId);
-    }
-
-    private void handleParticipantLeft(livekit.LivekitWebhook.WebhookEvent event) {
-        var room = event.getRoom();
-        var participant = event.getParticipant();
-        String roomName = room.getName();
-        if (!roomName.startsWith("voice-")) return;
-
-        String channelId = roomName.substring("voice-".length());
-        String userId = participant.getIdentity();
-
-        voiceStateRepo.delete(userId);
-        publishVoiceStates(channelId);
-    }
-
-    private void handleRoomFinished(livekit.LivekitWebhook.WebhookEvent event) {
-        var room = event.getRoom();
-        String roomName = room.getName();
-        if (!roomName.startsWith("voice-")) return;
-
-        String channelId = roomName.substring("voice-".length());
-        voiceStateRepo.deleteByChannel(channelId);
-        publishVoiceStates(channelId);
+        if (idx >= 0) return roomName.substring(idx + "-voice-".length());
+        if (roomName.startsWith("voice-")) return roomName.substring("voice-".length());
+        return null;
     }
 
     /** Re-apply persistent server mute/deafen when a user joins a voice channel */
@@ -174,19 +150,18 @@ public class LiveKitWebhookResource {
         try {
             if (muted) {
                 var participant = liveKitService.getParticipant(roomName, userId);
-                for (var track : participant.getTracksList()) {
-                    if (track.getType() == LivekitModels.TrackType.AUDIO) {
-                        liveKitService.muteTrack(roomName, userId, track.getSid(), true);
-                        break;
+                if (participant.tracks() != null) {
+                    for (var track : participant.tracks()) {
+                        if ("AUDIO".equals(track.type())) {
+                            liveKitService.muteTrack(roomName, userId, track.sid(), true);
+                            break;
+                        }
                     }
                 }
             }
             if (deaf) {
-                var perm = LivekitModels.ParticipantPermission.newBuilder()
-                        .setCanSubscribe(false)
-                        .setCanPublish(true)
-                        .build();
-                liveKitService.updateParticipant(roomName, userId, perm);
+                liveKitService.updateParticipant(roomName, userId,
+                        new ParticipantPermission(false, true, null));
             }
         } catch (Exception e) {
             LOG.debugf("LiveKit moderation re-apply for %s: %s", userId, e.getMessage());
