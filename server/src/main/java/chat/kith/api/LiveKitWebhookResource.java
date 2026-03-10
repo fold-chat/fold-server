@@ -6,8 +6,8 @@ import chat.kith.event.*;
 import chat.kith.livekit.LiveKitDto;
 import chat.kith.livekit.LiveKitDto.*;
 import chat.kith.service.LiveKitService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
+import io.vertx.ext.web.RoutingContext;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Context;
@@ -25,7 +25,6 @@ import java.util.Map;
 public class LiveKitWebhookResource {
 
     private static final Logger LOG = Logger.getLogger(LiveKitWebhookResource.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Inject LiveKitService liveKitService;
     @Inject VoiceStateRepository voiceStateRepo;
@@ -34,7 +33,7 @@ public class LiveKitWebhookResource {
 
     @POST
     @Consumes({"application/webhook+json", "application/json"})
-    public Response receive(String body, @Context HttpHeaders headers) {
+    public Response receive(WebhookEvent event, @Context RoutingContext rc, @Context HttpHeaders headers) {
         if (!liveKitService.isEnabled()) {
             return Response.ok().build();
         }
@@ -49,13 +48,13 @@ public class LiveKitWebhookResource {
                     return Response.status(401).entity(Map.of("error", "invalid_secret")).build();
                 }
             } else {
-                // Standard mode: validate JWT in Authorization header
-                if (!validateWebhookJwt(body, headers)) {
+                // Standard mode: validate JWT against raw body hash
+                String rawBody = rc.body() != null ? rc.body().asString() : null;
+                if (rawBody == null || !validateWebhookJwt(rawBody, headers)) {
                     return Response.status(401).entity(Map.of("error", "invalid_webhook")).build();
                 }
             }
 
-            var event = MAPPER.readValue(body, LiveKitDto.WebhookEvent.class);
             processEvent(event);
         } catch (Exception e) {
             LOG.warnf("Failed to process LiveKit webhook: %s", e.getMessage());
