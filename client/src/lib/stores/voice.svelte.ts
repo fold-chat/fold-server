@@ -4,6 +4,7 @@ import { getUser } from '$lib/stores/auth.svelte.js';
 import {
 	connectToRoom,
 	disconnectFromRoom,
+	isConnected as lkIsConnected,
 	updateEncryptionKey,
 	setMicrophoneEnabled,
 	setCameraEnabled as lkSetCamera,
@@ -19,6 +20,8 @@ import {
 	switchAudioInput as lkSwitchAudioInput,
 	switchVideoInput as lkSwitchVideoInput,
 	switchAudioOutput as lkSwitchAudioOutput,
+	setRemoteAudioEnabled,
+	isRemoteAudioMuted,
 	type LiveKitCallbacks,
 	type ScreenSharePreset
 } from '$lib/voice/livekit.js';
@@ -281,8 +284,26 @@ export function handleVoiceStateUpdate(data: Record<string, unknown>) {
 		serverMuted = myState.server_mute;
 		serverDeafened = myState.server_deaf;
 	} else if (currentVoiceChannelId === channelId) {
-		// We were in this channel but are no longer in the state list — we left
+		// We were in this channel but are no longer in the state list — kicked/left
+		// If LiveKit is still connected, do full teardown
+		if (lkIsConnected()) {
+			stopLatencyPolling();
+			clearDeviceCallbacks();
+			setRemoteAudioEnabled(true);
+			disconnectFromRoom(false).catch(() => {});
+			for (const t of speakingHoldTimers.values()) clearTimeout(t);
+			speakingHoldTimers.clear();
+			speakingUserIds = new Set();
+			audioLevels = new Map();
+			connectedParticipantIds = new Set();
+			cameraActive = false;
+			screenShareActive = false;
+			hasVideoTracks = false;
+			videoTrackRevision = 0;
+			livekitConnectionState = 'disconnected';
+		}
 		currentVoiceChannelId = null;
+		joiningChannelId = null;
 		localAudioMuted = false;
 		localDeafened = false;
 		serverMuted = false;
@@ -382,6 +403,7 @@ export async function leaveCurrentVoice() {
 	joiningChannelId = null;
 	stopLatencyPolling();
 	clearDeviceCallbacks();
+	setRemoteAudioEnabled(true);
 	// Disconnect from LiveKit first
 	await disconnectFromRoom(false);
 	speakingUserIds = new Set();
@@ -444,11 +466,13 @@ export async function toggleDeafen(canDeafenMembers = false) {
 		localAudioMuted = true;
 	}
 	try {
+		setRemoteAudioEnabled(!newDeafened);
 		await setMicrophoneEnabled(!newDeafened && !localAudioMuted);
 		await updateVoiceStateApi({ channel_id: currentVoiceChannelId ?? undefined, self_deaf: newDeafened, self_mute: newDeafened || localAudioMuted });
 	} catch {
 		localDeafened = !newDeafened;
 		if (newDeafened) localAudioMuted = false;
+		setRemoteAudioEnabled(true);
 		await setMicrophoneEnabled(true).catch(() => {});
 	}
 }
@@ -604,6 +628,7 @@ function makeLiveKitCallbacks(): LiveKitCallbacks {
 			if (track.kind === Track.Kind.Audio) {
 				const el = track.attach();
 				el.style.display = 'none';
+				if (isRemoteAudioMuted()) el.muted = true;
 				document.body.appendChild(el);
 			}
 			updateVideoTrackState();
@@ -620,11 +645,13 @@ function makeLiveKitCallbacks(): LiveKitCallbacks {
 				joiningChannelId = null;
 			}
 			// Unexpected disconnect — LiveKit dropped without user calling leave
-			if (state === ConnectionState.Disconnected && (currentVoiceChannelId || joiningChannelId)) {
-				joiningChannelId = null;
-				currentVoiceChannelId = null;
-				stopLatencyPolling();
-				leaveVoiceApi().catch(() => {});
+			if (state === ConnectionState.Disconnected) {
+				if (currentVoiceChannelId || joiningChannelId) {
+					joiningChannelId = null;
+					currentVoiceChannelId = null;
+					stopLatencyPolling();
+					leaveVoiceApi().catch(() => {});
+				}
 			}
 		},
 		onMicPermissionDenied: () => {

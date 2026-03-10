@@ -521,6 +521,32 @@ export function getSignalRtt(): number {
 	return room?.engine?.client?.rtt ?? 0;
 }
 
+// --- Remote audio muting (deafen) ---
+
+/**
+ * Mute/unmute all remote audio tracks (for self-deafen).
+ * Sets volume to 0 on attached <audio> elements and mutes new subscriptions.
+ */
+let remoteAudioMuted = false;
+
+export function setRemoteAudioEnabled(enabled: boolean): void {
+	remoteAudioMuted = !enabled;
+	if (!room) return;
+	for (const p of room.remoteParticipants.values()) {
+		for (const pub of p.trackPublications.values()) {
+			if (pub.track && pub.track.kind === Track.Kind.Audio) {
+				for (const el of pub.track.attachedElements) {
+					(el as HTMLMediaElement).muted = remoteAudioMuted;
+				}
+			}
+		}
+	}
+}
+
+export function isRemoteAudioMuted(): boolean {
+	return remoteAudioMuted;
+}
+
 // --- Helpers ---
 
 function base64ToArrayBuffer(base64: string): ArrayBuffer {

@@ -414,7 +414,7 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 							{:else}
 								<div class="fs-avatar-placeholder">{p.displayName.charAt(0).toUpperCase()}</div>
 							{/if}
-							{#if p.isMuted}<span class="fs-mute">🔇</span>{/if}
+							{#if p.isMuted}<span class="fs-mute" class:server={p.serverMute}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg></span>{/if}
 						</div>
 					{/each}
 					<button class="fs-exit-btn" onclick={() => document.exitFullscreen()} title="Exit fullscreen">
@@ -486,8 +486,8 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 										</svg>
 									</span>
 								{/if}
-								{#if fp.isMuted}<span class="tile-indicator" title="Muted">🔇</span>{/if}
-								{#if fp.isDeafened}<span class="tile-indicator" title="Deafened">🔕</span>{/if}
+								{#if fp.isMuted}<span class="tile-indicator" class:server={fp.serverMute} title={fp.serverMute ? 'Server muted' : 'Muted'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg></span>{/if}
+								{#if fp.isDeafened}<span class="tile-indicator" class:server={fp.serverDeaf} title={fp.serverDeaf ? 'Server deafened' : 'Deafened'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="1" y1="1" x2="23" y2="23" /><path d="M3 12v6a9 9 0 009 3M21 12v6" /><path d="M3 14h2a2 2 0 012 2v2a2 2 0 01-2 2H3v-6zM21 14h-2a2 2 0 00-2 2v2a2 2 0 002 2h2v-6z" /></svg></span>{/if}
 								<button class="unpin-btn" onclick={() => (focusedTileId = null)} title="Unpin">
 										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 											<line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -532,7 +532,7 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 										<div class="thumb-placeholder">{p.displayName.charAt(0).toUpperCase()}</div>
 									{/if}
 							{#if p.isMuted}
-								<span class="thumb-mute">🔇</span>
+								<span class="thumb-mute" class:server={p.serverMute}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="8" height="8"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg></span>
 							{/if}
 							{#if screenShareUserIds.has(p.userId)}
 								<span class="thumb-screen-share" title="Sharing screen">
@@ -659,10 +659,10 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 								</span>
 							{/if}
 							{#if p.isMuted}
-								<span class="tile-indicator" title="Muted">🔇</span>
+								<span class="tile-indicator" class:server={p.serverMute} title={p.serverMute ? 'Server muted' : 'Muted'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg></span>
 							{/if}
 							{#if p.isDeafened}
-								<span class="tile-indicator" title="Deafened">🔕</span>
+								<span class="tile-indicator" class:server={p.serverDeaf} title={p.serverDeaf ? 'Server deafened' : 'Deafened'}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><line x1="1" y1="1" x2="23" y2="23" /><path d="M3 12v6a9 9 0 009 3M21 12v6" /><path d="M3 14h2a2 2 0 012 2v2a2 2 0 01-2 2H3v-6zM21 14h-2a2 2 0 00-2 2v2a2 2 0 002 2h2v-6z" /></svg></span>
 							{/if}
 						</div>
 					</div>
@@ -672,13 +672,6 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 
 			<!-- Controls bar -->
 			<div class="voice-controls">
-				{#if isServerMuted()}
-					<span class="server-indicator" title="Server muted">🔇 Muted</span>
-				{/if}
-				{#if isServerDeafened()}
-					<span class="server-indicator" title="Server deafened">🔕 Deafened</span>
-				{/if}
-
 				<button
 					class="ctrl-btn"
 					class:active={isLocalAudioMuted() || isServerMuted()}
@@ -830,14 +823,14 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 								{/if}
 								<span class="user-name">{vu.display_name || vu.username}</span>
 								{#if vu.server_mute}
-									<span class="user-indicator" title="Server muted">🔇</span>
+									<span class="user-indicator server" title="Server muted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg></span>
 								{:else if vu.self_mute}
-									<span class="user-indicator" title="Muted">🔇</span>
+									<span class="user-indicator" title="Muted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg></span>
 								{/if}
 								{#if vu.server_deaf}
-									<span class="user-indicator" title="Server deafened">🔕</span>
+									<span class="user-indicator server" title="Server deafened"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><line x1="1" y1="1" x2="23" y2="23" /><path d="M3 12v6a9 9 0 009 3M21 12v6" /><path d="M3 14h2a2 2 0 012 2v2a2 2 0 01-2 2H3v-6zM21 14h-2a2 2 0 00-2 2v2a2 2 0 002 2h2v-6z" /></svg></span>
 								{:else if vu.self_deaf}
-									<span class="user-indicator" title="Deafened">🔕</span>
+									<span class="user-indicator" title="Deafened"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><line x1="1" y1="1" x2="23" y2="23" /><path d="M3 12v6a9 9 0 009 3M21 12v6" /><path d="M3 14h2a2 2 0 012 2v2a2 2 0 01-2 2H3v-6zM21 14h-2a2 2 0 00-2 2v2a2 2 0 002 2h2v-6z" /></svg></span>
 								{/if}
 							</div>
 						{/each}
@@ -1109,8 +1102,14 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 	}
 
 	.tile-indicator {
-		font-size: 0.65rem;
+		display: inline-flex;
+		align-items: center;
+		color: var(--text-muted);
 		flex-shrink: 0;
+	}
+
+	.tile-indicator.server {
+		color: var(--danger, #e74c3c);
 	}
 
 	/* Tile moderation overlay */
@@ -1421,7 +1420,13 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 	}
 
 	.user-indicator {
-		font-size: 0.6rem;
+		display: inline-flex;
+		align-items: center;
+		color: var(--text-muted);
+	}
+
+	.user-indicator.server {
+		color: var(--danger, #e74c3c);
 	}
 
 	.empty-label {
@@ -1675,11 +1680,18 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 		position: absolute;
 		bottom: -2px;
 		right: -2px;
-		font-size: 0.55rem;
 		background: var(--bg-surface, #2b2d31);
 		border-radius: 50%;
 		padding: 1px;
 		line-height: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--text-muted);
+	}
+
+	.thumb-mute.server {
+		color: var(--danger, #e74c3c);
 	}
 
 	.thumb-name {
@@ -1821,11 +1833,18 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 		position: absolute;
 		bottom: -2px;
 		right: -2px;
-		font-size: 0.5rem;
 		background: rgba(0, 0, 0, 0.7);
 		border-radius: 50%;
 		padding: 1px;
 		line-height: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--text-muted);
+	}
+
+	.fs-mute.server {
+		color: var(--danger, #e74c3c);
 	}
 
 	.fs-exit-btn {

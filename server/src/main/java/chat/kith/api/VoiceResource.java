@@ -269,10 +269,13 @@ public class VoiceResource {
             liveKitService.removeParticipant(roomName, userId);
         } catch (IOException e) {
             LOG.warnf("LiveKit removeParticipant failed: %s", e.getMessage());
+            // LiveKit unreachable — fall back to direct cleanup
+            voiceStateRepo.delete(userId);
+            publishVoiceStates(channelId);
+            return Response.noContent().build();
         }
-
-        voiceStateRepo.delete(userId);
-        publishVoiceStates(channelId);
+        // Webhook handles state cleanup; schedule fallback
+        scheduleWebhookFallback(userId, channelId);
         return Response.noContent().build();
     }
 
@@ -295,17 +298,14 @@ public class VoiceResource {
             return Response.status(400).entity(Map.of("error", "invalid_target", "message", "Target must be a voice channel")).build();
         }
 
-        // Remove from old room
+        // Remove from old room — participant_left webhook handles old state cleanup,
+        // participant_joined webhook handles new state on reconnect.
         String oldRoom = "voice-" + channelId;
         try {
             liveKitService.removeParticipant(oldRoom, userId);
         } catch (IOException e) {
             LOG.warnf("LiveKit removeParticipant failed during move: %s", e.getMessage());
         }
-
-        // Delete old voice state, upsert new
-        voiceStateRepo.delete(userId);
-        voiceStateRepo.upsert(userId, req.target_channel_id(), 0, 0);
 
         // Generate new token for target room
         String moveToken;
@@ -322,10 +322,6 @@ public class VoiceResource {
         } catch (LiveKitService.CentralServiceException e) {
             return Response.status(503).entity(Map.of("error", "voice_unavailable", "message", e.getMessage())).build();
         }
-
-        // Publish leave on old channel, join on new
-        publishVoiceStates(channelId);
-        publishVoiceStates(req.target_channel_id());
 
         // Send VOICE_MOVE to the moved user
         var moveData = new LinkedHashMap<String, Object>();
@@ -554,14 +550,19 @@ public class VoiceResource {
     // --- Helpers ---
 
     private void leaveVoiceInternal(String userId, String channelId) {
-        // Try to remove from LiveKit room
+        // Tell LiveKit to remove the participant — the participant_left webhook
+        // will handle voiceStateRepo.delete() + publishVoiceStates().
         try {
             liveKitService.removeParticipant("voice-" + channelId, userId);
         } catch (IOException e) {
             LOG.debugf("removeParticipant on leave: %s", e.getMessage());
+            // LiveKit unreachable — fall back to direct state cleanup
+            voiceStateRepo.delete(userId);
+            publishVoiceStates(channelId);
+            return;
         }
-        voiceStateRepo.delete(userId);
-        publishVoiceStates(channelId);
+        // Schedule fallback: if webhook hasn't cleaned up within 5s, do it directly
+        scheduleWebhookFallback(userId, channelId);
     }
 
     private static String findAudioTrackSid(ParticipantInfo participant) {
@@ -581,6 +582,23 @@ public class VoiceResource {
 
     private KithSecurityContext sc() {
         return (KithSecurityContext) requestContext.getSecurityContext();
+    }
+
+    /** Fallback: if webhook doesn't fire within 5s, clean up state directly */
+    private void scheduleWebhookFallback(String userId, String channelId) {
+        Thread.ofVirtual().start(() -> {
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            if (voiceStateRepo.findByUser(userId).isPresent()) {
+                LOG.warnf("Webhook fallback: cleaning up stale voice state for user %s in channel %s", userId, channelId);
+                voiceStateRepo.delete(userId);
+                publishVoiceStates(channelId);
+            }
+        });
     }
 
     private Response checkRate(String configKey, String userId, RateLimitPolicy defaultPolicy) {

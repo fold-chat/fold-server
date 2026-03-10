@@ -12,11 +12,25 @@
 		getLivekitConnectionState
 	} from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
+	import { hasChannelPermission } from '$lib/stores/auth.svelte.js';
+	import { PermissionName } from '$lib/permissions.js';
 	import { goto } from '$app/navigation';
 
 	const channelId = $derived(getCurrentVoiceChannelId() ?? getJoiningChannelId());
 	const channelName = $derived(channelId ? getChannelById(channelId)?.name ?? 'Voice' : null);
 	const isJoiningOnly = $derived(!!getJoiningChannelId() && !getCurrentVoiceChannelId());
+
+	const canMuteMembers = $derived.by(() => {
+		const id = getCurrentVoiceChannelId();
+		if (!id) return false;
+		return hasChannelPermission(id, PermissionName.MUTE_MEMBERS);
+	});
+
+	const canDeafenMembers = $derived.by(() => {
+		const id = getCurrentVoiceChannelId();
+		if (!id) return false;
+		return hasChannelPermission(id, PermissionName.DEAFEN_MEMBERS);
+	});
 
 	function navigateToChannel() {
 		if (channelId) goto(`/channels/${channelId}`);
@@ -43,9 +57,10 @@
 			<button
 				class="vb-btn"
 				class:active={isLocalAudioMuted() || isServerMuted()}
-				title={isLocalAudioMuted() ? 'Unmute' : 'Mute'}
-				onclick={() => toggleMute()}
-				disabled={isServerMuted()}
+				class:server-enforced={isServerMuted() && !canMuteMembers}
+				title={isServerMuted() ? (canMuteMembers ? 'Remove server mute' : 'Server muted') : isLocalAudioMuted() ? 'Unmute' : 'Mute'}
+				onclick={() => toggleMute(canMuteMembers)}
+				disabled={isServerMuted() && !canMuteMembers}
 			>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 					{#if isLocalAudioMuted()}
@@ -64,9 +79,10 @@
 			<button
 				class="vb-btn"
 				class:active={isLocalDeafened() || isServerDeafened()}
-				title={isLocalDeafened() ? 'Undeafen' : 'Deafen'}
-				onclick={() => toggleDeafen()}
-				disabled={isServerDeafened()}
+				class:server-enforced={isServerDeafened() && !canDeafenMembers}
+				title={isServerDeafened() ? (canDeafenMembers ? 'Remove server deafen' : 'Server deafened') : isLocalDeafened() ? 'Undeafen' : 'Deafen'}
+				onclick={() => toggleDeafen(canDeafenMembers)}
+				disabled={isServerDeafened() && !canDeafenMembers}
 			>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
 					{#if isLocalDeafened()}
@@ -188,5 +204,11 @@
 	.vb-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+
+	.vb-btn.server-enforced {
+		background: rgba(231, 76, 60, 0.12);
+		border-color: var(--danger, #e74c3c);
+		color: var(--danger, #e74c3c);
 	}
 </style>
