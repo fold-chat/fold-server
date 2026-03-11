@@ -20,7 +20,9 @@
 		applyScreenSharePreset,
 		leaveCurrentVoice,
 		getVoiceLatencyMs,
-		getScreenSharePreset
+		getScreenSharePreset,
+		optimisticSetServerMute,
+		optimisticSetServerDeaf
 	} from '$lib/stores/voice.svelte.js';
 import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, type ScreenSharePreset } from '$lib/voice/livekit.js';
 	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
@@ -82,17 +84,25 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 	const canModerate = $derived(canMuteMembers || canDeafenMembers);
 
 	async function doServerMute(p: ParticipantInfo) {
+		const newState = !p.serverMute;
+		optimisticSetServerMute(channelId, p.userId, newState);
 		try {
 			if (p.serverMute) await serverUnmute(channelId, p.userId);
 			else await serverMute(channelId, p.userId);
-		} catch { /* ignore */ }
+		} catch {
+			optimisticSetServerMute(channelId, p.userId, p.serverMute);
+		}
 	}
 
 	async function doServerDeafen(p: ParticipantInfo) {
+		const newState = !p.serverDeaf;
+		optimisticSetServerDeaf(channelId, p.userId, newState);
 		try {
 			if (p.serverDeaf) await serverUndeafen(channelId, p.userId);
 			else await serverDeafen(channelId, p.userId);
-		} catch { /* ignore */ }
+		} catch {
+			optimisticSetServerDeaf(channelId, p.userId, p.serverDeaf);
+		}
 	}
 
 	async function doDisconnect(p: ParticipantInfo) {
@@ -681,7 +691,7 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 					disabled={isServerMuted() && !canMuteMembers}
 				>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-						{#if isLocalAudioMuted()}
+						{#if isLocalAudioMuted() || isServerMuted()}
 							<line x1="1" y1="1" x2="23" y2="23" />
 							<path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" />
 							<path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" />
@@ -705,7 +715,7 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 					disabled={isServerDeafened() && !canDeafenMembers}
 				>
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-						{#if isLocalDeafened()}
+						{#if isLocalDeafened() || isServerDeafened()}
 							<line x1="1" y1="1" x2="23" y2="23" />
 							<path d="M3 12v6a9 9 0 009 3M21 12v6" />
 							<path d="M3 14h2a2 2 0 012 2v2a2 2 0 01-2 2H3v-6zM21 14h-2a2 2 0 00-2 2v2a2 2 0 002 2h2v-6z" />

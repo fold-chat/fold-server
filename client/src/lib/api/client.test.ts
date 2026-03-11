@@ -110,6 +110,23 @@ describe('api() error handling', () => {
 	it('falls back to { error: "unknown" } when JSON parsing fails on non-ok response', async () => {
 		globalThis.fetch = vi.fn().mockResolvedValue({
 			ok: false,
+			status: 500,
+			json: () => Promise.reject(new Error('invalid json'))
+		});
+
+		try {
+			await api('/test');
+			expect.fail('should have thrown');
+		} catch (err) {
+			const apiErr = err as ApiError;
+			expect(apiErr.status).toBe(500);
+			expect(apiErr.error).toBe('unknown');
+		}
+	});
+
+	it('falls back to { error: "maintenance" } when JSON parsing fails on 503', async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: false,
 			status: 503,
 			json: () => Promise.reject(new Error('invalid json'))
 		});
@@ -120,7 +137,7 @@ describe('api() error handling', () => {
 		} catch (err) {
 			const apiErr = err as ApiError;
 			expect(apiErr.status).toBe(503);
-			expect(apiErr.error).toBe('unknown');
+			expect(apiErr.error).toBe('maintenance');
 		}
 	});
 });

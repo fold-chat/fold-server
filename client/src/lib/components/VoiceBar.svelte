@@ -63,7 +63,7 @@
 				disabled={isServerMuted() && !canMuteMembers}
 			>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-					{#if isLocalAudioMuted()}
+					{#if isLocalAudioMuted() || isServerMuted()}
 						<line x1="1" y1="1" x2="23" y2="23" />
 						<path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" />
 						<path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" />
@@ -85,7 +85,7 @@
 				disabled={isServerDeafened() && !canDeafenMembers}
 			>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-					{#if isLocalDeafened()}
+					{#if isLocalDeafened() || isServerDeafened()}
 						<line x1="1" y1="1" x2="23" y2="23" />
 						<path d="M3 12v6a9 9 0 009 3M21 12v6" />
 						<path d="M3 14h2a2 2 0 012 2v2a2 2 0 01-2 2H3v-6zM21 14h-2a2 2 0 00-2 2v2a2 2 0 002 2h2v-6z" />

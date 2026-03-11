@@ -213,8 +213,26 @@ export function isServerMuted(): boolean {
 	return serverMuted;
 }
 
+export function optimisticSetServerMute(channelId: string, userId: string, muted: boolean) {
+	const states = voiceStates.get(channelId);
+	if (!states) return;
+	const next = states.map(s =>
+		s.user_id === userId ? { ...s, server_mute: muted } : s
+	);
+	voiceStates = new Map(voiceStates).set(channelId, next);
+}
+
 export function isServerDeafened(): boolean {
 	return serverDeafened;
+}
+
+export function optimisticSetServerDeaf(channelId: string, userId: string, deaf: boolean) {
+	const states = voiceStates.get(channelId);
+	if (!states) return;
+	const next = states.map(s =>
+		s.user_id === userId ? { ...s, server_deaf: deaf } : s
+	);
+	voiceStates = new Map(voiceStates).set(channelId, next);
 }
 
 export function isE2eeActive(): boolean {
@@ -431,11 +449,13 @@ export async function leaveCurrentVoice() {
 export async function toggleMute(canMuteMembers = false) {
 	if (serverMuted) {
 		if (!canMuteMembers || !currentVoiceChannelId) return;
-		// Privileged user lifts their own server mute
 		const me = getUser();
 		if (!me) return;
 		try {
 			await serverUnmute(currentVoiceChannelId, me.id);
+			serverMuted = false;
+			localAudioMuted = false;
+			await setMicrophoneEnabled(true);
 		} catch { /* ignore */ }
 		return;
 	}
@@ -457,6 +477,10 @@ export async function toggleDeafen(canDeafenMembers = false) {
 		if (!me) return;
 		try {
 			await serverUndeafen(currentVoiceChannelId, me.id);
+			serverDeafened = false;
+			localDeafened = false;
+			setRemoteAudioEnabled(true);
+			await setMicrophoneEnabled(true);
 		} catch { /* ignore */ }
 		return;
 	}
