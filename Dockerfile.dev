@@ -13,9 +13,9 @@ ENV JAVA_HOME=/opt/graalvm
 ENV GRAALVM_HOME=/opt/graalvm
 ENV PATH="$JAVA_HOME/bin:$PATH"
 
-# Native Image deps (gcc, zlib already in base; ensure musl/static libs)
+# Native Image deps + media processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential zlib1g-dev && \
+    build-essential zlib1g-dev ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 # Node.js 22 (base already has pnpm; upgrade to Node 22)
