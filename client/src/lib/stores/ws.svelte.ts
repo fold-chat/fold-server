@@ -3,7 +3,7 @@ import type { Member, RoleBadge } from '$lib/api/users.js';
 import type { Role } from '$lib/api/roles.js';
 import type { ThreadReadState } from '$lib/api/threads.js';
 import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates, setUnreadCounts, markChannelRead } from './channels.svelte.js';
-import { handleMessageEvent, handleTypingEvent, handleReactionEvent } from './messages.svelte.js';
+import { handleMessageEvent, handleTypingEvent, handleReactionEvent, handleAttachmentUpdate } from './messages.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
 import { setMembers, addMember, removeMember, updateMember, getMembers as getStoreMembers, updateMemberRoleBadge } from './members.svelte.js';
@@ -266,6 +266,9 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 			break;
 		case 'PRESENCE_UPDATE':
 			if (msg.d) handlePresenceUpdate(msg.d);
+			break;
+		case 'ATTACHMENT_UPDATE':
+			if (msg.d) handleAttachmentUpdate(msg.d);
 			break;
 		case 'EMOJI_CREATE':
 			if (msg.d) addCustomEmoji(msg.d as unknown as CustomEmoji);

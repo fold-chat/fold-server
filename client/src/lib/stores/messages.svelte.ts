@@ -242,6 +242,33 @@ function isMentioned(msg: Message): boolean {
 	return false;
 }
 
+export function handleAttachmentUpdate(data: Record<string, unknown>) {
+	const messageId = data.message_id as string;
+	const attachment = data.attachment as Record<string, unknown>;
+	if (!messageId || !attachment) return;
+
+	// Find the message across all channels and update the matching attachment
+	for (const [channelId, msgs] of messagesByChannel) {
+		const msgIdx = msgs.findIndex(m => m.id === messageId);
+		if (msgIdx === -1) continue;
+
+		const msg = msgs[msgIdx];
+		if (!msg.attachments) continue;
+
+		const attId = attachment.id as string;
+		const attIdx = msg.attachments.findIndex(a => a.id === attId);
+		if (attIdx === -1) continue;
+
+		const updatedAtts = [...msg.attachments];
+		updatedAtts[attIdx] = { ...updatedAtts[attIdx], ...attachment } as import('$lib/api/messages.js').FileAttachment;
+		const updatedMsgs = [...msgs];
+		updatedMsgs[msgIdx] = { ...msg, attachments: updatedAtts };
+		messagesByChannel = new Map(messagesByChannel);
+		messagesByChannel.set(channelId, updatedMsgs);
+		return;
+	}
+}
+
 export function handleTypingEvent(op: string, data: Record<string, unknown> | undefined) {
 	if (!data) return;
 	const channelId = data.channel_id as string;

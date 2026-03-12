@@ -172,8 +172,20 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 	}
 
 	function isImage(mime: string): boolean {
-		return mime.startsWith('image/');
+		return mime.startsWith('image/') && mime !== 'image/svg+xml';
 	}
+
+	function isVideo(mime: string): boolean {
+		return mime.startsWith('video/');
+	}
+
+	function formatDuration(seconds: number): string {
+		const m = Math.floor(seconds / 60);
+		const s = Math.floor(seconds % 60);
+		return `${m}:${s.toString().padStart(2, '0')}`;
+	}
+
+	let playingVideos = $state<Set<string>>(new Set());
 
 	function formatFileSize(bytes: number): string {
 		if (bytes < 1024) return bytes + ' B';
@@ -322,7 +334,8 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 								{/if}
 								{#if msg.attachments && msg.attachments.length > 0}
 									{@const imageAtts = msg.attachments.filter(a => isImage(a.mime_type))}
-									{@const fileAtts = msg.attachments.filter(a => !isImage(a.mime_type))}
+									{@const videoAtts = msg.attachments.filter(a => isVideo(a.mime_type))}
+									{@const fileAtts = msg.attachments.filter(a => !isImage(a.mime_type) && !isVideo(a.mime_type))}
 									{#if imageAtts.length > 0}
 										{@const lbImages = imageAtts.map(a => ({ url: a.url, name: a.original_name }))}
 										<div class="image-attachments" class:multi={imageAtts.length > 1}>
@@ -330,7 +343,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 												<div class="attachment-image-wrapper">
 													<img
-														src={att.url}
+														src={att.thumbnail_url ?? att.url}
 														alt={att.original_name}
 														class="attachment-image"
 														onclick={() => openLightbox(lbImages, idx)}
@@ -343,6 +356,47 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 														<span class="image-broken-text">{att.original_name ?? 'Image'} could not be loaded</span>
 													</div>
 												</div>
+											{/each}
+										</div>
+									{/if}
+									{#if videoAtts.length > 0}
+										<div class="video-attachments">
+											{#each videoAtts as att}
+												{#if att.processing_status === 'processing'}
+													<div class="video-processing">
+														<span class="processing-spinner">⏳</span>
+														<span>Processing video...</span>
+													</div>
+												{:else if att.processing_status === 'failed'}
+													<div class="video-failed">
+														<span>⚠️ Video processing failed</span>
+														<a href={att.url} download={att.original_name} class="download-link">Download original</a>
+													</div>
+												{:else if playingVideos.has(att.id)}
+													<!-- svelte-ignore a11y_media_has_caption -->
+													<video class="attachment-video" controls autoplay onloadeddata={scrollToBottomIfNeeded}
+														onerror={(e) => { (e.currentTarget as HTMLVideoElement).style.display = 'none'; (e.currentTarget as HTMLVideoElement).nextElementSibling?.classList.remove('hidden'); }}
+													>
+														<source src={att.url} />
+													</video>
+													<div class="video-error hidden">
+														<span>⚠️ Your browser can't play this video</span>
+														<a href={att.url} download={att.original_name} class="download-link">Download</a>
+													</div>
+												{:else}
+													<!-- svelte-ignore a11y_no_static_element_interactions -->
+													<div class="video-thumbnail" onclick={() => { playingVideos = new Set([...playingVideos, att.id]); }} onkeydown={(e) => e.key === 'Enter' && (playingVideos = new Set([...playingVideos, att.id]))}>
+														{#if att.thumbnail_url}
+															<img src={att.thumbnail_url} alt={att.original_name} class="video-thumb-img" />
+														{:else}
+															<div class="video-thumb-placeholder">🎬</div>
+														{/if}
+														<div class="video-play-overlay">▶</div>
+														{#if att.duration_seconds}
+															<span class="video-duration">{formatDuration(att.duration_seconds)}</span>
+														{/if}
+													</div>
+												{/if}
 											{/each}
 										</div>
 									{/if}
@@ -854,6 +908,123 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	.video-attachments {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-top: 0.25rem;
+	}
+
+	.video-thumbnail {
+		position: relative;
+		cursor: pointer;
+		border-radius: 6px;
+		overflow: hidden;
+		max-width: 400px;
+		max-height: 300px;
+	}
+
+	.video-thumb-img {
+		max-width: 400px;
+		max-height: 300px;
+		object-fit: contain;
+		border-radius: 6px;
+		display: block;
+	}
+
+	.video-thumb-placeholder {
+		width: 200px;
+		height: 120px;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 2rem;
+	}
+
+	.video-play-overlay {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		background: rgba(0, 0, 0, 0.6);
+		color: white;
+		width: 48px;
+		height: 48px;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.25rem;
+		pointer-events: none;
+	}
+
+	.video-thumbnail:hover .video-play-overlay {
+		background: rgba(0, 0, 0, 0.8);
+	}
+
+	.video-duration {
+		position: absolute;
+		bottom: 6px;
+		right: 6px;
+		background: rgba(0, 0, 0, 0.7);
+		color: white;
+		font-size: 0.7rem;
+		padding: 0.1rem 0.4rem;
+		border-radius: 3px;
+	}
+
+	.attachment-video {
+		max-width: 400px;
+		max-height: 300px;
+		border-radius: 6px;
+	}
+
+	.video-processing, .video-failed {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+		font-size: 0.85rem;
+	}
+
+	.video-error {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		border-radius: 6px;
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+		font-size: 0.85rem;
+	}
+
+	.video-error.hidden {
+		display: none;
+	}
+
+	.processing-spinner {
+		animation: spin 1.5s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
+	}
+
+	.download-link {
+		color: var(--accent, #5865f2);
+		text-decoration: underline;
+		font-size: 0.8rem;
 	}
 
 	.attachment-file {

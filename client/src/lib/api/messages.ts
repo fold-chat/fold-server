@@ -45,6 +45,11 @@ export interface FileAttachment {
 	mime_type: string;
 	size_bytes: number;
 	url: string;
+	thumbnail_url?: string;
+	processing_status?: string;
+	duration_seconds?: number;
+	width?: number;
+	height?: number;
 }
 
 export function getMessages(channelId: string, opts?: { before?: string; after?: string; around?: string; limit?: number }) {

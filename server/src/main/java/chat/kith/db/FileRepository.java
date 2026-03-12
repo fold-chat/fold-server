@@ -13,11 +13,28 @@ public class FileRepository {
     @Inject
     DatabaseService db;
 
-    public void create(String id, String originalName, String storedName, String mimeType, long sizeBytes, String uploaderId) {
+    public void create(String id, String originalName, String storedName, String mimeType, long sizeBytes, String uploaderId,
+                       String thumbnailStoredName, String processingStatus, Double durationSeconds, Integer width, Integer height) {
         db.execute(
-                "INSERT INTO file (id, original_name, stored_name, mime_type, size_bytes, uploader_id) VALUES (?, ?, ?, ?, ?, ?)",
-                id, originalName, storedName, mimeType, sizeBytes, uploaderId
+                "INSERT INTO file (id, original_name, stored_name, mime_type, size_bytes, uploader_id, thumbnail_stored_name, processing_status, duration_seconds, width, height) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                id, originalName, storedName, mimeType, sizeBytes, uploaderId,
+                thumbnailStoredName, processingStatus != null ? processingStatus : "complete",
+                durationSeconds, width, height
         );
+    }
+
+    public void updateProcessingResult(String id, String storedName, String thumbnailStoredName, String status,
+                                       Double durationSeconds, Integer width, Integer height) {
+        if (storedName != null) {
+            db.execute("UPDATE file SET stored_name = ?, thumbnail_stored_name = ?, processing_status = ?, duration_seconds = ?, width = ?, height = ? WHERE id = ?",
+                    storedName, thumbnailStoredName, status, durationSeconds, width, height, id);
+        } else {
+            db.execute("UPDATE file SET processing_status = ? WHERE id = ?", status, id);
+        }
+    }
+
+    public void updateMimeAndSize(String id, String mimeType, long sizeBytes) {
+        db.execute("UPDATE file SET mime_type = ?, size_bytes = ? WHERE id = ?", mimeType, sizeBytes, id);
     }
 
     public Optional<Map<String, Object>> findById(String id) {

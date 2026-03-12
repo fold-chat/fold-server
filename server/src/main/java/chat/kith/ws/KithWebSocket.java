@@ -3,6 +3,7 @@ package chat.kith.ws;
 import chat.kith.auth.JwtService;
 import chat.kith.config.KithMediaConfig;
 import chat.kith.config.RuntimeConfigService;
+import chat.kith.service.MediaProcessingService;
 import chat.kith.db.*;
 import chat.kith.event.*;
 import chat.kith.security.PermissionService;
@@ -42,6 +43,7 @@ public class KithWebSocket {
     @Inject RuntimeConfigService runtimeConfig;
     @Inject EmojiRepository emojiRepo;
     @Inject MaintenanceService maintenanceService;
+    @Inject MediaProcessingService mediaProcessingService;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -388,6 +390,11 @@ var members = userRepo.listMembers(false);
             capabilities.put("voice_mode", liveKitService.getMode());
             capabilities.put("e2ee", runtimeConfig.getBoolean("kith.livekit.e2ee", liveKitConfig.e2ee()));
             capabilities.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
+            var mediaProcessing = new LinkedHashMap<String, Object>();
+            mediaProcessing.put("ffmpeg_available", mediaProcessingService.isFfmpegAvailable());
+            mediaProcessing.put("video_mode", runtimeConfig.getString("kith.media-processing.video-mode",
+                    mediaProcessingService.getVideoMode()));
+            capabilities.put("media_processing", mediaProcessing);
             hello.put("capabilities", capabilities);
 
             // Server settings

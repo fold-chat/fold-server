@@ -30,7 +30,13 @@ public class RuntimeConfigService {
             "kith.livekit.central-api-key",
             "kith.livekit.max-participants",
             "kith.livekit.e2ee",
-            "kith.livekit.turn-enabled"
+            "kith.livekit.turn-enabled",
+            "kith.media-processing.video-mode",
+            "kith.media-processing.max-video-duration",
+            "kith.media-processing.max-video-size",
+            "kith.media-processing.max-image-size",
+            "kith.media-processing.thumbnail-max-width",
+            "kith.media-processing.hw-accel"
     );
 
     /** Keys whose values are obscured in GET responses */

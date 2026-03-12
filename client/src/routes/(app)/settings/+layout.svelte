@@ -36,6 +36,7 @@
 		'/settings/invites': 'Invites',
 		'/settings/emoji': 'Emoji',
 		'/settings/voice': 'Voice',
+		'/settings/media': 'Media',
 		'/settings/maintenance': 'Maintenance',
 		'/settings/audit-log': 'Audit Log'
 	};
@@ -128,6 +129,9 @@
 			{/if}
 			{#if canManageServer}
 				<a class="nav-item" class:active={isActive('/settings/voice')} href="/settings/voice">Voice</a>
+			{/if}
+			{#if canManageServer}
+				<a class="nav-item" class:active={isActive('/settings/media')} href="/settings/media">Media</a>
 			{/if}
 			{#if canManageServer}
 				<a class="nav-item" class:active={isActive('/settings/maintenance')} href="/settings/maintenance">Maintenance</a>

@@ -212,11 +212,7 @@ public class MessageResource {
 
     private Map<String, Object> withAttachments(Map<String, Object> msg) {
         var attachments = fileService.getAttachments((String) msg.get("id"));
-        var enriched = attachments.stream().map(a -> {
-            var m = new HashMap<>(a);
-            m.put("url", "/api/v0/files/" + a.get("stored_name"));
-            return (Map<String, Object>) m;
-        }).toList();
+        var enriched = attachments.stream().map(MessageResource::enrichAttachment).toList();
         var result = new HashMap<>(msg);
         result.put("attachments", enriched);
         result.put("reactions", groupReactions((String) msg.get("id"), reactionRepo.findByMessageId((String) msg.get("id")), null));
@@ -252,11 +248,7 @@ public class MessageResource {
             var result = new HashMap<>(msg);
             // attachments
             var attachments = fileService.getAttachments((String) msg.get("id"));
-            result.put("attachments", attachments.stream().map(a -> {
-                var m = new HashMap<>(a);
-                m.put("url", "/api/v0/files/" + a.get("stored_name"));
-                return (Map<String, Object>) m;
-            }).toList());
+            result.put("attachments", attachments.stream().map(MessageResource::enrichAttachment).toList());
             // reactions
             var reactions = reactionsByMsg.getOrDefault((String) msg.get("id"), List.of());
             result.put("reactions", groupReactions((String) msg.get("id"), reactions, currentUserId));
@@ -283,6 +275,16 @@ public class MessageResource {
             ));
         }
         return result;
+    }
+
+    /** Enrich a file attachment map with url, thumbnail_url, and media metadata. */
+    static Map<String, Object> enrichAttachment(Map<String, Object> a) {
+        var m = new HashMap<>(a);
+        m.put("url", "/api/v0/files/" + a.get("stored_name"));
+        if (a.get("thumbnail_stored_name") != null) {
+            m.put("thumbnail_url", "/api/v0/files/" + a.get("stored_name") + "/thumbnail");
+        }
+        return m;
     }
 
     private Response checkRate(String configKey, String userId, RateLimitPolicy defaultPolicy) {

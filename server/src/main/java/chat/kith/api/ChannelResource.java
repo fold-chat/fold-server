@@ -245,15 +245,16 @@ public class ChannelResource {
             return Response.status(403).entity(Map.of("error", "channel_archived", "message", "Cannot send messages in an archived channel")).build();
         }
         boolean hasAttachments = req.attachment_ids() != null && !req.attachment_ids().isEmpty();
-        if ((req.content() == null || req.content().isBlank()) && !hasAttachments) {
+        String content = req.content() != null ? req.content() : "";
+        if (content.isBlank() && !hasAttachments) {
             return Response.status(400).entity(Map.of("error", "invalid_content", "message", "Content required")).build();
         }
-        if (req.content().length() > 5000) {
+        if (content.length() > 5000) {
             return Response.status(400).entity(Map.of("error", "content_too_long", "message", "Max 5000 characters")).build();
         }
 
         String id = MessageRepository.newId();
-        messageRepo.create(id, channelId, sc.getUserId(), req.content());
+        messageRepo.create(id, channelId, sc.getUserId(), content);
 
         if (req.attachment_ids() != null) {
             for (String fileId : req.attachment_ids()) {
@@ -268,7 +269,7 @@ public class ChannelResource {
         created.ifPresent(m -> {
             eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId)));
             // Increment mention_count for mentioned users
-            incrementMentionCounts(sc.getUserId(), channelId, req.content());
+            incrementMentionCounts(sc.getUserId(), channelId, content);
         });
         return created
                 .map(m -> Response.status(201).entity(m).build())
@@ -533,11 +534,7 @@ public class ChannelResource {
 
     private Map<String, Object> withAttachments(Map<String, Object> msg) {
         var attachments = fileService.getAttachments((String) msg.get("id"));
-        var enriched = attachments.stream().map(a -> {
-            var m = new HashMap<>(a);
-            m.put("url", "/api/v0/files/" + a.get("stored_name"));
-            return (Map<String, Object>) m;
-        }).toList();
+        var enriched = attachments.stream().map(MessageResource::enrichAttachment).toList();
         var result = new HashMap<>(msg);
         result.put("attachments", enriched);
         result.put("reactions", MessageResource.groupReactions((String) msg.get("id"), reactionRepo.findByMessageId((String) msg.get("id")), null));
@@ -569,11 +566,7 @@ public class ChannelResource {
         return messages.stream().map(msg -> {
             var result = new HashMap<>(msg);
             var attachments = fileService.getAttachments((String) msg.get("id"));
-            result.put("attachments", attachments.stream().map(a -> {
-                var m = new HashMap<>(a);
-                m.put("url", "/api/v0/files/" + a.get("stored_name"));
-                return (Map<String, Object>) m;
-            }).toList());
+            result.put("attachments", attachments.stream().map(MessageResource::enrichAttachment).toList());
             var reactions = reactionsByMsg.getOrDefault((String) msg.get("id"), List.of());
             result.put("reactions", MessageResource.groupReactions((String) msg.get("id"), reactions, currentUserId));
             

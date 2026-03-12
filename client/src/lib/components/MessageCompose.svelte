@@ -220,10 +220,11 @@
 						? { ...f, id: result.id, url: result.url, uploading: false }
 						: f
 				);
-			} catch {
+			} catch (err: any) {
+				const msg = err?.message || err?.error || 'Upload failed';
 				pendingFiles = pendingFiles.map(f =>
 					f.file === file && f.uploading
-						? { ...f, error: 'Upload failed', uploading: false }
+						? { ...f, error: msg, uploading: false }
 						: f
 				);
 			}
@@ -326,6 +327,7 @@
 					{#if pf.uploading}
 						<span class="preview-status">⏳</span>
 					{:else if pf.error}
+						<span class="error-text" title={pf.error}>{pf.error}</span>
 						<button class="retry-btn" onclick={() => retryFile(i)} title="Retry upload">⟳</button>
 					{:else}
 						<span class="preview-status">✓</span>
