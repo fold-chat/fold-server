@@ -260,7 +260,7 @@ public class MediaProcessingService {
         return generateImageThumbnail(input, null);
     }
 
-    /** Generate thumbnail for image with optional mime hint for Java fallback. */
+    /** Generate thumbnail for image. Tries ffmpeg → sips → ImageMagick. */
     public Optional<Path> generateImageThumbnail(Path input, String mimeType) {
         int maxWidth = mediaConfig.thumbnailMaxWidth();
         // Try ffmpeg first
@@ -273,12 +273,32 @@ public class MediaProcessingService {
                 if (exit == 0 && Files.exists(output)) return Optional.of(output);
                 Files.deleteIfExists(output);
             } catch (Exception e) {
-                LOG.warnf("ffmpeg thumbnail failed, trying Java fallback: %s", e.getMessage());
+                LOG.warnf("ffmpeg thumbnail failed: %s", e.getMessage());
             }
         }
-        // Java fallback for JPEG/PNG
-        if (mimeType != null && ("image/jpeg".equals(mimeType) || "image/png".equals(mimeType))) {
-            return generateThumbnailJava(input, maxWidth);
+        // sips fallback (macOS)
+        if (sipsAvailable) {
+            var output = processingDir.resolve("thumb-" + System.nanoTime() + ".jpg");
+            try {
+                int exit = runProcess("sips", "-s", "format", "jpeg", "-s", "formatOptions", "60",
+                        "-Z", String.valueOf(maxWidth), input.toString(), "--out", output.toString());
+                if (exit == 0 && Files.exists(output)) return Optional.of(output);
+                Files.deleteIfExists(output);
+            } catch (Exception e) {
+                LOG.warnf("sips thumbnail failed: %s", e.getMessage());
+            }
+        }
+        // ImageMagick fallback
+        if (imagemagickAvailable) {
+            var output = processingDir.resolve("thumb-" + System.nanoTime() + ".jpg");
+            try {
+                int exit = runProcess("magick", input.toString(), "-strip", "-resize", maxWidth + "x>",
+                        "-quality", "75", output.toString());
+                if (exit == 0 && Files.exists(output)) return Optional.of(output);
+                Files.deleteIfExists(output);
+            } catch (Exception e) {
+                LOG.warnf("ImageMagick thumbnail failed: %s", e.getMessage());
+            }
         }
         return Optional.empty();
     }
@@ -336,41 +356,6 @@ public class MediaProcessingService {
         return Optional.empty();
     }
 
-    /**
-     * Java-based thumbnail generation using ImageIO. Works without ffmpeg.
-     * Supports JPEG and PNG input, outputs JPEG thumbnail.
-     */
-    private Optional<Path> generateThumbnailJava(Path input, int maxWidth) {
-        try {
-            var img = javax.imageio.ImageIO.read(input.toFile());
-            if (img == null) return Optional.empty();
-
-            int origW = img.getWidth();
-            int origH = img.getHeight();
-            if (origW <= maxWidth) {
-                // Already small enough — still create a JPEG thumbnail for consistency
-                maxWidth = origW;
-            }
-
-            int newW = maxWidth;
-            int newH = (int) Math.round((double) origH * newW / origW);
-            if (newH < 1) newH = 1;
-
-            var scaled = new java.awt.image.BufferedImage(newW, newH, java.awt.image.BufferedImage.TYPE_INT_RGB);
-            var g = scaled.createGraphics();
-            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g.drawImage(img, 0, 0, newW, newH, null);
-            g.dispose();
-
-            var output = processingDir.resolve("jthumb-" + System.nanoTime() + ".jpg");
-            javax.imageio.ImageIO.write(scaled, "jpg", output.toFile());
-            if (Files.exists(output) && Files.size(output) > 0) return Optional.of(output);
-            Files.deleteIfExists(output);
-        } catch (Exception e) {
-            LOG.warnf("Java thumbnail generation failed: %s", e.getMessage());
-        }
-        return Optional.empty();
-    }
 
     /** Transcode video to MP4 (H.264 + AAC). Acquires semaphore. */
     public Optional<Path> transcodeVideo(Path input) {
