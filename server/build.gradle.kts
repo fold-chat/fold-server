@@ -40,7 +40,7 @@ dependencies {
     testImplementation("org.mockito:mockito-core:5.14.2")
 }
 
-group = "chat.kith"
+group = "chat.fold"
 version = "0.1.0"
 
 java {
@@ -111,10 +111,10 @@ val generateMigrationIndex = tasks.register("generateMigrationIndex") {
         }
 
         val filesList = files.joinToString(",\n                    ") { "\"${it.name}\"" }
-        val src = outputDir.get().dir("chat/kith/db").asFile
+        val src = outputDir.get().dir("chat/fold/db").asFile
         src.mkdirs()
         src.resolve("MigrationIndex.java").writeText("""
-            package chat.kith.db;
+            package chat.fold.db;
             import java.util.List;
             public final class MigrationIndex {
                 private MigrationIndex() {}

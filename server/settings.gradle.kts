@@ -9,4 +9,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = "kith-server"
+rootProject.name = "fold-server"

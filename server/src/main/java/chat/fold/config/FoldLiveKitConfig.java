@@ -1,0 +1,79 @@
+package chat.fold.config;
+
+import io.smallrye.config.ConfigMapping;
+import io.smallrye.config.WithDefault;
+import java.util.Optional;
+
+@ConfigMapping(prefix = "fold.livekit")
+public interface FoldLiveKitConfig {
+
+    /** off (default), embedded, external, managed */
+    @WithDefault("off")
+    String mode();
+
+    /** LiveKit WS URL (required for external, auto-set for embedded) */
+    Optional<String> url();
+
+    /** LiveKit API key (required for external, auto-generated for embedded) */
+    Optional<String> apiKey();
+
+    /** LiveKit API secret (required for external, auto-generated for embedded) */
+    Optional<String> apiSecret();
+
+    // --- Managed mode config (hybrid hosting via fold-hosted) ---
+
+    /** Central service URL (required for managed mode) */
+    Optional<String> centralUrl();
+
+    /** API key for central service auth (required for managed mode) */
+    Optional<String> centralApiKey();
+
+    // --- Embedded mode config ---
+
+    /** Path to LiveKit binary (default: livekit-server on PATH) */
+    @WithDefault("livekit-server")
+    String path();
+
+    /** LiveKit WS port */
+    @WithDefault("7880")
+    int port();
+
+    /** RTC TCP fallback port */
+    @WithDefault("7881")
+    int rtcTcpPort();
+
+    /** UDP port range start */
+    @WithDefault("50000")
+    int rtcUdpStart();
+
+    /** UDP port range end */
+    @WithDefault("60000")
+    int rtcUdpEnd();
+
+    /** Enable embedded TURN */
+    @WithDefault("false")
+    boolean turnEnabled();
+
+    /** TURN UDP port */
+    @WithDefault("3478")
+    int turnUdpPort();
+
+    /** Per-room participant limit */
+    @WithDefault("50")
+    int maxParticipants();
+
+    /** Public IP for NAT traversal (maps to node_ip in LiveKit config) */
+    Optional<String> publicIp();
+
+    /** Public URL for central to forward webhooks to (required for managed mode) */
+    Optional<String> webhookUrl();
+
+    // --- Webhook ---
+
+    /** Webhook secret (defaults to api-secret if not set) */
+    Optional<String> webhookSecret();
+
+    /** Enable E2EE for voice/video (only needed with external LiveKit server) */
+    @WithDefault("false")
+    boolean e2ee();
+}
