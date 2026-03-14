@@ -1,6 +1,7 @@
 package chat.fold.api;
 
 import chat.fold.auth.FoldSecurityContext;
+import chat.fold.config.FoldLiveKitConfig;
 import chat.fold.config.RuntimeConfigService;
 import chat.fold.db.DatabaseService;
 import chat.fold.event.Event;
@@ -33,6 +34,7 @@ public class ConfigResource {
     );
 
     @Inject RuntimeConfigService runtimeConfig;
+    @Inject FoldLiveKitConfig liveKitConfig;
     @Inject DatabaseService db;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
@@ -54,6 +56,13 @@ public class ConfigResource {
 
         if (body == null || body.isEmpty()) {
             return Response.status(400).entity(Map.of("error", "empty_body", "message", "No config provided")).build();
+        }
+
+        // Validate mode prerequisites before saving
+        String newMode = body.get("fold.livekit.mode");
+        if (newMode != null) {
+            var modeError = validateModePrerequisites(newMode, body);
+            if (modeError != null) return modeError;
         }
 
         var updated = new LinkedHashMap<String, String>();
@@ -92,6 +101,48 @@ public class ConfigResource {
         }
 
         return Response.ok(runtimeConfig.getOverridableConfigObscured()).build();
+    }
+
+    /**
+     * Validate that required bootstrap/runtime config exists for the target mode.
+     * Returns an error Response if validation fails, null if OK.
+     */
+    private Response validateModePrerequisites(String mode, Map<String, String> body) {
+        return switch (mode) {
+            case "managed" -> {
+                if (liveKitConfig.centralUrl().filter(s -> !s.isBlank()).isEmpty()) {
+                    yield Response.status(400).entity(Map.of("error", "missing_config",
+                            "message", "fold.livekit.central-url must be set (env FOLD_CENTRAL_URL)")).build();
+                }
+                if (liveKitConfig.webhookUrl().filter(s -> !s.isBlank()).isEmpty()) {
+                    yield Response.status(400).entity(Map.of("error", "missing_config",
+                            "message", "fold.livekit.webhook-url must be set (env FOLD_LIVEKIT_WEBHOOK_URL)")).build();
+                }
+                String apiKey = body.getOrDefault("fold.livekit.central-api-key",
+                        runtimeConfig.getString("fold.livekit.central-api-key", null));
+                if (apiKey == null || apiKey.isBlank()) {
+                    yield Response.status(400).entity(Map.of("error", "missing_config",
+                            "message", "fold.livekit.central-api-key is required for managed mode")).build();
+                }
+                yield null;
+            }
+            case "external" -> {
+                String url = body.getOrDefault("fold.livekit.url",
+                        runtimeConfig.getString("fold.livekit.url", liveKitConfig.url().orElse(null)));
+                String key = body.getOrDefault("fold.livekit.api-key",
+                        runtimeConfig.getString("fold.livekit.api-key", liveKitConfig.apiKey().orElse(null)));
+                String secret = body.getOrDefault("fold.livekit.api-secret",
+                        runtimeConfig.getString("fold.livekit.api-secret", liveKitConfig.apiSecret().orElse(null)));
+                if (url == null || url.isBlank() || key == null || key.isBlank() || secret == null || secret.isBlank()) {
+                    yield Response.status(400).entity(Map.of("error", "missing_config",
+                            "message", "url, api-key, and api-secret are required for external mode")).build();
+                }
+                yield null;
+            }
+            case "off", "embedded" -> null;
+            default -> Response.status(400).entity(Map.of("error", "invalid_mode",
+                    "message", "Invalid mode: " + mode + ". Must be off, embedded, external, or managed")).build();
+        };
     }
 
     private FoldSecurityContext sc() {
