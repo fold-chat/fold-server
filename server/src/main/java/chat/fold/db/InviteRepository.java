@@ -59,4 +59,13 @@ public class InviteRepository {
                 ORDER BY created_at DESC
                 """);
     }
+
+    public List<Map<String, Object>> listByCreator(String creatorId) {
+        return db.query("""
+                SELECT * FROM invite
+                WHERE creator_id = ?
+                AND (expires_at IS NULL OR expires_at > datetime('now'))
+                ORDER BY created_at DESC
+                """, creatorId);
+    }
 }

@@ -39,7 +39,10 @@ public class InviteResource {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("error", "description_required")).build();
         }
-        inviteRepo.create(id, code, sc.getUserId(), req.description().strip(), req.max_uses(), req.expires_at());
+        Long maxUses = permissionService.hasServerPermission(sc.getUserId(), Permission.MANAGE_INVITES)
+                ? req.max_uses()
+                : 1L;
+        inviteRepo.create(id, code, sc.getUserId(), req.description().strip(), maxUses, req.expires_at());
         var invite = inviteRepo.findByCode(code);
         auditLogService.log(sc.getUserId(), "INVITE_CREATE", "invite", id, Map.of("code", code));
         return Response.status(Response.Status.CREATED).entity(invite.orElse(Map.of())).build();
@@ -47,8 +50,12 @@ public class InviteResource {
 
     @GET
     public Response list() {
-        permissionService.requireServerPermission(sc().getUserId(), Permission.CREATE_INVITES);
-        return Response.ok(inviteRepo.listAll()).build();
+        var userId = sc().getUserId();
+        permissionService.requireServerPermission(userId, Permission.CREATE_INVITES);
+        var invites = permissionService.hasServerPermission(userId, Permission.MANAGE_INVITES)
+                ? inviteRepo.listAll()
+                : inviteRepo.listByCreator(userId);
+        return Response.ok(invites).build();
     }
 
     @GET

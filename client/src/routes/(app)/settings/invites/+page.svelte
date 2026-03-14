@@ -147,10 +147,12 @@ import { createInvite, getInvites, revokeInvite, reinstateInvite, type Invite } 
 					<label for="description">Description <span class="required">*</span></label>
 					<input id="description" type="text" placeholder="e.g. Facebook Group" bind:value={description} required />
 				</div>
-				<div class="form-group">
-					<label for="max-uses">Max Uses</label>
-					<input id="max-uses" type="number" min="1" placeholder="Unlimited" bind:value={maxUses} />
-				</div>
+				{#if canManage}
+					<div class="form-group">
+						<label for="max-uses">Max Uses</label>
+						<input id="max-uses" type="number" min="1" placeholder="Unlimited" bind:value={maxUses} />
+					</div>
+				{/if}
 				<div class="form-group">
 					<label for="expires-in">Expires</label>
 					<select id="expires-in" bind:value={expiresIn}>
