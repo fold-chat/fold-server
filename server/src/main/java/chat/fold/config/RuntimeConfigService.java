@@ -28,6 +28,7 @@ public class RuntimeConfigService {
             "fold.livekit.api-key",
             "fold.livekit.api-secret",
             "fold.livekit.central-api-key",
+            "fold.livekit.webhook-url",
             "fold.livekit.max-participants",
             "fold.livekit.e2ee",
             "fold.livekit.turn-enabled",

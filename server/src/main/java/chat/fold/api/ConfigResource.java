@@ -114,9 +114,12 @@ public class ConfigResource {
                     yield Response.status(400).entity(Map.of("error", "missing_config",
                             "message", "fold.livekit.central-url must be set (env FOLD_CENTRAL_URL)")).build();
                 }
-                if (liveKitConfig.webhookUrl().filter(s -> !s.isBlank()).isEmpty()) {
+                String webhookUrl = body.getOrDefault("fold.livekit.webhook-url",
+                        runtimeConfig.getString("fold.livekit.webhook-url",
+                                liveKitConfig.webhookUrl().orElse(null)));
+                if (webhookUrl == null || webhookUrl.isBlank()) {
                     yield Response.status(400).entity(Map.of("error", "missing_config",
-                            "message", "fold.livekit.webhook-url must be set (env FOLD_LIVEKIT_WEBHOOK_URL)")).build();
+                            "message", "fold.livekit.webhook-url is required for managed mode")).build();
                 }
                 String apiKey = body.getOrDefault("fold.livekit.central-api-key",
                         runtimeConfig.getString("fold.livekit.central-api-key", null));

@@ -25,6 +25,7 @@
 	let editApiKey = $state('');
 	let editApiSecret = $state('');
 	let editCentralApiKey = $state('');
+	let editWebhookUrl = $state('');
 	let editMaxParticipants = $state('50');
 	let editE2ee = $state('false');
 	let editTurnEnabled = $state('false');
@@ -35,6 +36,7 @@
 	const validationError = $derived.by(() => {
 		if (editMode === 'managed') {
 			if (!editCentralApiKey || editCentralApiKey.endsWith('...')) return 'API key is required for managed mode';
+			if (!editWebhookUrl) return 'Webhook URL is required for managed mode';
 		}
 		if (editMode === 'external') {
 			if (!editUrl) return 'URL is required for external mode';
@@ -48,6 +50,7 @@
 		const cfg = config;
 		if (editMode !== (cfg['fold.livekit.mode'] ?? 'off')) return true;
 		if (editMode === 'managed' && editCentralApiKey !== (cfg['fold.livekit.central-api-key'] ?? '')) return true;
+		if (editMode === 'managed' && editWebhookUrl !== (cfg['fold.livekit.webhook-url'] ?? window.location.origin)) return true;
 		if (editMode === 'external') {
 			if (editUrl !== (cfg['fold.livekit.url'] ?? '')) return true;
 			if (editApiKey !== (cfg['fold.livekit.api-key'] ?? '')) return true;
@@ -80,6 +83,7 @@
 		editApiKey = cfg['fold.livekit.api-key'] ?? '';
 		editApiSecret = cfg['fold.livekit.api-secret'] ?? '';
 		editCentralApiKey = cfg['fold.livekit.central-api-key'] ?? '';
+		editWebhookUrl = cfg['fold.livekit.webhook-url'] ?? window.location.origin;
 		editMaxParticipants = cfg['fold.livekit.max-participants'] ?? '50';
 		editE2ee = cfg['fold.livekit.e2ee'] ?? 'false';
 		editTurnEnabled = cfg['fold.livekit.turn-enabled'] ?? 'false';
@@ -96,9 +100,12 @@
 		try {
 			const patch: RuntimeConfig = { 'fold.livekit.mode': editMode };
 			// Mode-specific fields
-			if (editMode === 'managed') {
+		if (editMode === 'managed') {
 				if (editCentralApiKey && !editCentralApiKey.endsWith('...')) {
 					patch['fold.livekit.central-api-key'] = editCentralApiKey;
+				}
+				if (editWebhookUrl) {
+					patch['fold.livekit.webhook-url'] = editWebhookUrl;
 				}
 			}
 			if (editMode === 'external') {
@@ -209,6 +216,12 @@
 					<label for="central-api-key">API Key <span class="required">*</span></label>
 					<input id="central-api-key" type="text" bind:value={editCentralApiKey}
 						placeholder="fold_..." onfocus={() => { if (editCentralApiKey.endsWith('...')) editCentralApiKey = ''; }} />
+				</div>
+				<div class="form-group">
+					<label for="webhook-url">Webhook URL <span class="required">*</span></label>
+					<input id="webhook-url" type="text" bind:value={editWebhookUrl}
+						placeholder="https://your-server.example.com" />
+					<span class="hint">Public URL where central.fold.chat can reach this server for voice webhooks.</span>
 				</div>
 			</div>
 		{/if}

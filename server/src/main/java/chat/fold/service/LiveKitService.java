@@ -90,7 +90,8 @@ public class LiveKitService {
             return;
         }
 
-        String webhookUrl = config.webhookUrl().orElse("");
+        String webhookUrl = runtimeConfig.getString("fold.livekit.webhook-url",
+                config.webhookUrl().orElse(""));
         if (webhookUrl.isBlank()) {
             LOG.error("[BOOT] LiveKit (managed) ... FAIL (fold.livekit.webhook-url required for managed mode)");
             managedAvailable = false;
