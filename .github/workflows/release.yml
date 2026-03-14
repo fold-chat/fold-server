@@ -10,7 +10,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: kith-chat/kith
+  IMAGE_NAME: fold-chat/fold
   GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
 jobs:
@@ -57,8 +57,8 @@ jobs:
           ./gradlew quarkusBuild -Dquarkus.package.jar.type=uber-jar
       - uses: actions/upload-artifact@v4
         with:
-          name: kith-jar
-          path: server/build/kith-runner.jar
+          name: fold-jar
+          path: server/build/fold-runner.jar
 
   # 3–6. Native image builds (native lib extracted from libsql-java dependency)
   native-linux-amd64:
@@ -83,7 +83,7 @@ jobs:
         with:
           name: native-linux-amd64
           path: |
-            server/build/kith-runner
+            server/build/fold-runner
             server/build/extracted-native/native/linux-amd64/liblibsql.so
 
   native-linux-arm64:
@@ -108,7 +108,7 @@ jobs:
         with:
           name: native-linux-arm64
           path: |
-            server/build/kith-runner
+            server/build/fold-runner
             server/build/extracted-native/native/linux-aarch64/liblibsql.so
 
   native-macos-arm64:
@@ -133,7 +133,7 @@ jobs:
         with:
           name: native-macos-arm64
           path: |
-            server/build/kith-runner
+            server/build/fold-runner
             server/build/extracted-native/native/darwin-aarch64/liblibsql.dylib
 
   native-windows-amd64:
@@ -159,7 +159,7 @@ jobs:
         with:
           name: native-windows-amd64
           path: |
-            server/build/kith-runner.exe
+            server/build/fold-runner.exe
             server/build/extracted-native/native/windows-amd64/libsql.dll
 
   # 8. Docker multi-arch
@@ -190,19 +190,19 @@ jobs:
           cat > docker/amd64/Dockerfile <<'EOF'
           FROM gcr.io/distroless/base-nossl-debian12
           WORKDIR /app
-          COPY build/kith-runner /app/kith
+          COPY build/fold-runner /app/fold
           COPY extracted-native/native/linux-amd64/liblibsql.so /app/liblibsql.so
           EXPOSE 8080
-          ENTRYPOINT ["/app/kith"]
+          ENTRYPOINT ["/app/fold"]
           EOF
           # arm64
           cat > docker/arm64/Dockerfile <<'EOF'
           FROM gcr.io/distroless/base-nossl-debian12
           WORKDIR /app
-          COPY build/kith-runner /app/kith
+          COPY build/fold-runner /app/fold
           COPY extracted-native/native/linux-aarch64/liblibsql.so /app/liblibsql.so
           EXPOSE 8080
-          ENTRYPOINT ["/app/kith"]
+          ENTRYPOINT ["/app/fold"]
           EOF
       - name: Build & push amd64
         uses: docker/build-push-action@v6
@@ -238,23 +238,23 @@ jobs:
           path: artifacts/
       - uses: actions/download-artifact@v4
         with:
-          name: kith-jar
-          path: artifacts/kith-jar/
+          name: fold-jar
+          path: artifacts/fold-jar/
       - name: Prepare release assets
         run: |
           mkdir -p release
-          cp artifacts/kith-jar/kith-runner.jar release/kith.jar
+          cp artifacts/fold-jar/fold-runner.jar release/fold.jar
           # Linux amd64
-          cp artifacts/native-linux-amd64/build/kith-runner release/kith-linux-amd64
+          cp artifacts/native-linux-amd64/build/fold-runner release/fold-linux-amd64
           cp artifacts/native-linux-amd64/extracted-native/native/linux-amd64/liblibsql.so release/liblibsql-linux-amd64.so
           # Linux arm64
-          cp artifacts/native-linux-arm64/build/kith-runner release/kith-linux-arm64
+          cp artifacts/native-linux-arm64/build/fold-runner release/fold-linux-arm64
           cp artifacts/native-linux-arm64/extracted-native/native/linux-aarch64/liblibsql.so release/liblibsql-linux-arm64.so
           # macOS arm64
-          cp artifacts/native-macos-arm64/build/kith-runner release/kith-darwin-arm64
+          cp artifacts/native-macos-arm64/build/fold-runner release/fold-darwin-arm64
           cp artifacts/native-macos-arm64/extracted-native/native/darwin-aarch64/liblibsql.dylib release/liblibsql-darwin-arm64.dylib
           # Windows amd64
-          cp artifacts/native-windows-amd64/build/kith-runner.exe release/kith-windows-amd64.exe
+          cp artifacts/native-windows-amd64/build/fold-runner.exe release/fold-windows-amd64.exe
           cp artifacts/native-windows-amd64/extracted-native/native/windows-amd64/libsql.dll release/libsql-windows-amd64.dll
       - uses: softprops/action-gh-release@v2
         with:

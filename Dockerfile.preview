@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ffmpeg && 
 
 WORKDIR /app
 
-COPY server/build/kith-runner.jar /app/kith.jar
+COPY server/build/fold-runner.jar /app/fold.jar
 COPY deploy/entrypoint-preview.sh /app/entrypoint.sh
 
 # Optional: copy seed DB if it exists (build will not fail if missing)

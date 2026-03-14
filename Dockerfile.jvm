@@ -6,10 +6,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY server/build/kith-runner.jar /app/kith.jar
+COPY server/build/fold-runner.jar /app/fold.jar
 
 EXPOSE 8080
 
 ENV JAVA_OPTS="--enable-native-access=ALL-UNNAMED"
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/kith.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar /app/fold.jar"]

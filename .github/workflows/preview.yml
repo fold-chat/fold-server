@@ -23,8 +23,8 @@ jobs:
       packages: write
     uses: ./.github/workflows/build-image.yml
     with:
-      image_name: fray-chat/fray-app
-      image_tag: pr-${{ github.event.pull_request.number }}
+      image_name: fold-chat/fold-server
+      image_tag: pr-${{ github.event.pull_request.number }}-${{ needs.prepare.outputs.short_sha }}
       dockerfile: Dockerfile.native-build
       self_contained: true
     secrets: inherit
@@ -37,7 +37,7 @@ jobs:
       contents: read
       pull-requests: write
     concurrency:
-      group: kith-preview-pr-${{ github.event.pull_request.number }}
+      group: fold-preview-pr-${{ github.event.pull_request.number }}
       cancel-in-progress: true
 
     steps:
@@ -62,12 +62,12 @@ jobs:
 
           sed -e "s|__PR_NUMBER__|${PR_NUMBER}|g" \
               -e "s|__IMAGE_TAG__|${IMAGE}|g" \
-              deploy/nomad/kith-preview.nomad.hcl > /tmp/kith-pr-${PR_NUMBER}.nomad.hcl
+              deploy/nomad/fold-preview.nomad.hcl > /tmp/fold-pr-${PR_NUMBER}.nomad.hcl
 
-          scp $SSH_OPTS /tmp/kith-pr-${PR_NUMBER}.nomad.hcl root@${NOMAD_HOST}:/tmp/kith-pr-${PR_NUMBER}.nomad.hcl
+          scp $SSH_OPTS /tmp/fold-pr-${PR_NUMBER}.nomad.hcl root@${NOMAD_HOST}:/tmp/fold-pr-${PR_NUMBER}.nomad.hcl
 
           ssh $SSH_OPTS root@${NOMAD_HOST} \
-            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run -namespace=ci /tmp/kith-pr-${PR_NUMBER}.nomad.hcl"
+            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run -namespace=ci /tmp/fold-pr-${PR_NUMBER}.nomad.hcl"
 
       # Comment on PR
       - name: Comment preview URL
@@ -117,7 +117,7 @@ jobs:
           NOMAD_SSH_KEY: ${{ secrets.NOMAD_SSH_KEY }}
           NOMAD_HOST: ${{ secrets.NOMAD_HOST }}
           NOMAD_TOKEN: ${{ secrets.NOMAD_TOKEN }}
-          PREVIEW_DATA_ROOT: ${{ vars.KITH_PREVIEW_DATA_ROOT || '/opt/kith/preview' }}
+          PREVIEW_DATA_ROOT: ${{ vars.FOLD_PREVIEW_DATA_ROOT || '/opt/fold/preview' }}
         run: |
           mkdir -p ~/.ssh
           echo "$NOMAD_SSH_KEY" > ~/.ssh/nomad_key
@@ -127,7 +127,7 @@ jobs:
 
           PR_NUMBER=${{ github.event.pull_request.number }}
           ssh $SSH_OPTS root@${NOMAD_HOST} \
-            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job stop -purge -namespace=ci kith-pr-${PR_NUMBER}" || true
+            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job stop -purge -namespace=ci fold-pr-${PR_NUMBER}" || true
 
           ssh $SSH_OPTS root@${NOMAD_HOST} \
             "rm -rf ${PREVIEW_DATA_ROOT}/pr-${PR_NUMBER}" || true

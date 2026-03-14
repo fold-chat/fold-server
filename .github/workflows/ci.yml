@@ -54,8 +54,8 @@ jobs:
       packages: write
     uses: ./.github/workflows/build-image.yml
     with:
-      image_name: fray-chat/fray-app
-      image_tag: main-${{ github.sha }}
+      image_name: fold-chat/fold-server
+      image_tag: main-${{ needs.build.outputs.short_sha }}
       dockerfile: Dockerfile.native-build
       self_contained: true
     secrets: inherit
@@ -67,7 +67,7 @@ jobs:
     permissions:
       contents: read
     concurrency:
-      group: kith-main-deploy
+      group: fold-main-deploy
       cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +77,7 @@ jobs:
           NOMAD_SSH_KEY: ${{ secrets.NOMAD_SSH_KEY }}
           NOMAD_HOST: ${{ secrets.NOMAD_HOST }}
           NOMAD_TOKEN: ${{ secrets.NOMAD_TOKEN }}
-          KITH_DOMAIN: ${{ vars.KITH_DOMAIN || 'demo.fold.chat' }}
+          FOLD_DOMAIN: ${{ vars.FOLD_DOMAIN || 'demo.fold.chat' }}
         run: |
           mkdir -p ~/.ssh
           echo "$NOMAD_SSH_KEY" > ~/.ssh/nomad_key
@@ -87,10 +87,10 @@ jobs:
           IMAGE="${{ needs.build-image-main.outputs.image_ref }}"
 
           sed -e "s|__IMAGE_TAG__|${IMAGE}|g" \
-              -e "s|__KITH_DOMAIN__|${KITH_DOMAIN}|g" \
-              deploy/nomad/kith.nomad.hcl > /tmp/kith-main.nomad.hcl
+              -e "s|__FOLD_DOMAIN__|${FOLD_DOMAIN}|g" \
+              deploy/nomad/fold.nomad.hcl > /tmp/fold-main.nomad.hcl
 
-          scp $SSH_OPTS /tmp/kith-main.nomad.hcl root@${NOMAD_HOST}:/tmp/kith-main.nomad.hcl
+          scp $SSH_OPTS /tmp/fold-main.nomad.hcl root@${NOMAD_HOST}:/tmp/fold-main.nomad.hcl
 
           ssh $SSH_OPTS root@${NOMAD_HOST} \
-            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run -namespace=ci /tmp/kith-main.nomad.hcl"
+            "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run -namespace=ci /tmp/fold-main.nomad.hcl"
