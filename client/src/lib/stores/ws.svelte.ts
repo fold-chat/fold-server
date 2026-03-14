@@ -279,8 +279,8 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 		case 'SERVER_CONFIG_UPDATE':
 			if (msg.d) {
 				const configData = msg.d as Record<string, string>;
-				if (configData['kith.livekit.mode']) {
-					const newMode = configData['kith.livekit.mode'];
+				if (configData['fold.livekit.mode']) {
+					const newMode = configData['fold.livekit.mode'];
 					setVoiceMode(newMode);
 					setVoiceVideoEnabled(newMode !== 'off');
 				}

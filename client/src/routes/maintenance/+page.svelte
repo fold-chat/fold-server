@@ -5,7 +5,7 @@
 	import { setUser } from '$lib/stores/auth.svelte.js';
 
 	let message = $state('');
-	let serverName = $state('Kith');
+	let serverName = $state('Fold');
 	let loading = $state(true);
 	let checking = $state(false);
 
@@ -15,7 +15,7 @@
 				headers: { 'Content-Type': 'application/json' }
 			});
 			const data = await res.json();
-			serverName = data.server_name || 'Kith';
+		serverName = data.server_name || 'Fold';
 		if (!data.maintenance) {
 				// Server is back up — restore session then redirect
 				try {

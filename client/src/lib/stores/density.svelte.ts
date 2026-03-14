@@ -1,6 +1,6 @@
 export type Density = 'compact' | 'default' | 'large';
 
-const STORAGE_KEY = 'kith_density';
+const STORAGE_KEY = 'fold_density';
 
 let density = $state<Density>('default');
 

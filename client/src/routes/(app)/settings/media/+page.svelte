@@ -21,22 +21,22 @@
 	let editHwAccel = $state('auto');
 
 	function hydrateFields(cfg: RuntimeConfig) {
-		editVideoMode = cfg['kith.media-processing.video-mode'] ?? 'no-transcode';
-		editMaxVideoDuration = cfg['kith.media-processing.max-video-duration'] ?? '300';
-		editMaxVideoSize = cfg['kith.media-processing.max-video-size'] ?? '104857600';
-		editMaxImageSize = cfg['kith.media-processing.max-image-size'] ?? '20971520';
-		editThumbnailMaxWidth = cfg['kith.media-processing.thumbnail-max-width'] ?? '400';
-		editHwAccel = cfg['kith.media-processing.hw-accel'] ?? 'auto';
+		editVideoMode = cfg['fold.media-processing.video-mode'] ?? 'no-transcode';
+		editMaxVideoDuration = cfg['fold.media-processing.max-video-duration'] ?? '300';
+		editMaxVideoSize = cfg['fold.media-processing.max-video-size'] ?? '104857600';
+		editMaxImageSize = cfg['fold.media-processing.max-image-size'] ?? '20971520';
+		editThumbnailMaxWidth = cfg['fold.media-processing.thumbnail-max-width'] ?? '400';
+		editHwAccel = cfg['fold.media-processing.hw-accel'] ?? 'auto';
 	}
 
 	const hasChanges = $derived.by(() => {
 		const cfg = config;
-		if (editVideoMode !== (cfg['kith.media-processing.video-mode'] ?? 'no-transcode')) return true;
-		if (editMaxVideoDuration !== (cfg['kith.media-processing.max-video-duration'] ?? '300')) return true;
-		if (editMaxVideoSize !== (cfg['kith.media-processing.max-video-size'] ?? '104857600')) return true;
-		if (editMaxImageSize !== (cfg['kith.media-processing.max-image-size'] ?? '20971520')) return true;
-		if (editThumbnailMaxWidth !== (cfg['kith.media-processing.thumbnail-max-width'] ?? '400')) return true;
-		if (editHwAccel !== (cfg['kith.media-processing.hw-accel'] ?? 'auto')) return true;
+		if (editVideoMode !== (cfg['fold.media-processing.video-mode'] ?? 'no-transcode')) return true;
+		if (editMaxVideoDuration !== (cfg['fold.media-processing.max-video-duration'] ?? '300')) return true;
+		if (editMaxVideoSize !== (cfg['fold.media-processing.max-video-size'] ?? '104857600')) return true;
+		if (editMaxImageSize !== (cfg['fold.media-processing.max-image-size'] ?? '20971520')) return true;
+		if (editThumbnailMaxWidth !== (cfg['fold.media-processing.thumbnail-max-width'] ?? '400')) return true;
+		if (editHwAccel !== (cfg['fold.media-processing.hw-accel'] ?? 'auto')) return true;
 		return false;
 	});
 
@@ -67,12 +67,12 @@
 		success = '';
 		try {
 			const patch: RuntimeConfig = {
-				'kith.media-processing.video-mode': editVideoMode,
-				'kith.media-processing.max-video-duration': editMaxVideoDuration,
-				'kith.media-processing.max-video-size': editMaxVideoSize,
-				'kith.media-processing.max-image-size': editMaxImageSize,
-				'kith.media-processing.thumbnail-max-width': editThumbnailMaxWidth,
-				'kith.media-processing.hw-accel': editHwAccel
+				'fold.media-processing.video-mode': editVideoMode,
+				'fold.media-processing.max-video-duration': editMaxVideoDuration,
+				'fold.media-processing.max-video-size': editMaxVideoSize,
+				'fold.media-processing.max-image-size': editMaxImageSize,
+				'fold.media-processing.thumbnail-max-width': editThumbnailMaxWidth,
+				'fold.media-processing.hw-accel': editHwAccel
 			};
 			const result = await updateRuntimeConfig(patch);
 			config = result;

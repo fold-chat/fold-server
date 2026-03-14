@@ -1,4 +1,4 @@
-# Kith
+# Fold
 Open-source, self-hostable community platform. Discord alternative for small, privacy-conscious communities.
 
 ## Project Structure
@@ -15,7 +15,7 @@ Open-source, self-hostable community platform. Discord alternative for small, pr
 
 ## Key Architecture Decisions
 - Single instance = one community. No federation.
-- JWT access (15m, `kith_access` cookie) + rotating refresh (30d, `kith_refresh`). JJWT, not SmallRye JWT.
+- JWT access (15m, `fold_access` cookie) + rotating refresh (30d, `fold_refresh`). JJWT, not SmallRye JWT.
 - WebSocket for real-time, REST for CRUD.
 - SQL-first — no ORM, custom MigrationRunner, repos return `Map<String, Object>`.
 - Bitmask roles (owner/admin/moderator/member). Channel overrides planned.

@@ -162,7 +162,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 	}
 
 	// --- Category collapse state ---
-	const COLLAPSED_KEY = 'kith_collapsed_categories';
+	const COLLAPSED_KEY = 'fold_collapsed_categories';
 	let collapsedCategories = $state<Set<string>>(loadCollapsed());
 
 	function loadCollapsed(): Set<string> {

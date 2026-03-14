@@ -15,7 +15,7 @@ let permissionsLoaded = $state(false);
 let mediaSearchEnabled = $state(false);
 let youtubeEmbedEnabled = $state(true);
 let serverSettings = $state<{ server_name: string | null; server_icon: string | null; server_description: string | null; maintenance_enabled?: boolean; maintenance_message?: string | null }>({
-	server_name: 'Kith',
+	server_name: 'Fold',
 	server_icon: null,
 	server_description: null,
 	maintenance_enabled: false,
@@ -131,7 +131,7 @@ export function getMaintenanceMessage(): string | null {
 }
 
 export function getServerName(): string {
-	return serverSettings.server_name || 'kith';
+	return serverSettings.server_name || 'fold';
 }
 
 export function reset() {
@@ -142,5 +142,5 @@ export function reset() {
 	permissionsLoaded = false;
 	mediaSearchEnabled = false;
 	youtubeEmbedEnabled = true;
-	serverSettings = { server_name: 'Kith', server_icon: null, server_description: null, maintenance_enabled: false, maintenance_message: null };
+	serverSettings = { server_name: 'Fold', server_icon: null, server_description: null, maintenance_enabled: false, maintenance_message: null };
 }

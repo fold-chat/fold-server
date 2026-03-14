@@ -46,16 +46,16 @@
 	const canSave = $derived(!saving && !validationError);
 	const hasChanges = $derived.by(() => {
 		const cfg = config;
-		if (editMode !== (cfg['kith.livekit.mode'] ?? 'off')) return true;
-		if (editMode === 'managed' && editCentralApiKey !== (cfg['kith.livekit.central-api-key'] ?? '')) return true;
+		if (editMode !== (cfg['fold.livekit.mode'] ?? 'off')) return true;
+		if (editMode === 'managed' && editCentralApiKey !== (cfg['fold.livekit.central-api-key'] ?? '')) return true;
 		if (editMode === 'external') {
-			if (editUrl !== (cfg['kith.livekit.url'] ?? '')) return true;
-			if (editApiKey !== (cfg['kith.livekit.api-key'] ?? '')) return true;
-			if (editApiSecret !== (cfg['kith.livekit.api-secret'] ?? '')) return true;
+			if (editUrl !== (cfg['fold.livekit.url'] ?? '')) return true;
+			if (editApiKey !== (cfg['fold.livekit.api-key'] ?? '')) return true;
+			if (editApiSecret !== (cfg['fold.livekit.api-secret'] ?? '')) return true;
 		}
-		if (editMaxParticipants !== (cfg['kith.livekit.max-participants'] ?? '50')) return true;
-		if (editE2ee !== (cfg['kith.livekit.e2ee'] ?? 'false')) return true;
-		if (editTurnEnabled !== (cfg['kith.livekit.turn-enabled'] ?? 'false')) return true;
+		if (editMaxParticipants !== (cfg['fold.livekit.max-participants'] ?? '50')) return true;
+		if (editE2ee !== (cfg['fold.livekit.e2ee'] ?? 'false')) return true;
+		if (editTurnEnabled !== (cfg['fold.livekit.turn-enabled'] ?? 'false')) return true;
 		return false;
 	});
 
@@ -75,17 +75,17 @@
 	}
 
 	function hydrateFields(cfg: RuntimeConfig) {
-		editMode = cfg['kith.livekit.mode'] ?? 'off';
-		editUrl = cfg['kith.livekit.url'] ?? '';
-		editApiKey = cfg['kith.livekit.api-key'] ?? '';
-		editApiSecret = cfg['kith.livekit.api-secret'] ?? '';
-		editCentralApiKey = cfg['kith.livekit.central-api-key'] ?? '';
-		editMaxParticipants = cfg['kith.livekit.max-participants'] ?? '50';
-		editE2ee = cfg['kith.livekit.e2ee'] ?? 'false';
-		editTurnEnabled = cfg['kith.livekit.turn-enabled'] ?? 'false';
+		editMode = cfg['fold.livekit.mode'] ?? 'off';
+		editUrl = cfg['fold.livekit.url'] ?? '';
+		editApiKey = cfg['fold.livekit.api-key'] ?? '';
+		editApiSecret = cfg['fold.livekit.api-secret'] ?? '';
+		editCentralApiKey = cfg['fold.livekit.central-api-key'] ?? '';
+		editMaxParticipants = cfg['fold.livekit.max-participants'] ?? '50';
+		editE2ee = cfg['fold.livekit.e2ee'] ?? 'false';
+		editTurnEnabled = cfg['fold.livekit.turn-enabled'] ?? 'false';
 	}
 
-	const modeChanging = $derived(editMode !== (config['kith.livekit.mode'] ?? 'off'));
+	const modeChanging = $derived(editMode !== (config['fold.livekit.mode'] ?? 'off'));
 
 	async function save() {
 		if (validationError) { error = validationError; return; }
@@ -94,23 +94,23 @@
 		error = '';
 		success = '';
 		try {
-			const patch: RuntimeConfig = { 'kith.livekit.mode': editMode };
+			const patch: RuntimeConfig = { 'fold.livekit.mode': editMode };
 			// Mode-specific fields
 			if (editMode === 'managed') {
 				if (editCentralApiKey && !editCentralApiKey.endsWith('...')) {
-					patch['kith.livekit.central-api-key'] = editCentralApiKey;
+					patch['fold.livekit.central-api-key'] = editCentralApiKey;
 				}
 			}
 			if (editMode === 'external') {
-				if (editUrl) patch['kith.livekit.url'] = editUrl;
-				if (editApiKey && !editApiKey.endsWith('...')) patch['kith.livekit.api-key'] = editApiKey;
-				if (editApiSecret && !editApiSecret.endsWith('...')) patch['kith.livekit.api-secret'] = editApiSecret;
+				if (editUrl) patch['fold.livekit.url'] = editUrl;
+				if (editApiKey && !editApiKey.endsWith('...')) patch['fold.livekit.api-key'] = editApiKey;
+				if (editApiSecret && !editApiSecret.endsWith('...')) patch['fold.livekit.api-secret'] = editApiSecret;
 			}
 			// Common settings (always included when not off)
 			if (editMode !== 'off') {
-				patch['kith.livekit.max-participants'] = editMaxParticipants;
-				patch['kith.livekit.e2ee'] = editE2ee;
-				patch['kith.livekit.turn-enabled'] = editTurnEnabled;
+				patch['fold.livekit.max-participants'] = editMaxParticipants;
+				patch['fold.livekit.e2ee'] = editE2ee;
+				patch['fold.livekit.turn-enabled'] = editTurnEnabled;
 			}
 			const result = await updateRuntimeConfig(patch);
 			config = result;
@@ -166,7 +166,7 @@
 
 		<!-- Mode descriptions -->
 		<div class="mode-descriptions">
-			<p class="muted"><strong>Embedded</strong> — runs LiveKit alongside Kith. Requires <code>livekit-server</code> binary.</p>
+			<p class="muted"><strong>Embedded</strong> — runs LiveKit alongside Fold. Requires <code>livekit-server</code> binary.</p>
 			<p class="muted"><strong>External</strong> — connect to your own LiveKit server with URL + credentials.</p>
 			<p class="muted"><strong>Managed</strong> — hosted by central.fold.chat. Just enter an API key.</p>
 		</div>
@@ -184,7 +184,7 @@
 			</div>
 
 			{#if editMode === 'embedded' && voiceStats && !voiceStats.embedded_binary_available}
-				<div class="warning-message">LiveKit binary not found. Install <code>livekit-server</code> or set <code>KITH_LIVEKIT_PATH</code>.</div>
+				<div class="warning-message">LiveKit binary not found. Install <code>livekit-server</code> or set <code>FOLD_LIVEKIT_PATH</code>.</div>
 			{/if}
 
 			<!-- Status indicator -->
@@ -208,7 +208,7 @@
 				<div class="form-group">
 					<label for="central-api-key">API Key <span class="required">*</span></label>
 					<input id="central-api-key" type="text" bind:value={editCentralApiKey}
-						placeholder="kith_..." onfocus={() => { if (editCentralApiKey.endsWith('...')) editCentralApiKey = ''; }} />
+						placeholder="fold_..." onfocus={() => { if (editCentralApiKey.endsWith('...')) editCentralApiKey = ''; }} />
 				</div>
 			</div>
 		{/if}

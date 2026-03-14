@@ -13,13 +13,13 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH =
-  process.env.KITH_DB_PATH ||
-  path.resolve(__dirname, "../../../server/kith.db");
+  process.env.FOLD_DB_PATH ||
+  path.resolve(__dirname, "../../../server/fold.db");
 
 function getDb(): InstanceType<typeof Database> {
   if (!fs.existsSync(DB_PATH)) {
     throw new Error(
-      `Database not found at ${DB_PATH}. Set KITH_DB_PATH env var or start the Kith server first.`
+      `Database not found at ${DB_PATH}. Set FOLD_DB_PATH env var or start the Fold server first.`
     );
   }
   const db = new Database(DB_PATH);
@@ -29,7 +29,7 @@ function getDb(): InstanceType<typeof Database> {
 }
 
 const server = new McpServer({
-  name: "kith-db",
+  name: "fold-db",
   version: "1.0.0",
 });
 
@@ -37,7 +37,7 @@ const server = new McpServer({
 
 server.tool(
   "query",
-  "Execute a read-only SQL query against the Kith database",
+  "Execute a read-only SQL query against the Fold database",
   { sql: z.string().describe("SQL SELECT query") },
   async ({ sql }) => {
     const db = getDb();
@@ -820,7 +820,7 @@ server.tool(
 
 server.tool(
   "get_schema",
-  "Show all table schemas in the Kith database",
+  "Show all table schemas in the Fold database",
   {},
   async () => {
     const db = getDb();

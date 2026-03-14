@@ -4,10 +4,10 @@ export interface MediaDeviceInfo_ {
 	groupId: string;
 }
 
-const AUDIO_INPUT_KEY = 'kith_audio_input';
-const VIDEO_INPUT_KEY = 'kith_video_input';
-const AUDIO_OUTPUT_KEY = 'kith_audio_output';
-const AUDIO_PROCESSING_KEY = 'kith_audio_processing';
+const AUDIO_INPUT_KEY = 'fold_audio_input';
+const VIDEO_INPUT_KEY = 'fold_video_input';
+const AUDIO_OUTPUT_KEY = 'fold_audio_output';
+const AUDIO_PROCESSING_KEY = 'fold_audio_processing';
 
 // --- State ---
 

@@ -1,6 +1,6 @@
 import { closeNotificationPanel } from '$lib/stores/notifications.svelte.js';
 
-const STORAGE_KEY = 'kith_members_panel_open';
+const STORAGE_KEY = 'fold_members_panel_open';
 
 function loadState(): boolean {
 	try {

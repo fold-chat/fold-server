@@ -42,7 +42,7 @@ import { initDevices } from '$lib/stores/devices.svelte.js';
 
 <svelte:head>
 	<link rel="icon" href={favicon} />
-	<title>Kith</title>
+	<title>Fold</title>
 </svelte:head>
 
 {#if isInitialized()}

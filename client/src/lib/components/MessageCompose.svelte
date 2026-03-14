@@ -304,8 +304,8 @@
 		function onToggleEmoji() {
 			if (!disabled) showEmojiPicker = !showEmojiPicker;
 		}
-		window.addEventListener('kith:toggle-emoji', onToggleEmoji);
-		return () => window.removeEventListener('kith:toggle-emoji', onToggleEmoji);
+		window.addEventListener('fold:toggle-emoji', onToggleEmoji);
+		return () => window.removeEventListener('fold:toggle-emoji', onToggleEmoji);
 	});
 </script>
 

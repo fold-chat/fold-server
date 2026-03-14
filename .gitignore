@@ -25,8 +25,8 @@ Thumbs.db
 *.db-shm
 
 # Tools
-tools/kith-mcp/node_modules/
-tools/kith-mcp/dist/
+tools/fold-mcp/node_modules/
+tools/fold-mcp/dist/
 
 # Secrets file
 .env

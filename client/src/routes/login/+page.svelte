@@ -53,7 +53,7 @@
 <div class="auth-page">
 	<div class="auth-card">
 		<h1>Sign in</h1>
-		<p>Welcome back to Kith</p>
+		<p>Welcome back to Fold</p>
 
 		{#if error}
 			<div class="error-message">{error}</div>

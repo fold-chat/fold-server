@@ -1,9 +1,9 @@
-job "kith-main" {
+job "fold-main" {
   namespace   = "ci"
   datacenters = ["dc1"]
   type        = "service"
 
-  group "kith" {
+  group "fold" {
     count = 1
 
     network {
@@ -12,13 +12,13 @@ job "kith-main" {
       }
     }
 
-    volume "kith-data" {
+    volume "fold-data" {
       type      = "host"
-      source    = "kith-prod-data"
+      source    = "fold-prod-data"
       read_only = false
     }
 
-    task "kith" {
+    task "fold" {
       driver = "docker"
 
       config {
@@ -27,20 +27,20 @@ job "kith-main" {
       }
 
       volume_mount {
-        volume      = "kith-data"
+        volume      = "fold-data"
         destination = "/persist"
         read_only   = false
       }
 
       env {
-        KITH_DB_PATH      = "/persist/kith.db"
-        KITH_DATA_DIR     = "/persist"
-        KITH_BASE_URL     = "https://__KITH_DOMAIN__"
-        KITH_CORS_ORIGINS = "https://__KITH_DOMAIN__"
-        KITH_DEV          = "false"
-        KITH_PORT         = "8080"
-        KITH_LIVEKIT_MODE        = "off"
-        KITH_LIVEKIT_WEBHOOK_URL = "https://__KITH_DOMAIN__"
+        FOLD_DB_PATH      = "/persist/fold.db"
+        FOLD_DATA_DIR     = "/persist"
+        FOLD_BASE_URL     = "https://__FOLD_DOMAIN__"
+        FOLD_CORS_ORIGINS = "https://__FOLD_DOMAIN__"
+        FOLD_DEV          = "false"
+        FOLD_PORT         = "8080"
+        FOLD_LIVEKIT_MODE        = "off"
+        FOLD_LIVEKIT_WEBHOOK_URL = "https://__FOLD_DOMAIN__"
         JAVA_OPTS         = "--enable-native-access=ALL-UNNAMED"
       }
 
@@ -49,7 +49,7 @@ job "kith-main" {
         env         = true
         error_on_missing_key = true
         data        = <<EOT
-KITH_KLIPY_API_KEY={{ with nomadVar "nomad/jobs" }}{{ index . "KITH_KLIPY_API_KEY" | toJSON }}{{ end }}
+FOLD_KLIPY_API_KEY={{ with nomadVar "nomad/jobs" }}{{ index . "FOLD_KLIPY_API_KEY" | toJSON }}{{ end }}
 EOT
       }
 
@@ -60,14 +60,14 @@ EOT
 
       service {
         provider = "nomad"
-        name     = "kith-main"
+        name     = "fold-main"
         port     = "http"
 
         tags = [
           "traefik.enable=true",
-          "traefik.http.routers.kith-main.rule=Host(`__KITH_DOMAIN__`)",
-          "traefik.http.routers.kith-main.entrypoints=websecure",
-          "traefik.http.routers.kith-main.tls=true",
+          "traefik.http.routers.fold-main.rule=Host(`__FOLD_DOMAIN__`)",
+          "traefik.http.routers.fold-main.entrypoints=websecure",
+          "traefik.http.routers.fold-main.tls=true",
         ]
 
         check {

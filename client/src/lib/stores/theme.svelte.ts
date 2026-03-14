@@ -75,8 +75,8 @@ export const BUILT_IN_THEME_COLORS: Record<BuiltInThemeId, CustomThemeColors> = 
 
 const ALL_BUILT_IN_IDS = new Set<string>(BUILT_IN_THEMES.map((t) => t.id));
 
-const STORAGE_KEY = 'kith_theme';
-const CUSTOM_STORAGE_KEY = 'kith_custom_themes';
+const STORAGE_KEY = 'fold_theme';
+const CUSTOM_STORAGE_KEY = 'fold_custom_themes';
 
 let preference = $state<string>('system');
 let customThemes = $state<CustomTheme[]>([]);

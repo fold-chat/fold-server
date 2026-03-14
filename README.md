@@ -1,4 +1,4 @@
-# Kith
+# Fold
 
 Open-source, self-hostable community tool for small, privacy-conscious communities.
 
@@ -45,7 +45,7 @@ Open-source, self-hostable community tool for small, privacy-conscious communiti
 ## Project Structure
 
 ```
-kith-server/
+fold-server/
 ├── server/          # Quarkus REST API + WebSocket
 └── client/          # SvelteKit web client
 ```
@@ -77,7 +77,7 @@ Client proxies API requests to `localhost:8080`.
 
 ## Configuration
 
-Set env vars prefixed with `KITH_` or use config file. See docs for details.
+Set env vars prefixed with `FOLD_` or use config file. See docs for details.
 
 ## License
 

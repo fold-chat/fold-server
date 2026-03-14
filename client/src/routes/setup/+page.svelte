@@ -38,7 +38,7 @@
 
 <div class="auth-page">
 	<div class="auth-card">
-		<h1>Welcome to Kith</h1>
+		<h1>Welcome to Fold</h1>
 		<p>Create your admin account to get started.</p>
 
 		{#if error}

@@ -1,4 +1,4 @@
-job "kith-pr-__PR_NUMBER__" {
+job "fold-pr-__PR_NUMBER__" {
   namespace   = "ci"
   datacenters = ["dc1"]
   type        = "service"
@@ -7,7 +7,7 @@ job "kith-pr-__PR_NUMBER__" {
     pr_number = "__PR_NUMBER__"
   }
 
-  group "kith" {
+  group "fold" {
     count = 1
 
     network {
@@ -17,11 +17,11 @@ job "kith-pr-__PR_NUMBER__" {
     }
     volume "preview-data" {
       type      = "host"
-      source    = "kith-preview-data"
+      source    = "fold-preview-data"
       read_only = false
     }
 
-    task "kith" {
+    task "fold" {
       driver = "docker"
 
       config {
@@ -36,16 +36,16 @@ job "kith-pr-__PR_NUMBER__" {
       }
 
       env {
-        KITH_DB_PATH        = "/persist/pr-__PR_NUMBER__/kith.db"
-        KITH_DATA_DIR       = "/persist/pr-__PR_NUMBER__"
-        KITH_BASE_URL       = "https://pr-__PR_NUMBER__-preview.fold.chat"
-        KITH_CORS_ORIGINS   = "https://pr-__PR_NUMBER__-preview.fold.chat"
-        KITH_DEV            = "false"
-        KITH_ADMIN_USERNAME = "admin"
-        KITH_ADMIN_PASSWORD = "preview-admin-pw"
-        KITH_PORT           = "8080"
-        KITH_LIVEKIT_MODE        = "off"
-        KITH_LIVEKIT_WEBHOOK_URL = "https://pr-__PR_NUMBER__-preview.fold.chat"
+        FOLD_DB_PATH        = "/persist/pr-__PR_NUMBER__/fold.db"
+        FOLD_DATA_DIR       = "/persist/pr-__PR_NUMBER__"
+        FOLD_BASE_URL       = "https://pr-__PR_NUMBER__-preview.fold.chat"
+        FOLD_CORS_ORIGINS   = "https://pr-__PR_NUMBER__-preview.fold.chat"
+        FOLD_DEV            = "false"
+        FOLD_ADMIN_USERNAME = "admin"
+        FOLD_ADMIN_PASSWORD = "preview-admin-pw"
+        FOLD_PORT           = "8080"
+        FOLD_LIVEKIT_MODE        = "off"
+        FOLD_LIVEKIT_WEBHOOK_URL = "https://pr-__PR_NUMBER__-preview.fold.chat"
         JAVA_OPTS           = "--enable-native-access=ALL-UNNAMED -Djava.security.egd=file:/dev/./urandom"
       }
 
@@ -54,7 +54,7 @@ job "kith-pr-__PR_NUMBER__" {
         env         = true
         error_on_missing_key = true
         data        = <<EOT
-KITH_KLIPY_API_KEY={{ with nomadVar "nomad/jobs" }}{{ index . "KITH_KLIPY_API_KEY" | toJSON }}{{ end }}
+FOLD_KLIPY_API_KEY={{ with nomadVar "nomad/jobs" }}{{ index . "FOLD_KLIPY_API_KEY" | toJSON }}{{ end }}
 EOT
       }
 
@@ -65,14 +65,14 @@ EOT
 
       service {
         provider = "nomad"
-        name     = "kith-pr-__PR_NUMBER__"
+        name     = "fold-pr-__PR_NUMBER__"
         port     = "http"
 
         tags = [
           "traefik.enable=true",
-          "traefik.http.routers.kith-pr-__PR_NUMBER__.rule=Host(`pr-__PR_NUMBER__-preview.fold.chat`)",
-          "traefik.http.routers.kith-pr-__PR_NUMBER__.entrypoints=websecure",
-          "traefik.http.routers.kith-pr-__PR_NUMBER__.tls=true",
+          "traefik.http.routers.fold-pr-__PR_NUMBER__.rule=Host(`pr-__PR_NUMBER__-preview.fold.chat`)",
+          "traefik.http.routers.fold-pr-__PR_NUMBER__.entrypoints=websecure",
+          "traefik.http.routers.fold-pr-__PR_NUMBER__.tls=true",
         ]
 
         check {

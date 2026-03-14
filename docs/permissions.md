@@ -1,4 +1,4 @@
-# Kith Permissions
+# Fold Permissions
 
 Permissions are stored as 64-bit bitmasks. Each bit represents a permission.
 

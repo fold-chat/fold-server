@@ -88,7 +88,7 @@
 		if (mod && e.key === 'e') {
 			e.preventDefault();
 			// Dispatch custom event for MessageCompose to toggle emoji picker
-			window.dispatchEvent(new CustomEvent('kith:toggle-emoji'));
+			window.dispatchEvent(new CustomEvent('fold:toggle-emoji'));
 			return;
 		}
 
