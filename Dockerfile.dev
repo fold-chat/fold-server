@@ -1,4 +1,4 @@
-# Oz cloud agent dev environment for fray-app
+# Oz cloud agent dev environment for fold-server
 # Base: Warp dev-java (includes agent CLIs)
 # Adds: GraalVM 25, Node.js 22 + pnpm
 FROM warpdotdev/dev-java:21-agents
