@@ -12,6 +12,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import chat.fold.config.BuildInfo;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -107,7 +108,7 @@ public class LiveKitService {
             var body = MAPPER.writeValueAsString(Map.of(
                     "webhook_url", webhookUrl,
                     "name", "Fold Server",
-                    "fold_version", "0.1.0"
+                    "fold_version", BuildInfo.VERSION
             ));
             var req = HttpRequest.newBuilder()
                     .uri(URI.create(centralUrl + "/api/v1/instances/register"))

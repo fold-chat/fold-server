@@ -128,6 +128,28 @@ val generateMigrationIndex = tasks.register("generateMigrationIndex") {
 sourceSets.main { java.srcDir(generateMigrationIndex.map { it.outputs.files.singleFile }) }
 tasks.named("compileJava") { dependsOn(generateMigrationIndex) }
 
+// --- Generate BuildInfo with version string ---
+val generateVersionInfo = tasks.register("generateVersionInfo") {
+    val outputDir = layout.buildDirectory.dir("generated/sources/versionInfo/java/main")
+    outputs.dir(outputDir)
+    doLast {
+        val version = project.findProperty("fold.build.version")?.toString()
+            ?: System.getenv("FOLD_BUILD_VERSION")
+            ?: "snapshot"
+        val src = outputDir.get().dir("chat/fold/config").asFile
+        src.mkdirs()
+        src.resolve("BuildInfo.java").writeText("""
+            package chat.fold.config;
+            public final class BuildInfo {
+                private BuildInfo() {}
+                public static final String VERSION = "$version";
+            }
+        """.trimIndent())
+    }
+}
+sourceSets.main { java.srcDir(generateVersionInfo.map { it.outputs.files.singleFile }) }
+tasks.named("compileJava") { dependsOn(generateVersionInfo) }
+
 // --- Client build ---
 tasks.register("buildClient") {
     description = "Build SvelteKit client and copy to META-INF/resources"

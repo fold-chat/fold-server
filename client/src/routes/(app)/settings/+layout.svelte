@@ -3,6 +3,7 @@
 	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import '$lib/styles/settings.css';
+	import { getClientVersion } from '$lib/stores/version.svelte.js';
 
 	let { children } = $props();
 
@@ -97,6 +98,7 @@
 
 		<div class="settings-content">
 			{@render children()}
+<div class="build-version">{getClientVersion()}</div>
 <div class="powered-by">Powered by <a href="https://fold.chat" target="_blank" rel="noopener">fold.chat</a></div>
 		</div>
 	</div>
@@ -312,5 +314,14 @@
 		flex: 1;
 		overflow-y: auto;
 		min-width: 320px;
+	}
+
+	.build-version {
+		text-align: center;
+		font-size: 0.7rem;
+		color: var(--text-muted);
+		margin-top: auto;
+		padding-top: 2rem;
+		opacity: 0.6;
 	}
 </style>

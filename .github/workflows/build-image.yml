@@ -21,6 +21,11 @@ on:
         required: false
         type: boolean
         default: false
+      build_version:
+        description: Build version string (e.g. main-abc1234, pr-42-abc1234, v1.0.0)
+        required: false
+        type: string
+        default: snapshot
     secrets:
       GH_PACKAGES_TOKEN:
         required: true
@@ -94,5 +99,6 @@ jobs:
           tags: ${{ steps.meta.outputs.image_ref }}
           build-args: |
             GITHUB_TOKEN=${{ secrets.GH_PACKAGES_TOKEN }}
+            FOLD_BUILD_VERSION=${{ inputs.build_version }}
           secrets: |
             GITHUB_TOKEN=${{ secrets.GH_PACKAGES_TOKEN }}

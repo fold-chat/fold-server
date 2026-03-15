@@ -27,6 +27,7 @@ jobs:
       image_tag: pr-${{ github.event.pull_request.number }}-${{ needs.prepare.outputs.short_sha }}
       dockerfile: Dockerfile.native-build
       self_contained: true
+      build_version: pr-${{ github.event.pull_request.number }}-${{ needs.prepare.outputs.short_sha }}
     secrets: inherit
   # --- Deploy preview on PR open/update ---
   deploy:

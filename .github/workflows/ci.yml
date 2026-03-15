@@ -29,6 +29,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: client/pnpm-lock.yaml
       - name: Build client
+        env:
+          VITE_BUILD_VERSION: main-${{ steps.sha.outputs.short }}
         run: |
           cd client
           pnpm install --frozen-lockfile
@@ -44,7 +46,7 @@ jobs:
       - name: Build server
         run: |
           cd server
-          ./gradlew build
+          ./gradlew build -Pfold.build.version=main-${{ steps.sha.outputs.short }}
 
   build-image-main:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -58,6 +60,7 @@ jobs:
       image_tag: main-${{ needs.build.outputs.short_sha }}
       dockerfile: Dockerfile.native-build
       self_contained: true
+      build_version: main-${{ needs.build.outputs.short_sha }}
     secrets: inherit
 
   deploy-main:

@@ -5,6 +5,8 @@ WORKDIR /app/client
 COPY client/package.json client/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY client/ ./
+ARG FOLD_BUILD_VERSION=snapshot
+ENV VITE_BUILD_VERSION=$FOLD_BUILD_VERSION
 RUN pnpm build
 
 # Stage 2: Build native image with GraalVM 25
@@ -40,9 +42,10 @@ COPY server/src/ ./src/
 COPY --from=client-build /app/client/build/ ./src/main/resources/META-INF/resources/
 
 # Native build + extract libsql native lib
+ARG FOLD_BUILD_VERSION=snapshot
 RUN --mount=type=secret,id=GITHUB_TOKEN \
     GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN) \
-    ./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false --no-daemon
+    ./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Pfold.build.version=$FOLD_BUILD_VERSION --no-daemon
 RUN ./gradlew extractNativeLib --no-daemon
 
 # Compress binary with UPX

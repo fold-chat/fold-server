@@ -12,6 +12,7 @@ import { hydrateVoiceStates, setVoiceVideoEnabled, setVoiceMode, setE2eeCapabili
 import { setOnlineUserIds, setUserOnline, setUserOffline } from './presence.svelte.js';
 import { setCustomEmoji, addCustomEmoji, removeCustomEmoji } from './emoji.svelte.js';
 import type { CustomEmoji } from '$lib/api/emoji.js';
+import { setServerVersion } from './version.svelte.js';
 import { goto } from '$app/navigation';
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
@@ -302,6 +303,7 @@ interface HelloPayload {
 	online_user_ids?: string[];
 	heartbeat_interval_ms: number;
 	session_id: string;
+	version?: string;
 	youtube_embed?: boolean;
 	server_settings?: { server_name?: string | null; server_icon?: string | null; server_description?: string | null };
 	voice_states?: Array<import('$lib/api/voice.js').VoiceState> | Record<string, Array<import('$lib/api/voice.js').VoiceState>>;
@@ -397,6 +399,7 @@ function handleHello(data: HelloPayload) {
 	if (data.server_settings) setServerSettings(data.server_settings);
 	if (data.online_user_ids) setOnlineUserIds(data.online_user_ids);
 	setCustomEmoji(data.custom_emoji ?? []);
+	if (data.version) setServerVersion(data.version);
 	// Server sends voice_states as { channelId: VoiceState[] } — flatten to array
 	const rawVs = data.voice_states;
 	let voiceArr: import('$lib/api/voice.js').VoiceState[] = [];

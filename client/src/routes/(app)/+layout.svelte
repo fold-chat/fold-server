@@ -15,6 +15,7 @@
 	import NotificationPanel from '$lib/components/NotificationPanel.svelte';
 	import MembersPanel from '$lib/components/MembersPanel.svelte';
 	import VoiceBar from '$lib/components/VoiceBar.svelte';
+	import VersionMismatchBanner from '$lib/components/VersionMismatchBanner.svelte';
 	import { isMembersPanelOpen } from '$lib/stores/membersPanel.svelte.js';
 
 	let { children } = $props();
@@ -115,6 +116,7 @@
 		<div class="sidebar-backdrop" onclick={closeSidebar} onkeydown={(e) => { if (e.key === 'Escape') closeSidebar(); }}></div>
 	{/if}
 	<div class="app-right">
+		<VersionMismatchBanner />
 		<TopBar />
 		<div class="app-body">
 			<main class="main-content">
