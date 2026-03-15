@@ -25,7 +25,7 @@ function handleSelect(item: AutocompleteItem) {
 {#if items.length > 0}
 	<div class="mention-autocomplete">
 		{#each items as item, i}
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 			<div
 				class="mention-item"
 				class:selected={i === selectedIndex}

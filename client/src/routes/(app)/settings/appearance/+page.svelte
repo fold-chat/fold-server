@@ -199,6 +199,7 @@
 	<div class="form-section">
 		<!-- ── Theme picker ──────────────────────────────────────────────── -->
 		<div class="form-group" class:faded={editingTheme !== null}>
+			<!-- svelte-ignore a11y_label_has_associated_control -->
 			<label>Theme</label>
 			<div class="theme-grid">
 				<!-- System -->
@@ -318,6 +319,7 @@
 			</button>
 			{#if importPanel}
 				<div class="import-panel">
+					<!-- svelte-ignore a11y_autofocus -->
 					<input
 						type="text"
 						class="import-input"
@@ -435,6 +437,7 @@
 
 		<!-- ── Density ────────────────────────────────────────────────────── -->
 		<div class="form-group" class:faded={editingTheme !== null}>
+			<!-- svelte-ignore a11y_label_has_associated_control -->
 			<label>Message Density</label>
 			<div class="density-group">
 				{#each DENSITY_OPTIONS as opt (opt.id)}

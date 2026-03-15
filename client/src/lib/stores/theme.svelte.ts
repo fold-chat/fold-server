@@ -84,10 +84,12 @@ let customThemes = $state<CustomTheme[]>([]);
 // Eagerly load from localStorage at module init (browser only).
 // This ensures $state values are correct before any component reads them.
 if (typeof window !== 'undefined') {
+	let parsedCustom: CustomTheme[] = [];
 	try {
 		const raw = localStorage.getItem(CUSTOM_STORAGE_KEY);
-		if (raw) customThemes = JSON.parse(raw);
+		if (raw) parsedCustom = JSON.parse(raw);
 	} catch { /* ignore */ }
+	customThemes = parsedCustom;
 
 	try {
 		const stored = localStorage.getItem(STORAGE_KEY);
@@ -95,7 +97,7 @@ if (typeof window !== 'undefined') {
 			const valid =
 				stored === 'system' ||
 				ALL_BUILT_IN_IDS.has(stored) ||
-				customThemes.some((t: CustomTheme) => t.id === stored);
+				parsedCustom.some((t: CustomTheme) => t.id === stored);
 			if (valid) preference = stored;
 		}
 	} catch { /* ignore */ }

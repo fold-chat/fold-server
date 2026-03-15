@@ -272,7 +272,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 </script>
 
 <div class="message-list-container" class:thread-mode={threadMode}>
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 	<div class="message-list" bind:this={scrollContainer} onscroll={handleScroll} onclick={handleContentClick}>
 		{#if loading && messages.length === 0}
 			<div class="loading">Loading messages...</div>
@@ -490,7 +490,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 				<button class="lightbox-nav lightbox-prev" onclick={(e) => { e.stopPropagation(); lightboxIndex--; }}>‹</button>
 			{/if}
 		{/if}
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions, a11y_click_events_have_key_events -->
 		<img src={lightboxUrl} alt={lightboxName} class="lightbox-img" onclick={(e) => e.stopPropagation()} />
 		{#if lightboxImages.length > 1}
 			{#if lightboxIndex < lightboxImages.length - 1}

@@ -200,6 +200,7 @@
 		<!-- Role list -->
 		<div class="role-list">
 			{#each getRolesList() as role}
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class="role-item"
 					class:active={editingRole === role.id}

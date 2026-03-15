@@ -162,8 +162,9 @@ import { createInvite, getInvites, revokeInvite, reinstateInvite, type Invite } 
 					</select>
 				</div>
 				<div class="form-group">
+					<!-- svelte-ignore a11y_label_has_associated_control -->
 					<label>&nbsp;</label>
-				<button class="btn-primary" onclick={handleCreate} disabled={creating || !description.trim()}>
+					<button class="btn-primary" onclick={handleCreate} disabled={creating || !description.trim()}>
 						{creating ? 'Creating...' : 'Create'}
 					</button>
 				</div>

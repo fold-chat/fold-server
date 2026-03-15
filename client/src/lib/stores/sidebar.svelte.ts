@@ -6,7 +6,7 @@ let expanded = $state(true);
 if (typeof window !== 'undefined') {
 	const mql = window.matchMedia(NARROW_BREAKPOINT);
 	narrow = mql.matches;
-	if (narrow) expanded = false;
+	if (mql.matches) expanded = false;
 	mql.addEventListener('change', (e) => {
 		narrow = e.matches;
 		if (!narrow) expanded = true;

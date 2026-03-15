@@ -510,7 +510,7 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 
 					<div class="thumbnail-strip">
 						{#each screenTiles as tile (tile.id)}
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 							<div
 								class="thumb-tile screen-thumb"
 								class:thumb-active={tile.id === focusedTileId}
@@ -525,7 +525,7 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 						{/each}
 						{#each participants as p (p.userId)}
 							{@const thumbTrack = cameraTrackMap.get(p.userId)}
-							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 							<div
 								class="thumb-tile"
 								class:speaking={isSpeaking(p.userId)}
@@ -563,7 +563,7 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 				<div class="screen-tiles">
 					{#each screenTiles as tile (tile.id)}
 						{@const tileDims = screenResolutions.get(tile.id)}
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 						<div class="screen-tile" data-fs-target onclick={() => toggleFocus(tile.id)}>
 							<!-- svelte-ignore a11y_media_has_caption -->
 							<video autoplay playsinline muted={tile.isLocal} use:attachVideo={tile} use:trackScreenRes={tile.id}></video>
@@ -593,7 +593,7 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 						{@const speaking = isSpeaking(p.userId)}
 						{@const audioLevel = getAudioLevel(p.userId)}
 						{@const cameraTrack = cameraTrackMap.get(p.userId)}
-						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 						<div
 							class="participant-tile"
 							class:speaking

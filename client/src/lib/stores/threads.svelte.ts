@@ -189,8 +189,8 @@ export function getThreadTypingUsers(threadId: string): string[] {
 
 export function setThreadTyping(threadId: string, userId: string, username: string) {
 	typingByThread = new Map(typingByThread);
-	const existing = typingByThread.get(threadId) ?? new Map();
-	const updated = new Map(existing);
+	const existing = typingByThread.get(threadId);
+	const updated = existing ? new Map(existing) : new Map<string, { username: string; timestamp: number }>();
 	updated.set(userId, { username, timestamp: Date.now() });
 	typingByThread.set(threadId, updated);
 }

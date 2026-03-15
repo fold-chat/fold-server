@@ -2,6 +2,7 @@
 	import { getUser } from '$lib/stores/auth.svelte.js';
 	import { openSearch } from '$lib/stores/search.svelte.js';
 	import { getTotalMentionCount } from '$lib/stores/channels.svelte.js';
+	import { isNarrowScreen, toggleSidebar } from '$lib/stores/sidebar.svelte.js';
 	import { getUnreadNotificationCount, toggleNotificationPanel, isNotificationPanelOpen } from '$lib/stores/notifications.svelte.js';
 	import { isMembersPanelOpen, toggleMembersPanel } from '$lib/stores/membersPanel.svelte.js';
 	import { logout } from '$lib/api/auth.js';

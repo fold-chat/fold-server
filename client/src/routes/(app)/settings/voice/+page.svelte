@@ -363,12 +363,6 @@
 		letter-spacing: 0.03em;
 	}
 
-	.mode-row {
-		display: flex;
-		gap: 0.5rem;
-		align-items: center;
-	}
-
 	.mode-select {
 		flex: 1;
 		background: var(--bg);

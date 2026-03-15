@@ -298,6 +298,7 @@
 			{#if activeTab === 'general'}
 				{#if isEdit}
 					<div class="field">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
 						<label class="field-label">Channel Type</label>
 						<div class="type-display">
 							<span class="type-icon">{channelType === 'THREAD_CHANNEL' ? '💬' : channelType === 'VOICE' ? '🔊' : '#'}</span>
@@ -306,6 +307,7 @@
 					</div>
 				{:else}
 					<div class="field">
+						<!-- svelte-ignore a11y_label_has_associated_control -->
 						<label class="field-label">Channel Type</label>
 						<div class="type-options">
 							<button
@@ -349,6 +351,7 @@
 
 				<!-- Icon Picker -->
 				<div class="field">
+					<!-- svelte-ignore a11y_label_has_associated_control -->
 					<label class="field-label">Icon</label>
 					<div class="icon-mode-tabs">
 						<button class="icon-mode-tab" class:active={iconMode === 'preset'} onclick={() => iconMode = 'preset'}>Preset</button>

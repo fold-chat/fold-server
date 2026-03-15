@@ -101,8 +101,8 @@ export function getTypingUsers(channelId: string): string[] {
 
 export function setTyping(channelId: string, userId: string, username: string) {
 	typingByChannel = new Map(typingByChannel);
-	const existing = typingByChannel.get(channelId) ?? new Map();
-	const updated = new Map(existing);
+	const existing = typingByChannel.get(channelId);
+	const updated = existing ? new Map(existing) : new Map<string, { username: string; timestamp: number }>();
 	updated.set(userId, { username, timestamp: Date.now() });
 	typingByChannel.set(channelId, updated);
 }

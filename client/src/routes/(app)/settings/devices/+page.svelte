@@ -77,7 +77,7 @@
 
 	// --- Camera preview ---
 	let cameraStream: MediaStream | null = null;
-	let videoEl: HTMLVideoElement | null = null;
+	let videoEl: HTMLVideoElement | null = $state(null);
 	let cameraPreviewActive = $state(false);
 
 	async function startCameraPreview(deviceId: string | null) {
@@ -224,6 +224,7 @@
 
 		<!-- Audio Processing -->
 		<div class="form-group">
+			<!-- svelte-ignore a11y_label_has_associated_control -->
 			<label>Audio Processing</label>
 			<label class="toggle-row">
 				<input

@@ -515,7 +515,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 	<nav class="channel-list" ondragleave={onListDragLeave}>
 		{#each getChannelsByCategory() as group}
 			{#if group.category}
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
 				<div
 					class="category-header"
 					class:drop-before={dropMark?.id === group.category.id && dropMark?.type === 'category' && dropMark?.position === 'before'}
@@ -1248,44 +1248,6 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 		line-height: 1.3;
 	}
 
-	/* Voice mini avatars on channel item */
-	.voice-avatar-stack {
-		display: flex;
-		align-items: center;
-		flex-shrink: 0;
-		margin-left: auto;
-	}
-
-	.voice-mini-avatar,
-	.voice-mini-avatar-placeholder {
-		width: 16px;
-		height: 16px;
-		border-radius: 50%;
-		object-fit: cover;
-		border: 1.5px solid var(--bg-surface);
-		margin-left: -4px;
-	}
-
-	.voice-mini-avatar:first-child,
-	.voice-mini-avatar-placeholder:first-child {
-		margin-left: 0;
-	}
-
-	.voice-mini-avatar-placeholder {
-		background: var(--bg-active);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		font-size: 0.5rem;
-		font-weight: 600;
-		color: var(--text-muted);
-	}
-
-	.voice-mini-overflow {
-		font-size: 0.6rem;
-		color: var(--text-muted);
-		margin-left: 2px;
-	}
 
 	/* Footer */
 	.sidebar-footer {
@@ -1390,18 +1352,6 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 		opacity: 1 !important;
 	}
 
-	/* Inline rename */
-	.rename-input {
-		flex: 1;
-		background: var(--bg-surface);
-		color: var(--text);
-		border: 1px solid var(--accent);
-		border-radius: 4px;
-		font-size: 0.875rem;
-		padding: 0 0.25rem;
-		outline: none;
-		min-width: 0;
-	}
 
 	.rename-btn {
 		background: none;
@@ -1671,15 +1621,6 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 
 	.voice-control-btn.server-enforced {
 		color: #e67e22;
-	}
-
-	.server-indicator {
-		font-size: 0.55rem;
-		color: #e67e22;
-		padding: 0.15rem 0.3rem;
-		border-radius: 4px;
-		background: rgba(230, 126, 34, 0.15);
-		white-space: nowrap;
 	}
 
 	.voice-error-banner {
