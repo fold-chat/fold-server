@@ -77,4 +77,5 @@
 			Don't have an account? <a href="/register">Register</a>
 		</div>
 	</div>
+<div class="powered-by">Powered by <a href="https://fold.chat" target="_blank" rel="noopener">fold.chat</a></div>
 </div>

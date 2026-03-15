@@ -98,6 +98,7 @@
 			Already have an account? <a href="/login">Sign in</a>
 		</div>
 	</div>
+<div class="powered-by">Powered by <a href="https://fold.chat" target="_blank" rel="noopener">fold.chat</a></div>
 </div>
 
 <style>

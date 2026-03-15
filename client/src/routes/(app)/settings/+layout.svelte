@@ -97,6 +97,7 @@
 
 		<div class="settings-content">
 			{@render children()}
+<div class="powered-by">Powered by <a href="https://fold.chat" target="_blank" rel="noopener">fold.chat</a></div>
 		</div>
 	</div>
 </div>
