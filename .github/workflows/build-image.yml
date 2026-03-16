@@ -86,7 +86,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ github.token }}
+          password: ${{ secrets.GH_PACKAGES_TOKEN }}
 
       - name: Build image metadata
         id: meta
