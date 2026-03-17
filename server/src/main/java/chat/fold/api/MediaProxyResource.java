@@ -15,6 +15,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
@@ -42,16 +43,30 @@ public class MediaProxyResource {
     @Context ContainerRequestContext requestContext;
 
     private final ObjectMapper mapper = new ObjectMapper();
-    private volatile HttpClient httpClient;
+    // Client for trusted upstream API calls (Klipy) — follows redirects normally
+    private volatile HttpClient apiHttpClient;
+    // Client for user-supplied proxy URLs — NEVER follows redirects automatically;
+    // redirect targets are re-validated before being followed manually.
+    private volatile HttpClient proxyHttpClient;
 
-    private HttpClient httpClient() {
-        if (httpClient == null) {
-            httpClient = HttpClient.newBuilder()
+    private HttpClient apiHttpClient() {
+        if (apiHttpClient == null) {
+            apiHttpClient = HttpClient.newBuilder()
                     .connectTimeout(Duration.ofSeconds(5))
                     .followRedirects(HttpClient.Redirect.NORMAL)
                     .build();
         }
-        return httpClient;
+        return apiHttpClient;
+    }
+
+    private HttpClient proxyHttpClient() {
+        if (proxyHttpClient == null) {
+            proxyHttpClient = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .followRedirects(HttpClient.Redirect.NEVER)
+                    .build();
+        }
+        return proxyHttpClient;
     }
 
     @GET
@@ -121,7 +136,7 @@ public class MediaProxyResource {
         if (url == null || url.isBlank()) {
             return Response.status(400).entity(Map.of("error", "missing_url")).build();
         }
-        if (!isAllowedDomain(url)) {
+        if (!isAllowedDomain(url) || isBlockedHost(url)) {
             return Response.status(403).entity(Map.of("error", "forbidden_domain")).build();
         }
 
@@ -134,24 +149,42 @@ public class MediaProxyResource {
                     .build();
         }
 
-        // Fetch from upstream
+        // Fetch from upstream. The proxy client never follows redirects automatically;
+        // we re-validate each redirect target against the domain allowlist and private
+        // IP block list before following (max 2 hops total).
         try {
-            var request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(15))
-                    .GET()
-                    .build();
-            var response = httpClient().send(request, HttpResponse.BodyHandlers.ofByteArray());
-            if (response.statusCode() != 200) {
-                return Response.status(502).build();
+            var fetchUrl = url;
+            for (int attempt = 0; attempt < 2; attempt++) {
+                var request = HttpRequest.newBuilder()
+                        .uri(URI.create(fetchUrl))
+                        .timeout(Duration.ofSeconds(15))
+                        .GET()
+                        .build();
+                var response = proxyHttpClient().send(request, HttpResponse.BodyHandlers.ofByteArray());
+                int status = response.statusCode();
+
+                if (status >= 300 && status < 400) {
+                    // Validate redirect target before following
+                    var location = response.headers().firstValue("Location").orElse(null);
+                    if (location == null) return Response.status(502).build();
+                    if (!isAllowedDomain(location) || isBlockedHost(location)) {
+                        return Response.status(403).entity(Map.of("error", "forbidden_domain")).build();
+                    }
+                    fetchUrl = location;
+                    continue;
+                }
+
+                if (status != 200) return Response.status(502).build();
+
+                var contentType = response.headers().firstValue("Content-Type").orElse("application/octet-stream");
+                var data = response.body();
+                mediaCacheService.put(url, data, contentType);
+                return Response.ok(data)
+                        .type(contentType)
+                        .header("Cache-Control", "public, max-age=86400")
+                        .build();
             }
-            var contentType = response.headers().firstValue("Content-Type").orElse("application/octet-stream");
-            var data = response.body();
-            mediaCacheService.put(url, data, contentType);
-            return Response.ok(data)
-                    .type(contentType)
-                    .header("Cache-Control", "public, max-age=86400")
-                    .build();
+            return Response.status(502).build(); // Exceeded redirect limit
         } catch (Exception e) {
             return Response.status(502).build();
         }
@@ -167,6 +200,39 @@ public class MediaProxyResource {
         }
     }
 
+    /**
+     * Returns true if any IP the hostname resolves to falls in a private/reserved range.
+     * This prevents SSRF via redirect to cloud metadata services or internal hosts.
+     * Blocks: loopback, site-local (RFC-1918), link-local, CGNAT (100.64.0.0/10),
+     * 0.0.0.0/8, and IPv6 unique-local / link-local.
+     */
+    private boolean isBlockedHost(String urlStr) {
+        try {
+            var host = URI.create(urlStr).getHost();
+            if (host == null) return true;
+            for (var addr : InetAddress.getAllByName(host)) {
+                if (addr.isLoopbackAddress() || addr.isSiteLocalAddress()
+                        || addr.isLinkLocalAddress() || addr.isAnyLocalAddress()
+                        || addr.isMulticastAddress()) {
+                    return true;
+                }
+                if (addr instanceof java.net.Inet4Address) {
+                    int ip = ((addr.getAddress()[0] & 0xFF) << 24)
+                           | ((addr.getAddress()[1] & 0xFF) << 16)
+                           | ((addr.getAddress()[2] & 0xFF) << 8)
+                           |  (addr.getAddress()[3] & 0xFF);
+                    // 100.64.0.0/10 — CGNAT (may route to internal services)
+                    if ((ip & 0xFFC00000) == 0x64400000) return true;
+                    // 0.0.0.0/8
+                    if ((ip & 0xFF000000) == 0) return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            return true; // Fail safe: block on DNS error
+        }
+    }
+
     private Response proxyRequest(String url) {
         try {
             var request = HttpRequest.newBuilder()
@@ -175,7 +241,7 @@ public class MediaProxyResource {
                     .GET()
                     .build();
 
-            var response = httpClient().send(request, HttpResponse.BodyHandlers.ofString());
+            var response = apiHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
                 return Response.status(502).entity(Map.of("error", "upstream_error")).build();
