@@ -210,6 +210,8 @@ jobs:
         with:
           name: native-linux-arm64
           path: docker/arm64/
+      - name: Debug artifact contents
+        run: find docker/ -type f
       - name: Prepare Dockerfiles
         run: |
           # amd64
