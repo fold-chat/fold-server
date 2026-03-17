@@ -63,4 +63,5 @@
 			</button>
 		</form>
 	</div>
+<div class="powered-by">Powered by <a href="https://fold.chat" target="_blank" rel="noopener">fold.chat</a></div>
 </div>
