@@ -21,6 +21,7 @@ export const PermissionName = {
 	MANAGE_INVITES: 'MANAGE_INVITES',
 	CHANGE_NICKNAME: 'CHANGE_NICKNAME',
 	MANAGE_NICKNAMES: 'MANAGE_NICKNAMES',
+	RESET_PASSWORDS: 'RESET_PASSWORDS',
 	ADMINISTRATOR: 'ADMINISTRATOR',
 	// Voice (bits 32-47)
 	USE_VOICE: 'USE_VOICE',
@@ -43,6 +44,7 @@ const SERVER_LEVEL = new Set<string>([
 	PermissionName.MANAGE_INVITES,
 	PermissionName.CHANGE_NICKNAME,
 	PermissionName.MANAGE_NICKNAMES,
+	PermissionName.RESET_PASSWORDS,
 	PermissionName.ADMINISTRATOR
 ]);
 
@@ -88,6 +90,11 @@ export const PERMISSION_GROUPS = {
 			name: PermissionName.MANAGE_NICKNAMES,
 			label: 'Manage Nicknames',
 			desc: "Change others' display names"
+		},
+		{
+			name: PermissionName.RESET_PASSWORDS,
+			label: 'Reset Passwords',
+			desc: "Reset other members' passwords"
 		},
 		{
 			name: PermissionName.ADMINISTRATOR,

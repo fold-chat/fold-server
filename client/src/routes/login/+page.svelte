@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { login } from '$lib/api/auth.js';
 	import { getMe } from '$lib/api/users.js';
-	import { setUser } from '$lib/stores/auth.svelte.js';
+	import { setUser, setPasswordMustChange } from '$lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
 	import type { ApiError } from '$lib/api/client.js';
 
@@ -22,7 +22,12 @@
 		loading = true;
 
 		try {
-			await login(username, password);
+			const result = await login(username, password);
+			if (result.password_must_change) {
+				setPasswordMustChange(true);
+				goto('/change-password');
+				return;
+			}
 			const user = await getMe();
 			setUser(user);
 			goto('/');

@@ -36,7 +36,7 @@
 			// ignore
 		}
 		reset();
-		goto('/login');
+		window.location.href = '/login';
 	}
 
 	function goProfile() {

@@ -10,6 +10,7 @@ export interface UserPermissions {
 let user = $state<User | null>(null);
 let setupRequired = $state(false);
 let initialized = $state(false);
+let passwordMustChange = $state(false);
 let permissions = $state<UserPermissions>({ server: [], channels: new Map() });
 let permissionsLoaded = $state(false);
 let mediaSearchEnabled = $state(false);
@@ -38,6 +39,14 @@ export function isSetupRequired(): boolean {
 	return setupRequired;
 }
 
+export function getPasswordMustChange(): boolean {
+	return passwordMustChange;
+}
+
+export function setPasswordMustChange(v: boolean) {
+	passwordMustChange = v;
+}
+
 export function isInitialized(): boolean {
 	return initialized;
 }
@@ -52,8 +61,11 @@ export async function init() {
 		if (!setupRequired) {
 			try {
 				user = await getMe();
-			} catch {
+			} catch (err: unknown) {
 				user = null;
+				if (err && typeof err === 'object' && 'error' in err && (err as { error: string }).error === 'password_must_change') {
+					passwordMustChange = true;
+				}
 			}
 		}
 	} catch {
@@ -138,6 +150,7 @@ export function reset() {
 	user = null;
 	initialized = false;
 	setupRequired = false;
+	passwordMustChange = false;
 	permissions = { server: [], channels: new Map() };
 	permissionsLoaded = false;
 	mediaSearchEnabled = false;

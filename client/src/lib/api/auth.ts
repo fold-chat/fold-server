@@ -2,6 +2,7 @@ import { api } from './client.js';
 
 export interface LoginResponse {
 	expires_in: number;
+	password_must_change?: boolean;
 }
 
 export interface RegisterResponse {
@@ -41,6 +42,13 @@ export function changePassword(current_password: string, new_password: string) {
 	return api<{ message: string }>('/auth/password', {
 		method: 'PATCH',
 		body: JSON.stringify({ current_password, new_password })
+	});
+}
+
+export function forceChangePassword(new_password: string) {
+	return api<{ message: string }>('/auth/force-change-password', {
+		method: 'POST',
+		body: JSON.stringify({ new_password })
 	});
 }
 

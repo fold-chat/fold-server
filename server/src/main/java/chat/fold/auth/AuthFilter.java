@@ -67,6 +67,14 @@ public class AuthFilter implements ContainerRequestFilter {
 
         ctx.setSecurityContext(new FoldSecurityContext(userId, (String) c.get("usr")));
 
+        // Block users who must change their password
+        if (!isPasswordChangePath(path) && isPasswordMustChange(userId)) {
+            ctx.abortWith(Response.status(403)
+                    .entity(java.util.Map.of("error", "password_must_change", "message", "You must change your password"))
+                    .build());
+            return;
+        }
+
         // Block non-admin users during maintenance mode
         if (maintenanceService.isEnabled() && !isAdminPath(path)) {
             if (!permissionService.hasServerPermission(userId, Permission.MANAGE_SERVER)) {
@@ -110,5 +118,20 @@ public class AuthFilter implements ContainerRequestFilter {
     private boolean isAdminPath(String path) {
         String p = path.startsWith("/") ? path.substring(1) : path;
         return p.startsWith("api/v0/admin/");
+    }
+
+    /** Paths allowed when password_must_change is set */
+    private boolean isPasswordChangePath(String path) {
+        String p = path.startsWith("/") ? path.substring(1) : path;
+        if (p.equals("api/v0/auth/force-change-password")) return true;
+        if (p.equals("api/v0/auth/session")) return true; // logout
+        return false;
+    }
+
+    private boolean isPasswordMustChange(String userId) {
+        var user = userRepo.findById(userId);
+        if (user.isEmpty()) return false;
+        Long flag = (Long) user.get().get("password_must_change");
+        return flag != null && flag != 0;
     }
 }

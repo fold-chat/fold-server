@@ -80,3 +80,10 @@ export function banMember(id: string, reason?: string) {
 export function unbanMember(id: string) {
 	return api<void>(`/members/${id}/ban`, { method: 'DELETE' });
 }
+
+export function resetMemberPassword(id: string, new_password: string) {
+	return api<void>(`/members/${id}/reset-password`, {
+		method: 'POST',
+		body: JSON.stringify({ new_password })
+	});
+}

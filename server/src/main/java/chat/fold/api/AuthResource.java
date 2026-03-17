@@ -81,7 +81,20 @@ public class AuthResource {
 
         try {
             var result = authService.login(req);
-            return Response.ok(Map.of("expires_in", 900))
+
+            // Check if user must change password
+            var user = userRepo.findByUsername(req.username());
+            boolean mustChange = false;
+            if (user.isPresent()) {
+                Long flag = (Long) user.get().get("password_must_change");
+                mustChange = flag != null && flag != 0;
+            }
+
+            var body = new java.util.LinkedHashMap<String, Object>();
+            body.put("expires_in", 900);
+            if (mustChange) body.put("password_must_change", true);
+
+            return Response.ok(body)
                     .cookie(authService.accessCookie(result.accessToken()))
                     .cookie(authService.refreshCookie(result.refreshToken()))
                     .build();
@@ -168,7 +181,24 @@ public class AuthResource {
         }
     }
 
+    @POST
+    @Path("/force-change-password")
+    public Response forceChangePassword(ForceChangePasswordRequest req) {
+        var sc = (FoldSecurityContext) requestContext.getSecurityContext();
+        var userId = sc.getUserId();
+
+        try {
+            authService.forceChangePassword(userId, req.new_password());
+            return Response.ok(Map.of("message", "Password changed")).build();
+        } catch (AuthService.AuthException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", e.code, "message", e.getMessage()))
+                    .build();
+        }
+    }
+
     public record PasswordChangeRequest(String current_password, String new_password) {}
+    public record ForceChangePasswordRequest(String new_password) {}
 
     private String getClientIp() {
         // Check X-Forwarded-For first for proxied requests

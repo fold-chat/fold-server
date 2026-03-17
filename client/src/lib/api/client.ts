@@ -46,6 +46,12 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 			}
 			throw body;
 		}
+		if (body.error === 'password_must_change') {
+			if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/change-password')) {
+				window.location.href = '/change-password';
+			}
+			throw body;
+		}
 		throw body;
 	}
 

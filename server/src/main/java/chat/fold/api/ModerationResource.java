@@ -1,5 +1,6 @@
 package chat.fold.api;
 
+import chat.fold.auth.AuthService;
 import chat.fold.auth.FoldSecurityContext;
 import chat.fold.db.SessionRepository;
 import chat.fold.db.UserRepository;
@@ -26,6 +27,7 @@ import java.util.Map;
 @Consumes(MediaType.APPLICATION_JSON)
 public class ModerationResource {
 
+    @Inject AuthService authService;
     @Inject UserRepository userRepo;
     @Inject SessionRepository sessionRepo;
     @Inject PermissionService permissionService;
@@ -112,6 +114,41 @@ public class ModerationResource {
         return Response.ok(userRepo.listMembers(includeBanned)).build();
     }
 
+    // --- Password Reset ---
+
+    @POST
+    @Path("/{id}/reset-password")
+    public Response resetPassword(@PathParam("id") String targetId, ResetPasswordRequest req) {
+        var sc = sc();
+        permissionService.requireServerPermission(sc.getUserId(), Permission.RESET_PASSWORDS);
+
+        if (targetId.equals(sc.getUserId())) {
+            return Response.status(400).entity(Map.of("error", "cannot_reset_self", "message", "Cannot reset your own password")).build();
+        }
+
+        var target = userRepo.findById(targetId);
+        if (target.isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+
+        if (permissionService.isOwner(targetId)) {
+            return Response.status(403).entity(Map.of("error", "cannot_reset_owner", "message", "Cannot reset the owner's password")).build();
+        }
+
+        try {
+            authService.adminResetPassword(targetId, req.new_password());
+        } catch (AuthService.AuthException e) {
+            return Response.status(400).entity(Map.of("error", e.code, "message", e.getMessage())).build();
+        }
+
+        // Close WebSocket connections
+        closeWebSocketConnections(targetId);
+
+        auditLogService.log(sc.getUserId(), "PASSWORD_RESET", "user", targetId);
+
+        return Response.noContent().build();
+    }
+
     // --- Role assignment ---
 
     @PUT
@@ -133,6 +170,7 @@ public class ModerationResource {
     // --- DTOs ---
 
     public record BanRequest(String reason) {}
+    public record ResetPasswordRequest(String new_password) {}
 
     // --- Helpers ---
 

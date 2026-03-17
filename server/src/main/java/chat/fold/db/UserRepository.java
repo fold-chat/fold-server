@@ -57,6 +57,10 @@ public class UserRepository {
         db.execute("UPDATE user SET password_hash = ? WHERE id = ?", passwordHash, id);
     }
 
+    public void setPasswordMustChange(String id, boolean mustChange) {
+        db.execute("UPDATE user SET password_must_change = ? WHERE id = ?", mustChange ? 1L : 0L, id);
+    }
+
     public void incrementFailedLogin(String id) {
         db.execute("UPDATE user SET failed_login_count = failed_login_count + 1 WHERE id = ?", id);
     }

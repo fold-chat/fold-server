@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getMembers, banMember, unbanMember, type Member } from '$lib/api/users.js';
+	import { getMembers, banMember, unbanMember, resetMemberPassword, type Member } from '$lib/api/users.js';
 	import { assignRole, removeRole } from '$lib/api/roles.js';
 	import { getVoiceModeration, setServerMuteGlobal, clearServerMute, setServerDeafGlobal, clearServerDeaf, type VoiceModeration } from '$lib/api/voice.js';
 	import { getRolesList } from '$lib/stores/roles.svelte.js';
@@ -16,8 +16,9 @@
 	let loading = $state(true);
 	let error = $state('');
 	let editingMember = $state<string | null>(null);
-	let confirmAction = $state<{ type: 'ban' | 'unban'; member: Member } | null>(null);
+	let confirmAction = $state<{ type: 'ban' | 'unban' | 'reset-password'; member: Member } | null>(null);
 	let banReason = $state('');
+	let resetPassword = $state('');
 
 	// Filters
 	let search = $state('');
@@ -27,9 +28,10 @@
 
 	const canManageRoles = $derived(hasServerPermission(PermissionName.MANAGE_ROLES));
 	const canBan = $derived(hasServerPermission(PermissionName.BAN_MEMBERS));
+	const canResetPassword = $derived(hasServerPermission(PermissionName.RESET_PASSWORDS));
 	const canMute = $derived(hasServerPermission(PermissionName.MUTE_MEMBERS));
 	const canDeafen = $derived(hasServerPermission(PermissionName.DEAFEN_MEMBERS));
-	const canEdit = $derived(canManageRoles || canMute || canDeafen || canBan);
+	const canEdit = $derived(canManageRoles || canMute || canDeafen || canBan || canResetPassword);
 	const currentUser = $derived(getUser());
 
 	const filteredMembers = $derived.by(() => {
@@ -223,14 +225,21 @@
 		banReason = '';
 	}
 
+	function promptResetPassword(member: Member) {
+		confirmAction = { type: 'reset-password', member };
+		resetPassword = '';
+	}
+
 	async function executeAction() {
 		if (!confirmAction) return;
 		error = '';
 		try {
 			if (confirmAction.type === 'ban') {
 				await banMember(confirmAction.member.id, banReason || undefined);
-			} else {
+			} else if (confirmAction.type === 'unban') {
 				await unbanMember(confirmAction.member.id);
+			} else if (confirmAction.type === 'reset-password') {
+				await resetMemberPassword(confirmAction.member.id, resetPassword);
 			}
 			members = await getMembers();
 		} catch (err) {
@@ -238,6 +247,7 @@
 		} finally {
 			confirmAction = null;
 			banReason = '';
+			resetPassword = '';
 		}
 	}
 
@@ -405,13 +415,18 @@
 											</div>
 										</div>
 									{/if}
-									{#if !isOwner(member) && currentUser?.id !== member.id && canBan}
+									{#if !isOwner(member) && currentUser?.id !== member.id}
 										<div class="edit-group">
 											<div class="edit-btn-row">
-												{#if isBanned(member)}
-													<button class="btn-sm" onclick={() => promptUnban(member)}>Unban</button>
-												{:else}
-													<button class="btn-sm btn-danger" onclick={() => promptBan(member)}>Ban</button>
+												{#if canResetPassword && !isBanned(member)}
+													<button class="btn-sm" onclick={() => promptResetPassword(member)}>Reset Password</button>
+												{/if}
+												{#if canBan}
+													{#if isBanned(member)}
+														<button class="btn-sm" onclick={() => promptUnban(member)}>Unban</button>
+													{:else}
+														<button class="btn-sm btn-danger" onclick={() => promptBan(member)}>Ban</button>
+													{/if}
 												{/if}
 											</div>
 										</div>
@@ -445,21 +460,31 @@
 	<div class="modal-overlay" onkeydown={(e) => e.key === 'Escape' && (confirmAction = null)} onclick={() => (confirmAction = null)}>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (confirmAction = null)}>
-			<h2>{confirmAction.type === 'ban' ? 'Ban' : 'Unban'} {confirmAction.member.display_name || confirmAction.member.username}?</h2>
+			<h2>{confirmAction.type === 'ban' ? 'Ban' : confirmAction.type === 'unban' ? 'Unban' : 'Reset Password'} — {confirmAction.member.display_name || confirmAction.member.username}</h2>
 			{#if confirmAction.type === 'ban'}
 				<p class="modal-desc">This user will be permanently banned and unable to rejoin.</p>
 				<div class="form-group">
 					<label for="ban-reason">Reason (optional)</label>
 					<input id="ban-reason" type="text" bind:value={banReason} placeholder="Reason for ban" />
 				</div>
-			{:else}
+			{:else if confirmAction.type === 'unban'}
 				<p class="modal-desc">This user will be unbanned and able to rejoin.</p>
+			{:else if confirmAction.type === 'reset-password'}
+				<p class="modal-desc">Set a temporary password. The user will be logged out and forced to change it on next login.</p>
+				<div class="form-group">
+					<label for="reset-pw">Temporary Password</label>
+					<input id="reset-pw" type="password" bind:value={resetPassword} placeholder="Min 8 characters" autocomplete="new-password" />
+				</div>
 			{/if}
 			<div class="modal-actions">
 				<button class="btn-sm" onclick={() => (confirmAction = null)}>Cancel</button>
-				<button class="btn-sm {confirmAction.type === 'ban' ? 'btn-danger' : ''}" onclick={executeAction}>
-					{confirmAction.type === 'ban' ? 'Ban' : 'Unban'}
-				</button>
+				{#if confirmAction.type === 'reset-password'}
+					<button class="btn-sm" onclick={executeAction} disabled={resetPassword.length < 8}>Reset Password</button>
+				{:else}
+					<button class="btn-sm {confirmAction.type === 'ban' ? 'btn-danger' : ''}" onclick={executeAction}>
+						{confirmAction.type === 'ban' ? 'Ban' : 'Unban'}
+					</button>
+				{/if}
 			</div>
 		</div>
 	</div>

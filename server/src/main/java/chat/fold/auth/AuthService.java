@@ -216,17 +216,46 @@ public class AuthService {
             throw new AuthException("invalid_credentials", "Current password is incorrect");
         }
 
-        if (newPassword == null || newPassword.length() < 8 || newPassword.length() > 128) {
-            throw new AuthException("invalid_password", "Password must be 8-128 characters");
-        }
+        validatePassword(newPassword);
 
         userRepo.updatePasswordHash(userId, passwordService.hash(newPassword));
+        userRepo.setPasswordMustChange(userId, false);
         // Revoke all other sessions
         if (currentSessionId != null) {
             sessionRepo.deleteAllForUserExcept(userId, currentSessionId);
         } else {
             sessionRepo.deleteAllForUser(userId);
         }
+    }
+
+    // --- Admin Password Reset ---
+
+    public void adminResetPassword(String targetUserId, String newPassword) {
+        userRepo.findById(targetUserId)
+                .orElseThrow(() -> new AuthException("not_found", "User not found"));
+
+        validatePassword(newPassword);
+
+        userRepo.updatePasswordHash(targetUserId, passwordService.hash(newPassword));
+        userRepo.setPasswordMustChange(targetUserId, true);
+        sessionRepo.deleteAllForUser(targetUserId);
+    }
+
+    // --- Forced Password Change (no current password required) ---
+
+    public void forceChangePassword(String userId, String newPassword) {
+        var user = userRepo.findById(userId)
+                .orElseThrow(() -> new AuthException("not_found", "User not found"));
+
+        Long flag = (Long) user.get("password_must_change");
+        if (flag == null || flag == 0) {
+            throw new AuthException("not_required", "Password change not required");
+        }
+
+        validatePassword(newPassword);
+
+        userRepo.updatePasswordHash(userId, passwordService.hash(newPassword));
+        userRepo.setPasswordMustChange(userId, false);
     }
 
     public Optional<Map<String, Object>> findSessionByRefreshToken(String refreshToken) {
@@ -281,6 +310,12 @@ public class AuthService {
     }
 
     // --- Helpers ---
+
+    private void validatePassword(String password) {
+        if (password == null || password.length() < 8 || password.length() > 128) {
+            throw new AuthException("invalid_password", "Password must be 8-128 characters");
+        }
+    }
 
     private static String generateRefreshToken() {
         byte[] bytes = new byte[32];

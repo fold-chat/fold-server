@@ -27,7 +27,8 @@ Permissions are stored as 64-bit bitmasks. Each bit represents a permission.
 - Bit 22: MANAGE_INVITES - Revoke invites created by others
 - Bit 23: CHANGE_NICKNAME - Change own display name
 - Bit 24: MANAGE_NICKNAMES - Change others' display names
-- Bits 25-30: Reserved
+- Bit 25: RESET_PASSWORDS - Reset other members' passwords
+- Bits 26-30: Reserved
 - Bit 31: ADMINISTRATOR - Bypass all permission checks (except Owner)
 
 ## Voice Permissions (bits 32-47)
