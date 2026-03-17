@@ -33,7 +33,7 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
     implementation("org.bouncycastle:bcprov-jdk18on:1.80")
     implementation("io.quarkus:quarkus-rest-client-jackson")
-    implementation("io.github.conorrr:libsql-java:0.2.2")
+    implementation("io.github.conorrr:libsql-java:0.2.3")
     compileOnly("org.graalvm.sdk:nativeimage:24.2.0")
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")
