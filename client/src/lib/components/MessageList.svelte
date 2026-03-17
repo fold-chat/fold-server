@@ -317,7 +317,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 					{:else}
 						{#if isGifMessage(msg.content)}
 							<div class="gif-message">
-								<img src={gifUrl(msg.content)} alt="GIF" class="gif-image" onload={scrollToBottomIfNeeded} onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+<img src={gifUrl(msg.content)} alt="GIF" class="gif-image" onload={scrollToBottomIfNeeded} onerror={(e) => { const img = e.currentTarget as HTMLImageElement; img.style.display = 'none'; img.nextElementSibling?.classList.remove('hidden'); const watermark = img.parentElement?.querySelector('.klipy-watermark') as HTMLElement | null; if (watermark) watermark.style.display = 'none'; }} />
 								<div class="image-broken hidden">
 									<span class="image-broken-icon">🖼️</span>
 									<span class="image-broken-text">Image could not be loaded</span>
