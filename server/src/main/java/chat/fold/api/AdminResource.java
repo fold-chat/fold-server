@@ -43,7 +43,7 @@ public class AdminResource {
                     .build();
         }
 
-        maintenanceService.disable(message);
+        maintenanceService.enable(message);
 
         var data = new LinkedHashMap<String, Object>();
         data.put("maintenance_enabled", true);
@@ -62,7 +62,7 @@ public class AdminResource {
         var sc = sc();
         permissionService.requireServerPermission(sc.getUserId(), Permission.MANAGE_SERVER);
 
-        maintenanceService.enable();
+        maintenanceService.disable();
 
         var data = new LinkedHashMap<String, Object>();
         data.put("maintenance_enabled", false);

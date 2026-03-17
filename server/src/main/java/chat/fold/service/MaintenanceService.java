@@ -44,7 +44,7 @@ public class MaintenanceService {
         return message;
     }
 
-    public void disable(String maintenanceMessage) {
+    public void enable(String maintenanceMessage) {
         this.enabled = true;
         this.message = maintenanceMessage;
         db.execute("INSERT OR REPLACE INTO server_config (key, value, updated_at) VALUES (?, 'true', datetime('now'))", KEY_ENABLED);
@@ -52,7 +52,7 @@ public class MaintenanceService {
         LOG.infof("Maintenance mode enabled: %s", maintenanceMessage != null ? maintenanceMessage : "(no message)");
     }
 
-    public void enable() {
+    public void disable() {
         this.enabled = false;
         this.message = null;
         db.execute("INSERT OR REPLACE INTO server_config (key, value, updated_at) VALUES (?, 'false', datetime('now'))", KEY_ENABLED);
