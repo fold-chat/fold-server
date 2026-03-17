@@ -217,10 +217,12 @@
 								{/if}
 								<span class="status-dot" class:online={isUserOnline(member.id)}></span>
 							</div>
-							<span class="member-name">{member.display_name || member.username}</span>
-							{#if member.status_text}
-								<span class="member-status">{member.status_text}</span>
-							{/if}
+							<div class="member-info">
+								<span class="member-name">{member.display_name || member.username}</span>
+								{#if member.status_text}
+									<span class="member-status">{member.status_text}</span>
+								{/if}
+							</div>
 						</button>
 					{/each}
 				</div>
@@ -340,11 +342,17 @@
 		opacity: 0.8;
 	}
 
+	.member-info {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+		flex: 1;
+	}
+
 	.member-name {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		flex: 1;
 	}
 
 	.member-status {
@@ -353,7 +361,6 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		max-width: 60px;
 	}
 
 	/* Profile view */
