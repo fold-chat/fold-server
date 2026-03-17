@@ -403,7 +403,7 @@
 
 	.compose-row {
 		display: flex;
-		align-items: flex-end;
+		align-items: center;
 		gap: 0.5rem;
 	}
 
@@ -466,6 +466,10 @@
 		padding: 0.4rem;
 		border-radius: 4px;
 		opacity: 0.7;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		line-height: 1;
 	}
 
 	.attach-btn:disabled {
