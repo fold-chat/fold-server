@@ -29,6 +29,7 @@
 
 	const PAGE_LABELS: Record<string, string> = {
 		'/settings/profile': 'Profile',
+		'/settings/account': 'Account',
 		'/settings/appearance': 'Appearance',
 		'/settings/devices': 'Devices',
 		'/settings/server': 'Server',
@@ -108,6 +109,7 @@
 	<div class="nav-group">
 		<span class="nav-group-label">User</span>
 		<a class="nav-item" class:active={isActive('/settings/profile')} href="/settings/profile">Profile</a>
+		<a class="nav-item" class:active={isActive('/settings/account')} href="/settings/account">Account</a>
 		<a class="nav-item" class:active={isActive('/settings/appearance')} href="/settings/appearance">Appearance</a>
 		<a class="nav-item" class:active={isActive('/settings/devices')} href="/settings/devices">Devices</a>
 	</div>

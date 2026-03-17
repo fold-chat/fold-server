@@ -19,6 +19,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -226,6 +227,11 @@ public class AuthService {
         } else {
             sessionRepo.deleteAllForUser(userId);
         }
+    }
+
+    public Optional<Map<String, Object>> findSessionByRefreshToken(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) return Optional.empty();
+        return sessionRepo.findByRefreshTokenHash(sha256(refreshToken));
     }
 
     // --- Cookie helpers ---
