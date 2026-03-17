@@ -87,7 +87,7 @@ jobs:
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
-          ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Pfold.build.version=${{ github.ref_name }}
+          ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false '-Dquarkus.native.additional-build-args[10]=-H:+StripDebugInfo' -Pfold.build.version=${{ github.ref_name }}
           ./gradlew extractNativeLib
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -116,7 +116,7 @@ jobs:
           path: server/src/main/resources/META-INF/resources/
       - run: |
           cd server
-          ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Pfold.build.version=${{ github.ref_name }}
+          ./gradlew quarkusBuild -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false '-Dquarkus.native.additional-build-args[10]=-H:+StripDebugInfo' -Pfold.build.version=${{ github.ref_name }}
           ./gradlew extractNativeLib
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

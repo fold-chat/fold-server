@@ -45,7 +45,7 @@ COPY --from=client-build /app/client/build/ ./src/main/resources/META-INF/resour
 ARG FOLD_BUILD_VERSION=snapshot
 RUN --mount=type=secret,id=GITHUB_TOKEN \
     GITHUB_TOKEN=$(cat /run/secrets/GITHUB_TOKEN) \
-    ./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -Pfold.build.version=$FOLD_BUILD_VERSION --no-daemon
+    ./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false '-Dquarkus.native.additional-build-args[10]=-H:+StripDebugInfo' -Pfold.build.version=$FOLD_BUILD_VERSION --no-daemon
 RUN ./gradlew extractNativeLib --no-daemon
 
 # Compress binary with UPX
