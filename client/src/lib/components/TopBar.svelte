@@ -2,7 +2,7 @@
 	import { getUser } from '$lib/stores/auth.svelte.js';
 	import { openSearch } from '$lib/stores/search.svelte.js';
 	import { getTotalMentionCount } from '$lib/stores/channels.svelte.js';
-	import { isNarrowScreen, toggleSidebar } from '$lib/stores/sidebar.svelte.js';
+	import { isNarrowScreen } from '$lib/stores/sidebar.svelte.js';
 	import { getUnreadNotificationCount, toggleNotificationPanel, isNotificationPanelOpen } from '$lib/stores/notifications.svelte.js';
 	import { isMembersPanelOpen, toggleMembersPanel } from '$lib/stores/membersPanel.svelte.js';
 	import { logout } from '$lib/api/auth.js';
@@ -46,22 +46,7 @@
 </script>
 
 <div class="topbar">
-	{#if isNarrowScreen()}
-		<button class="topbar-btn sidebar-toggle" onclick={toggleSidebar} title="Toggle sidebar">
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-				<line x1="3" y1="6" x2="21" y2="6" />
-				<line x1="3" y1="12" x2="21" y2="12" />
-				<line x1="3" y1="18" x2="21" y2="18" />
-			</svg>
-		</button>
-	{/if}
-	{#if isNarrowScreen()}
-		<button class="topbar-btn" onclick={openSearch} title="Search">
-			<svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
-				<path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.45 4.39l4.26 4.26a.75.75 0 11-1.06 1.06l-4.26-4.26A7 7 0 012 9z" clip-rule="evenodd" />
-			</svg>
-		</button>
-	{:else}
+	{#if !isNarrowScreen()}
 		<div class="topbar-center">
 			<button class="search-trigger" onclick={openSearch}>
 				<svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14">
@@ -74,6 +59,13 @@
 	{/if}
 
 	<div class="topbar-right">
+		{#if isNarrowScreen()}
+			<button class="topbar-btn" onclick={openSearch} title="Search">
+				<svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18">
+					<path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.45 4.39l4.26 4.26a.75.75 0 11-1.06 1.06l-4.26-4.26A7 7 0 012 9z" clip-rule="evenodd" />
+				</svg>
+			</button>
+		{/if}
 		<button class="topbar-btn" class:active={isNotificationPanelOpen()} onclick={toggleNotificationPanel} title="Notifications">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
 				<path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -184,6 +176,7 @@
 		align-items: center;
 		gap: 0.4rem;
 		flex-shrink: 0;
+		margin-left: auto;
 	}
 
 	.topbar-btn {
