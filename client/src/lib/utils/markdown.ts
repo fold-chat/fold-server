@@ -36,8 +36,8 @@ function processMentions(
 		processed = processed.replace(/<@&([a-zA-Z0-9_-]+)>/g, (match, roleId) => {
 			const role = roleMap.get(roleId);
 			if (!role) return match;
-			const style = role.color ? `style="color: ${role.color};"` : '';
-			return `<span class="mention mention-role" data-role-id="${roleId}" ${style}>@${role.name}</span>`;
+			const colorAttr = role.color ? ` data-role-color="${role.color}"` : '';
+			return `<span class="mention mention-role" data-role-id="${roleId}"${colorAttr}>@${role.name}</span>`;
 		});
 	}
 
@@ -89,7 +89,7 @@ export function renderMarkdown(
 			'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 			'hr', 'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'span'
 		],
-		ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel', 'data-user-id', 'data-role-id', 'style', 'data-emoji-name'],
+		ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'class', 'target', 'rel', 'data-user-id', 'data-role-id', 'data-role-color', 'data-emoji-name'],
 		ADD_ATTR: ['target']
 	});
 }
@@ -123,6 +123,23 @@ export function contentPreview(content: string | undefined | null, maxLen = 200,
 		});
 	}
 	return cleaned.length > maxLen ? cleaned.slice(0, maxLen) : cleaned;
+}
+
+/**
+ * Svelte action: reads data-role-color attributes set by processMentions and
+ * applies them as inline color via JavaScript. This avoids allowing `style`
+ * in the DOMPurify ALLOWED_ATTR list, removing the CSS injection vector.
+ */
+export function applyRoleColors(node: HTMLElement) {
+	function apply() {
+		node.querySelectorAll<HTMLElement>('[data-role-color]').forEach(el => {
+			el.style.color = el.dataset.roleColor ?? '';
+		});
+	}
+	apply();
+	const observer = new MutationObserver(apply);
+	observer.observe(node, { childList: true, subtree: true });
+	return { destroy() { observer.disconnect(); } };
 }
 
 export function formatTimestamp(dateStr: string): string {

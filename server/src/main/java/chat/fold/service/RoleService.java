@@ -12,12 +12,14 @@ import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class RoleService {
 
     private static final String OWNER_ROLE_ID = "owner";
+    private static final Pattern HEX_COLOR = Pattern.compile("^#[0-9A-Fa-f]{3}([0-9A-Fa-f]{3})?$");
 
     @Inject RoleRepository roleRepo;
     @Inject ChannelRepository channelRepo;
@@ -30,6 +32,7 @@ public class RoleService {
 
     public Map<String, Object> createRole(String actorId, String name, long permissions, String color) {
         permissionService.requireServerPermission(actorId, Permission.MANAGE_ROLES);
+        validateColor(color);
 
         int position = roleRepo.nextPosition();
         String id = UUID.randomUUID().toString();
@@ -45,6 +48,7 @@ public class RoleService {
     public Map<String, Object> updateRole(String actorId, String roleId, String name, Long permissions, String color) {
         permissionService.requireServerPermission(actorId, Permission.MANAGE_ROLES);
         requireNotOwner(roleId, "Cannot modify the Owner role");
+        validateColor(color);
 
         var existing = roleRepo.findById(roleId)
                 .orElseThrow(() -> notFound("Role not found"));
@@ -309,5 +313,14 @@ public class RoleService {
         return new WebApplicationException(
                 Response.status(404).entity(Map.of("error", "not_found", "message", message)).build()
         );
+    }
+
+    /** Rejects any color value that is not a valid CSS hex color (#RGB or #RRGGBB). */
+    private static void validateColor(String color) {
+        if (color != null && !HEX_COLOR.matcher(color).matches()) {
+            throw new WebApplicationException(
+                    Response.status(400).entity(Map.of("error", "invalid_color", "message", "Color must be a valid hex color (e.g. #FF0000)")).build()
+            );
+        }
     }
 }

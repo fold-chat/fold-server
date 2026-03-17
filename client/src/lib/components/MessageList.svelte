@@ -2,7 +2,7 @@
 import type { Message } from '$lib/api/messages.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { addReaction, removeReaction } from '$lib/api/reactions.js';
-import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } from '$lib/utils/markdown.js';
+import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, applyRoleColors } from '$lib/utils/markdown.js';
 	import { getYoutubeEmbedEnabled } from '$lib/stores/auth.svelte.js';
 	import YouTubeEmbed from './YouTubeEmbed.svelte';
 	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
@@ -326,7 +326,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds } 
 							</div>
 						{:else}
 							<CollapsibleContent>
-							<div class="content" class:emoji-only={isEmojiOnly(msg.content)}>{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
+							<div class="content" class:emoji-only={isEmojiOnly(msg.content)} use:applyRoleColors>{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
 								{#if getYoutubeEmbedEnabled()}
 									{#each extractYouTubeVideoIds(msg.content) as videoId}
 										<YouTubeEmbed {videoId} />
