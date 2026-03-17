@@ -1,22 +1,25 @@
 name: Preview Deploy
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
+  pull_request_target:
+    types: [labeled, synchronize, closed]
     branches: [main]
+
+permissions: {}
 
 jobs:
   prepare:
-    if: github.event.action != 'closed'
+    if: >-
+      github.event.action != 'closed' &&
+      contains(github.event.pull_request.labels.*.name, 'deploy-preview')
     runs-on: ubuntu-latest
     outputs:
       short_sha: ${{ steps.sha.outputs.short }}
     steps:
       - id: sha
-        run: echo "short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        run: echo "short=$(echo '${{ github.event.pull_request.head.sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
 
   build-image:
-    if: github.event.action != 'closed'
     needs: [prepare]
     permissions:
       contents: read
@@ -28,24 +31,27 @@ jobs:
       dockerfile: Dockerfile.native-build
       self_contained: true
       build_version: pr-${{ github.event.pull_request.number }}-${{ needs.prepare.outputs.short_sha }}
-    secrets: inherit
-  # --- Deploy preview on PR open/update ---
+      checkout_ref: ${{ github.event.pull_request.head.sha }}
+    secrets:
+      GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+
+  # --- Deploy preview (label + environment approval required) ---
   deploy:
-    if: github.event.action != 'closed'
     needs: [build-image]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
+    environment: preview
     concurrency:
       group: fold-preview-pr-${{ github.event.pull_request.number }}
       cancel-in-progress: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
-
-      # Deploy to Nomad
       - name: Deploy to Nomad
         env:
           NOMAD_SSH_KEY: ${{ secrets.NOMAD_SSH_KEY }}
@@ -70,16 +76,14 @@ jobs:
           ssh $SSH_OPTS root@${NOMAD_HOST} \
             "NOMAD_TOKEN='${NOMAD_TOKEN}' nomad job run -namespace=ci /tmp/fold-pr-${PR_NUMBER}.nomad.hcl"
 
-      # Comment on PR
       - name: Comment preview URL
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             const prNumber = context.payload.pull_request.number;
             const url = `https://pr-${prNumber}-preview.fold.chat`;
             const body = `🚀 Preview deployed: ${url}\n\nLogin: \`admin\` / \`preview-admin-pw\``;
 
-            // Find existing bot comment
             const comments = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -105,12 +109,15 @@ jobs:
               });
             }
 
-  # --- Teardown on PR close ---
+  # --- Teardown on PR close (only if preview was deployed) ---
   teardown:
-    if: github.event.action == 'closed'
+    if: >-
+      github.event.action == 'closed' &&
+      contains(github.event.pull_request.labels.*.name, 'deploy-preview')
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+    environment: preview
 
     steps:
       - name: Stop Nomad job
@@ -134,7 +141,7 @@ jobs:
             "rm -rf ${PREVIEW_DATA_ROOT}/pr-${PR_NUMBER}" || true
 
       - name: Update PR comment
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             const prNumber = context.payload.pull_request.number;

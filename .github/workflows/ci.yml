@@ -6,24 +6,27 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+permissions: {}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
     outputs:
       short_sha: ${{ steps.sha.outputs.short }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - id: sha
         run: echo "short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       # Client
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
@@ -38,11 +41,11 @@ jobs:
           pnpm check
 
       # Server
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: zulu
           java-version: 25
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@18f1c6724d5bcb313b5c5ef536430a31e5c5b455 # v4.4.0
       - name: Build server
         run: |
           cd server
@@ -61,7 +64,8 @@ jobs:
       dockerfile: Dockerfile.native-build
       self_contained: true
       build_version: main-${{ needs.build.outputs.short_sha }}
-    secrets: inherit
+    secrets:
+      GH_PACKAGES_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
   deploy-main:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -69,11 +73,12 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment: demo
     concurrency:
       group: fold-main-deploy
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Deploy to Nomad
         env:

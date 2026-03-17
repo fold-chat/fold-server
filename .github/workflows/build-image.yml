@@ -15,7 +15,7 @@ on:
         description: Dockerfile path
         required: false
         type: string
-        default: Dockerfile.preview
+        default: Dockerfile.native-build
       self_contained:
         description: Skip client/server pre-build (Dockerfile handles everything)
         required: false
@@ -26,6 +26,11 @@ on:
         required: false
         type: string
         default: snapshot
+      checkout_ref:
+        description: Git ref to checkout (defaults to triggering event ref)
+        required: false
+        type: string
+        default: ''
     secrets:
       GH_PACKAGES_TOKEN:
         required: true
@@ -48,14 +53,16 @@ jobs:
     outputs:
       image_ref: ${{ steps.meta.outputs.image_ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
 
       # Pre-build (skipped for self-contained Dockerfiles like Dockerfile.native-build)
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
         if: ${{ !inputs.self_contained }}
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         if: ${{ !inputs.self_contained }}
         with:
           node-version: 24
@@ -69,12 +76,12 @@ jobs:
           pnpm build
           mkdir -p ../server/src/main/resources/META-INF/resources
           cp -r build/* ../server/src/main/resources/META-INF/resources/
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         if: ${{ !inputs.self_contained }}
         with:
           distribution: zulu
           java-version: 25
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@18f1c6724d5bcb313b5c5ef536430a31e5c5b455 # v4.4.0
         if: ${{ !inputs.self_contained }}
       - name: Build server uber-jar
         if: ${{ !inputs.self_contained }}
@@ -82,7 +89,7 @@ jobs:
           cd server
           ./gradlew quarkusBuild -Dquarkus.package.jar.type=uber-jar
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -94,7 +101,7 @@ jobs:
           echo "image_ref=${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
         with:
           context: .
           file: ${{ inputs.dockerfile }}
