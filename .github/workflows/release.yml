@@ -216,7 +216,7 @@ jobs:
           cat > docker/amd64/Dockerfile <<'EOF'
           FROM gcr.io/distroless/base-nossl-debian12
           WORKDIR /app
-          COPY build/fold-runner /app/fold
+          COPY fold-runner /app/fold
           COPY extracted-native/native/linux-amd64/liblibsql.so /app/liblibsql.so
           EXPOSE 8080
           ENTRYPOINT ["/app/fold"]
@@ -225,7 +225,7 @@ jobs:
           cat > docker/arm64/Dockerfile <<'EOF'
           FROM gcr.io/distroless/base-nossl-debian12
           WORKDIR /app
-          COPY build/fold-runner /app/fold
+          COPY fold-runner /app/fold
           COPY extracted-native/native/linux-aarch64/liblibsql.so /app/liblibsql.so
           EXPOSE 8080
           ENTRYPOINT ["/app/fold"]
@@ -274,16 +274,16 @@ jobs:
           mkdir -p release
           cp artifacts/fold-jar/fold-runner.jar release/fold.jar
           # Linux amd64
-          cp artifacts/native-linux-amd64/build/fold-runner release/fold-linux-amd64
+          cp artifacts/native-linux-amd64/fold-runner release/fold-linux-amd64
           cp artifacts/native-linux-amd64/extracted-native/native/linux-amd64/liblibsql.so release/liblibsql-linux-amd64.so
           # Linux arm64
-          cp artifacts/native-linux-arm64/build/fold-runner release/fold-linux-arm64
+          cp artifacts/native-linux-arm64/fold-runner release/fold-linux-arm64
           cp artifacts/native-linux-arm64/extracted-native/native/linux-aarch64/liblibsql.so release/liblibsql-linux-arm64.so
           # macOS arm64
-          cp artifacts/native-macos-arm64/build/fold-runner release/fold-darwin-arm64
+          cp artifacts/native-macos-arm64/fold-runner release/fold-darwin-arm64
           cp artifacts/native-macos-arm64/extracted-native/native/darwin-aarch64/liblibsql.dylib release/liblibsql-darwin-arm64.dylib
           # Windows amd64
-          cp artifacts/native-windows-amd64/build/fold-runner.exe release/fold-windows-amd64.exe
+          cp artifacts/native-windows-amd64/fold-runner.exe release/fold-windows-amd64.exe
           cp artifacts/native-windows-amd64/extracted-native/native/windows-amd64/libsql.dll release/libsql-windows-amd64.dll
       - uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
         with:
