@@ -41,7 +41,7 @@ public class InviteResource {
         }
         Long maxUses = permissionService.hasServerPermission(sc.getUserId(), Permission.MANAGE_INVITES)
                 ? req.max_uses()
-                : 1L;
+                : Long.valueOf(1L);
         inviteRepo.create(id, code, sc.getUserId(), req.description().strip(), maxUses, req.expires_at());
         var invite = inviteRepo.findByCode(code);
         auditLogService.log(sc.getUserId(), "INVITE_CREATE", "invite", id, Map.of("code", code));
