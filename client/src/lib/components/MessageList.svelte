@@ -5,7 +5,8 @@ import type { Message } from '$lib/api/messages.js';
 import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, applyRoleColors } from '$lib/utils/markdown.js';
 	import { getYoutubeEmbedEnabled } from '$lib/stores/auth.svelte.js';
 	import YouTubeEmbed from './YouTubeEmbed.svelte';
-	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
+import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
+	import { getMemberRoleColor } from '$lib/stores/members.svelte.js';
 	import { findCustomEmojiByName } from '$lib/stores/emoji.svelte.js';
 	import EmojiPicker from './EmojiPicker.svelte';
 	import CollapsibleContent from './CollapsibleContent.svelte';
@@ -42,7 +43,8 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 		onSaveEdit,
 		onDelete,
 		onStartThread,
-		onOpenThread
+		onOpenThread,
+		onQuoteReply
 	}: {
 		messages: Message[];
 		loading?: boolean;
@@ -65,6 +67,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 		onDelete?: (id: string) => void;
 		onStartThread?: (messageId: string) => void;
 		onOpenThread?: (thread: Thread) => void;
+		onQuoteReply?: (msg: Message) => void;
 	} = $props();
 
 	let scrollContainer = $state<HTMLDivElement | null>(null);
@@ -249,6 +252,24 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 
 	function handleContentClick(e: MouseEvent) {
 		const target = e.target as HTMLElement;
+
+		// Handle quote link clicks — scroll to quoted message and highlight
+		const quoteLink = target.closest('a[href^="#msg-"]') as HTMLAnchorElement | null;
+		if (quoteLink) {
+			e.preventDefault();
+			const msgId = quoteLink.getAttribute('href')?.replace('#msg-', '');
+			if (msgId && scrollContainer) {
+				const el = scrollContainer.querySelector(`[data-message-id="${msgId}"]`) as HTMLElement | null;
+				if (el) {
+					el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					el.classList.remove('highlighted');
+					void el.offsetWidth;
+					el.classList.add('highlighted');
+				}
+			}
+			return;
+		}
+
 		const mention = target.closest('.mention[data-user-id]') as HTMLElement | null;
 		if (mention) {
 			e.preventDefault();
@@ -289,7 +310,8 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 	{#each messages as msg, i}
 			{@const newGroup = threadMode ? true : isNewGroup(msg, messages[i - 1])}
 			{@const msgThread = threadLookup?.(msg.id)}
-		<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id} class:highlighted={highlightMessageId === msg.id} class:thread-msg={threadMode} data-message-id={msg.id}>
+			{@const roleColor = getMemberRoleColor(msg.author_id)}
+		<div class="message" class:grouped={!newGroup} class:editing={editingId === msg.id} class:highlighted={highlightMessageId === msg.id} class:thread-msg={threadMode} data-message-id={msg.id} id="msg-{msg.id}">
 				{#if newGroup}
 					<div class="message-header">
 						{#if msg.author_avatar_url}
@@ -297,7 +319,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 						{:else}
 							<div class="msg-avatar msg-avatar-fallback">{(msg.author_display_name || msg.author_username || '?')[0].toUpperCase()}</div>
 						{/if}
-						<button class="author" onclick={() => openMemberProfile(msg.author_id)}>{ msg.author_display_name || msg.author_username || 'Unknown'}</button>
+						<button class="author" style:color={roleColor} onclick={() => openMemberProfile(msg.author_id)}>{ msg.author_display_name || msg.author_username || 'Unknown'}</button>
 						<span class="timestamp">{formatTimestamp(msg.created_at)}</span>
 					</div>
 				{/if}
@@ -308,7 +330,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 							bind:this={editInput}
 							bind:value={localEditContent}
 							onkeydown={handleEditKeydown}
-							rows="2"
+							rows="5"
 						></textarea>
 						<div class="edit-actions">
 							<button class="btn-sm" onclick={() => onCancelEdit?.()}>Cancel</button>
@@ -325,7 +347,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 								<img src={klipyLogo} alt="KLIPY" class="klipy-watermark" />
 							</div>
 						{:else}
-							<CollapsibleContent>
+							<CollapsibleContent disabled={threadMode}>
 							<div class="content" class:emoji-only={isEmojiOnly(msg.content)} use:applyRoleColors>{@html renderMarkdown(msg.content, { mentions: msg.mentions, mention_roles: msg.mention_roles, mention_everyone: msg.mention_everyone })}</div>
 								{#if getYoutubeEmbedEnabled()}
 									{#each extractYouTubeVideoIds(msg.content) as videoId}
@@ -456,6 +478,9 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 					{/if}
 					{#if canCreateThreads && !msgThread && !msg.thread_id}
 						<button class="action-btn" onclick={() => onStartThread?.(msg.id)} title="Start Thread">💬</button>
+					{/if}
+					{#if threadMode && onQuoteReply}
+						<button class="action-btn" onclick={() => onQuoteReply?.(msg)} title="Quote Reply"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/></svg></button>
 					{/if}
 				{#if (msg.author_id === currentUserId && canManageOwnMessages) || canManageMessages}
 					<button class="action-btn" onclick={() => onStartEdit?.(msg.id, msg.content)} title="Edit">✏️</button>
@@ -718,6 +743,7 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 		padding: 0.15rem 0.3rem;
 		font-size: 0.75rem;
 		border-radius: 3px;
+		color: var(--text-muted);
 	}
 
 	.action-btn:hover {
@@ -1175,5 +1201,17 @@ import { renderMarkdown, formatTimestamp, isEmojiOnly, extractYouTubeVideoIds, a
 	.message.thread-msg .message-actions {
 		top: 0.5rem;
 		right: 0.75rem;
+	}
+
+	/* Connector line between thread replies */
+	.message.thread-msg + .message.thread-msg::before {
+		content: '';
+		position: absolute;
+		left: calc(1rem + 15px);
+		top: -0.5rem;
+		height: 0.5rem;
+		width: 2px;
+		background: var(--border);
+		pointer-events: none;
 	}
 </style>

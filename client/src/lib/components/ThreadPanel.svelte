@@ -14,6 +14,7 @@
 	import { PermissionName } from '$lib/permissions.js';
 	import { send } from '$lib/stores/ws.svelte.js';
 import { formatTimestamp, renderMarkdown, isEmojiOnly } from '$lib/utils/markdown.js';
+	import { getMemberRoleColor } from '$lib/stores/members.svelte.js';
 	import CollapsibleContent from './CollapsibleContent.svelte';
 	import MessageList from './MessageList.svelte';
 	import MessageCompose from './MessageCompose.svelte';
@@ -224,7 +225,7 @@ import { formatTimestamp, renderMarkdown, isEmojiOnly } from '$lib/utils/markdow
 					<div class="parent-loading">Loading original message...</div>
 			{:else if parentMessage}
 					<div class="parent-header">
-						<span class="parent-author">{parentMessage.author_display_name || parentMessage.author_username || 'Unknown'}</span>
+					<span class="parent-author" style:color={getMemberRoleColor(parentMessage.author_id)}>{parentMessage.author_display_name || parentMessage.author_username || 'Unknown'}</span>
 						<span class="parent-time">{formatTimestamp(parentMessage.created_at)}</span>
 					</div>
 					<CollapsibleContent>

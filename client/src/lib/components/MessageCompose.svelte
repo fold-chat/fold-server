@@ -16,7 +16,7 @@
 		preview?: string;
 	}
 
-	let { onSend, onTyping, disabled = false, canUploadFiles = true, channelId = null, forumMode = false }: { onSend: (content: string, attachmentIds?: string[]) => Promise<void> | void; onTyping?: () => void; disabled?: boolean; canUploadFiles?: boolean; channelId?: string | null; forumMode?: boolean } = $props();
+	let { onSend, onTyping, disabled = false, canUploadFiles = true, channelId = null, forumMode = false, pendingInsert = null, onInsertConsumed }: { onSend: (content: string, attachmentIds?: string[]) => Promise<void> | void; onTyping?: () => void; disabled?: boolean; canUploadFiles?: boolean; channelId?: string | null; forumMode?: boolean; pendingInsert?: string | null; onInsertConsumed?: () => void } = $props();
 
 	let content = $state('');
 	let textarea = $state<HTMLTextAreaElement | null>(null);
@@ -306,6 +306,17 @@
 		}
 		window.addEventListener('fold:toggle-emoji', onToggleEmoji);
 		return () => window.removeEventListener('fold:toggle-emoji', onToggleEmoji);
+	});
+
+	$effect(() => {
+		if (pendingInsert) {
+			content = pendingInsert + content;
+			onInsertConsumed?.();
+			requestAnimationFrame(() => {
+				autoResize();
+				textarea?.focus();
+			});
+		}
 	});
 </script>
 

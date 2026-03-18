@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { getThreads, createThread } from '$lib/api/threads.js';
+	import { getThreads } from '$lib/api/threads.js';
 	import type { Thread } from '$lib/api/threads.js';
-	import { getChannelThreads, setChannelThreads, addChannelThread } from '$lib/stores/threads.svelte.js';
+	import { getChannelThreads, setChannelThreads } from '$lib/stores/threads.svelte.js';
 	import { hasChannelPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { getChannelById, getCategories } from '$lib/stores/channels.svelte.js';
-import MessageCompose from './MessageCompose.svelte';
-	import { contentPreview } from '$lib/utils/markdown.js';
+import { contentPreview } from '$lib/utils/markdown.js';
+	import { getMemberRoleColor } from '$lib/stores/members.svelte.js';
 
 	let { channelId, channelName, channelTopic = null, channelDescription = null }: { channelId: string; channelName: string; channelTopic?: string | null; channelDescription?: string | null } = $props();
 
@@ -16,7 +16,6 @@ import MessageCompose from './MessageCompose.svelte';
 	let channel = $derived(getChannelById(channelId));
 	let isArchived = $derived(!!channel?.archived_at);
 	let canCreate = $derived(!isArchived && hasChannelPermission(channelId, PermissionName.CREATE_THREADS));
-	let canUploadFiles = $derived(hasChannelPermission(channelId, PermissionName.UPLOAD_FILES));
 	let categoryName = $derived.by(() => {
 		const ch = getChannelById(channelId);
 		if (!ch?.category_id) return null;
@@ -25,9 +24,6 @@ import MessageCompose from './MessageCompose.svelte';
 
 	let loading = $state(false);
 	let hasMore = $state(false);
-	let showNewPost = $state(false);
-	let newTitle = $state('');
-	let submitting = $state(false);
 
 	$effect(() => {
 		const chId = channelId;
@@ -68,23 +64,6 @@ import MessageCompose from './MessageCompose.svelte';
 		}
 	}
 
-	async function handleNewPost(content: string, attachmentIds?: string[]) {
-		const title = newTitle.trim();
-		if (!title || !content.trim()) return;
-		submitting = true;
-		try {
-			const thread = await createThread(channelId, { title, content, attachment_ids: attachmentIds });
-			addChannelThread(thread);
-			showNewPost = false;
-			newTitle = '';
-			goto(`/channels/${channelId}/threads/${thread.id}`);
-		} catch {
-			// handle error
-		} finally {
-			submitting = false;
-		}
-	}
-
 	function openThread(thread: Thread) {
 		goto(`/channels/${channelId}/threads/${thread.id}`);
 	}
@@ -120,8 +99,8 @@ import MessageCompose from './MessageCompose.svelte';
 			{/if}
 		</div>
 		{#if canCreate}
-			<button class="new-thread-btn" onclick={() => { showNewPost = !showNewPost; }}>
-				{showNewPost ? 'Cancel' : '+ New Thread'}
+			<button class="new-thread-btn" onclick={() => goto(`/channels/${channelId}/threads/new`)}>
+				+ New Thread
 			</button>
 		{/if}
 	</div>
@@ -132,20 +111,6 @@ import MessageCompose from './MessageCompose.svelte';
 
 	{#if channelDescription}
 		<div class="forum-description">{channelDescription}</div>
-	{/if}
-
-	<!-- New post form -->
-	{#if showNewPost}
-		<div class="new-post-card">
-			<input
-				class="new-post-title"
-				type="text"
-				placeholder="Thread title"
-				bind:value={newTitle}
-				disabled={submitting}
-			/>
-			<MessageCompose onSend={handleNewPost} disabled={submitting || !newTitle.trim()} {canUploadFiles} forumMode />
-		</div>
 	{/if}
 
 	<!-- Thread list -->
@@ -165,7 +130,7 @@ import MessageCompose from './MessageCompose.svelte';
 					{:else}
 						<div class="avatar avatar-sm avatar-fallback">{(thread.author_display_name || thread.author_username || '?')[0].toUpperCase()}</div>
 					{/if}
-					<span class="author-name">{thread.author_display_name || thread.author_username || 'Unknown'}</span>
+					<span class="author-name" style:color={getMemberRoleColor(thread.author_id)}>{thread.author_display_name || thread.author_username || 'Unknown'}</span>
 					<span class="card-dot">·</span>
 					<span class="card-time">{timeAgo(thread.created_at)}</span>
 				</div>
@@ -312,33 +277,6 @@ import MessageCompose from './MessageCompose.svelte';
 		opacity: 0.9;
 	}
 
-	/* ── New post form ── */
-	.new-post-card {
-		margin: 0.75rem 1rem;
-		padding: 0.75rem;
-		border: 1px solid var(--border);
-		border-radius: 8px;
-		background: var(--bg-surface);
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.new-post-title {
-		background: var(--bg-surface);
-		border: 1px solid var(--border);
-		color: var(--text);
-		border-radius: 6px;
-		padding: 0.6rem 0.75rem;
-		font-size: 0.9rem;
-		font-family: inherit;
-	}
-
-	.new-post-title:focus {
-		outline: none;
-		border-color: var(--accent, #5865f2);
-	}
-
 	/* ── Thread list ── */
 	.thread-list {
 		flex: 1;
@@ -372,6 +310,7 @@ import MessageCompose from './MessageCompose.svelte';
 
 	.thread-card.pinned {
 		border-left: 3px solid var(--accent, #5865f2);
+		background: color-mix(in srgb, var(--accent, #5865f2) 5%, var(--bg-surface, rgba(255, 255, 255, 0.02)));
 	}
 
 	.pinned-badge {

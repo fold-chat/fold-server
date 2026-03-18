@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 
-	let { children }: { children: Snippet } = $props();
+	let { children, disabled = false }: { children: Snippet; disabled?: boolean } = $props();
 
 	let expanded = $state(false);
 	let overflows = $state(false);
@@ -17,6 +17,9 @@
 	}
 </script>
 
+{#if disabled}
+	{@render children()}
+{:else}
 <div class="collapsible" class:expanded class:overflows use:collapsible>
 	{@render children()}
 </div>
@@ -24,6 +27,7 @@
 	<button class="expand-toggle" onclick={() => expanded = !expanded}>
 		{expanded ? 'Show less' : 'Show more'}
 	</button>
+{/if}
 {/if}
 
 <style>

@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { untrack } from 'svelte';
 import { getThread, getThreadMessages as fetchThreadMessages, replyToThread, updateThreadReadState, updateThread, deleteThread as apiDeleteThread } from '$lib/api/threads.js';
-import { editMessage, deleteMessage } from '$lib/api/messages.js';
+import { editMessage, deleteMessage, type Message } from '$lib/api/messages.js';
 	import {
 		getActiveThread, setActiveThread,
 		getThreadMessages, setThreadMessages, prependThreadMessages,
@@ -16,8 +16,8 @@ import { PermissionName } from '$lib/permissions.js';
 import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } from '$lib/utils/markdown.js';
 	import { getYoutubeEmbedEnabled } from '$lib/stores/auth.svelte.js';
 	import YouTubeEmbed from '$lib/components/YouTubeEmbed.svelte';
-	import CollapsibleContent from '$lib/components/CollapsibleContent.svelte';
-	import { send } from '$lib/stores/ws.svelte.js';
+import { send } from '$lib/stores/ws.svelte.js';
+	import { getMemberRoleColor } from '$lib/stores/members.svelte.js';
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -74,6 +74,7 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 	let pendingDeleteId = $state<string | null>(null);
 	let deleteThreadConfirmOpen = $state(false);
 	let lockConfirmOpen = $state(false);
+	let pendingInsert = $state<string | null>(null);
 
 	$effect(() => {
 		const tId = threadId;
@@ -243,6 +244,12 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 		goto(`/channels/${channelId}`);
 	}
 
+	function handleQuoteReply(msg: Message) {
+		const preview = contentPreview(msg.content, 100);
+		const author = msg.author_display_name || msg.author_username || 'Unknown';
+		pendingInsert = `> ${preview}\n> — @${author} [↩](#msg-${msg.id})\n\n`;
+	}
+
 	function timeAgo(dateStr: string): string {
 		const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
 		const diff = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -287,51 +294,50 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 					<div class="op-avatar op-avatar-fallback">{(thread.author_display_name || thread.author_username || '?')[0].toUpperCase()}</div>
 				{/if}
 				<div class="op-author-info">
-					<span class="op-name">{thread.author_display_name || thread.author_username || 'Unknown'}</span>
+					<span class="op-name" style:color={getMemberRoleColor(thread.author_id)}>{thread.author_display_name || thread.author_username || 'Unknown'}</span>
 					<span class="op-time">{timeAgo(thread.created_at)}</span>
 				</div>
 			</div>
 			<h1 class="thread-title">{thread.title || 'Thread'}</h1>
 			{#if originalPost}
-				<CollapsibleContent>
 				<div class="op-content" class:emoji-only={isEmojiOnly(originalPost.content)}>{@html renderMarkdown(originalPost.content, { mentions: originalPost.mentions, mention_roles: originalPost.mention_roles, mention_everyone: originalPost.mention_everyone })}</div>
-					{#if getYoutubeEmbedEnabled()}
-						{#each extractYouTubeVideoIds(originalPost.content) as videoId}
-							<YouTubeEmbed {videoId} />
-						{/each}
-					{/if}
-					{#if originalPost.attachments?.length}
-						<div class="op-attachments">
-							{#each originalPost.attachments as att}
-							{#if att.mime_type.startsWith('image/')}
-									<div class="op-attachment-wrapper">
-										<img class="op-attachment-img" src={att.url} alt={att.original_name} onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
-										<div class="image-broken hidden">
-											<span class="image-broken-icon">🖼️</span>
-											<span class="image-broken-text">{att.original_name ?? 'Image'} could not be loaded</span>
-										</div>
+				{#if getYoutubeEmbedEnabled()}
+					{#each extractYouTubeVideoIds(originalPost.content) as videoId}
+						<YouTubeEmbed {videoId} />
+					{/each}
+				{/if}
+				{#if originalPost.attachments?.length}
+					<div class="op-attachments">
+						{#each originalPost.attachments as att}
+						{#if att.mime_type.startsWith('image/')}
+								<div class="op-attachment-wrapper">
+									<img class="op-attachment-img" src={att.url} alt={att.original_name} onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+									<div class="image-broken hidden">
+										<span class="image-broken-icon">🖼️</span>
+										<span class="image-broken-text">{att.original_name ?? 'Image'} could not be loaded</span>
 									</div>
-								{:else}
-									<a class="op-attachment-file" href={att.url} download={att.original_name}>
-										📄 {att.original_name}
-									</a>
-								{/if}
-							{/each}
-						</div>
-					{/if}
-				</CollapsibleContent>
+								</div>
+							{:else}
+								<a class="op-attachment-file" href={att.url} download={att.original_name}>
+									📄 {att.original_name}
+								</a>
+							{/if}
+						{/each}
+					</div>
+				{/if}
 			{:else if thread.first_message_content}
 				<p class="op-preview">{contentPreview(thread.first_message_content)}</p>
 			{/if}
-			<div class="thread-meta">
-				<span class="meta-item">💬 {replyCountLabel}</span>
-				{#if thread.pinned}
-					<span class="badge badge-pin">📌 Pinned</span>
-				{/if}
-				{#if isLocked}
-					<span class="badge badge-lock">🔒 Locked</span>
-				{/if}
-			</div>
+			{#if thread.pinned || isLocked}
+				<div class="thread-meta">
+					{#if thread.pinned}
+						<span class="badge badge-pin">📌 Pinned</span>
+					{/if}
+					{#if isLocked}
+						<span class="badge badge-lock">🔒 Locked</span>
+					{/if}
+				</div>
+			{/if}
 			{#if canPin || canLock || canDeleteThread}
 				<div class="thread-actions">
 					{#if canPin}
@@ -357,6 +363,9 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 	{#if loadError}
 		<div class="error-state">Thread not found or could not be loaded.</div>
 	{:else}
+		{#if replies.length > 0}
+			<div class="replies-header">{replyCountLabel}</div>
+		{/if}
 		<MessageList
 			messages={replies}
 			{loading}
@@ -375,12 +384,13 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 			onCancelEdit={cancelEdit}
 			onSaveEdit={handleEdit}
 			onDelete={handleDelete}
+			onQuoteReply={canSend ? handleQuoteReply : undefined}
 		/>
 
 		{#if isLocked && !canSend}
 			<div class="locked-placeholder">🔒 This thread is locked</div>
 		{:else}
-			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} {canUploadFiles} forumMode />
+			<MessageCompose onSend={handleSend} onTyping={handleTyping} disabled={!canSend} {canUploadFiles} forumMode {pendingInsert} onInsertConsumed={() => pendingInsert = null} />
 		{/if}
 	{/if}
 </div>
@@ -480,8 +490,8 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 	}
 
 	.op-avatar {
-		width: 40px;
-		height: 40px;
+		width: 48px;
+		height: 48px;
 		border-radius: 50%;
 		object-fit: cover;
 		flex-shrink: 0;
@@ -712,5 +722,14 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 	.action-btn-danger:hover {
 		color: var(--danger, #e74c3c);
 		border-color: var(--danger, #e74c3c);
+	}
+
+	.replies-header {
+		padding: 0.6rem 1.5rem;
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		border-bottom: 1px solid var(--border);
+		text-transform: capitalize;
 	}
 </style>

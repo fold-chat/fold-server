@@ -22,6 +22,18 @@ export function removeMember(id: string) {
 	members = members.filter(m => m.id !== id);
 }
 
+const ROLE_PRIORITY: Record<string, number> = { owner: 0, admin: 1, moderator: 2, member: 3 };
+
+/** Get top role color for a user by ID */
+export function getMemberRoleColor(userId: string): string | null {
+	const member = members.find(m => m.id === userId);
+	if (!member) return null;
+	const roles: import('$lib/api/users.js').RoleBadge[] = Array.isArray(member.roles) ? member.roles : [];
+	if (roles.length === 0) return null;
+	const top = [...roles].sort((a, b) => (ROLE_PRIORITY[a.name?.toLowerCase()] ?? 99) - (ROLE_PRIORITY[b.name?.toLowerCase()] ?? 99))[0];
+	return top?.color ?? null;
+}
+
 /** Update a role badge (name/color) across all members who have that role */
 export function updateMemberRoleBadge(roleId: string, name: string, color: string | null) {
 	members = members.map(m => {
