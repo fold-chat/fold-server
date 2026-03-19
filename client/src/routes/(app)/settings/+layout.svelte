@@ -40,6 +40,7 @@
 		'/settings/voice': 'Voice',
 		'/settings/media': 'Media',
 		'/settings/maintenance': 'Maintenance',
+		'/settings/backups': 'Backups',
 		'/settings/audit-log': 'Audit Log'
 	};
 
@@ -140,6 +141,9 @@
 			{/if}
 			{#if canManageServer}
 				<a class="nav-item" class:active={isActive('/settings/maintenance')} href="/settings/maintenance">Maintenance</a>
+			{/if}
+			{#if canManageServer}
+				<a class="nav-item" class:active={isActive('/settings/backups')} href="/settings/backups">Backups</a>
 			{/if}
 			{#if canViewAudit}
 				<a class="nav-item" class:active={isActive('/settings/audit-log')} href="/settings/audit-log">Audit Log</a>

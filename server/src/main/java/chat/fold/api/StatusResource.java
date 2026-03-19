@@ -1,6 +1,7 @@
 package chat.fold.api;
 
 import chat.fold.db.DatabaseService;
+import chat.fold.service.BackupService;
 import chat.fold.service.MaintenanceService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
@@ -16,10 +17,19 @@ public class StatusResource {
 
     @Inject DatabaseService db;
     @Inject MaintenanceService maintenanceService;
+    @Inject BackupService backupService;
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public Map<String, Object> status() {
+        if (backupService.isRestartRequired()) {
+            var result = new LinkedHashMap<String, Object>();
+            result.put("status", "RESTART_REQUIRED");
+            result.put("restart_required", true);
+            result.put("message", "Backup restored. Please restart the server.");
+            return result;
+        }
+
         var result = new LinkedHashMap<String, Object>();
         result.put("status", maintenanceService.isEnabled() ? "MAINTENANCE" : "UP");
         result.put("version", "0.1.0");
@@ -29,6 +39,7 @@ public class StatusResource {
         if (maintenanceService.isEnabled()) {
             result.put("maintenance_message", maintenanceService.getMessage());
         }
+        result.put("restart_required", false);
         return result;
     }
 }

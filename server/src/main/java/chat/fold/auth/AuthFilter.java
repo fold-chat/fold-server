@@ -3,6 +3,7 @@ package chat.fold.auth;
 import chat.fold.db.UserRepository;
 import chat.fold.security.Permission;
 import chat.fold.security.PermissionService;
+import chat.fold.service.BackupService;
 import chat.fold.service.MaintenanceService;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
@@ -31,10 +32,27 @@ public class AuthFilter implements ContainerRequestFilter {
     @Inject
     PermissionService permissionService;
 
+    @Inject
+    BackupService backupService;
+
     @Override
     public void filter(ContainerRequestContext ctx) {
         String path = ctx.getUriInfo().getPath(); // path without leading /api/v0 context
         String method = ctx.getMethod();
+
+        // Block all requests (except status) when restart is required after restore
+        if (backupService.isRestartRequired()) {
+            String p = path.startsWith("/") ? path.substring(1) : path;
+            if (!p.equals("api/v0/status")) {
+                ctx.abortWith(Response.status(503)
+                        .entity(java.util.Map.of(
+                                "error", "restart_required",
+                                "message", "Backup restored. Please restart the server."
+                        ))
+                        .build());
+                return;
+            }
+        }
 
         if (isPublicPath(path, method)) return;
 

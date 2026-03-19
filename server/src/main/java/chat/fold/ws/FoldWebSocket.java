@@ -3,6 +3,7 @@ package chat.fold.ws;
 import chat.fold.auth.JwtService;
 import chat.fold.config.FoldMediaConfig;
 import chat.fold.config.RuntimeConfigService;
+import chat.fold.service.BackupService;
 import chat.fold.service.MediaProcessingService;
 import chat.fold.db.*;
 import chat.fold.event.*;
@@ -46,11 +47,26 @@ public class FoldWebSocket {
     @Inject EmojiRepository emojiRepo;
     @Inject MaintenanceService maintenanceService;
     @Inject MediaProcessingService mediaProcessingService;
+    @Inject BackupService backupService;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
     @OnOpen
     public void onOpen(WebSocketConnection connection) {
+        // Reject if restart required
+        if (backupService.isRestartRequired()) {
+            try {
+                connection.sendText("{\"op\":\"SERVER_RESTART_REQUIRED\",\"d\":{\"message\":\"Backup restored. Please restart the server.\"}}")
+                        .subscribe().with(
+                                v -> connection.close().subscribe().with(v2 -> {}, e2 -> {}),
+                                e -> connection.close().subscribe().with(v2 -> {}, e2 -> {})
+                        );
+            } catch (Exception e) {
+                connection.close().subscribe().with(v -> {}, e2 -> {});
+            }
+            return;
+        }
+
         // Parse cookie from handshake headers
         var cookieHeader = connection.handshakeRequest().header("Cookie");
         String token = parseCookie(cookieHeader, "fold_access");

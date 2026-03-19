@@ -34,6 +34,7 @@ dependencies {
     implementation("org.bouncycastle:bcprov-jdk18on:1.80")
     implementation("io.quarkus:quarkus-rest-client-jackson")
     implementation("io.github.conorrr:libsql-java:0.2.3")
+    implementation("org.apache.commons:commons-compress:1.27.1")
     compileOnly("org.graalvm.sdk:nativeimage:24.2.0")
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")

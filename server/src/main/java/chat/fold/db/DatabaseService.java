@@ -65,10 +65,12 @@ public class DatabaseService {
     }
 
     @PreDestroy
-    void shutdown() {
+    public void shutdown() {
         if (database != null) {
             database.close();
+            database = null;
         }
+        connectionPool.remove();
     }
 
     public Connection getConnection() {

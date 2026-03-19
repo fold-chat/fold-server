@@ -61,6 +61,12 @@
 	resize: vertical;
 }
 
+.form-group input:disabled,
+.form-group textarea:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
 .form-actions {
 	display: flex;
 	gap: 0.5rem;
