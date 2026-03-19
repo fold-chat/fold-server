@@ -1,5 +1,6 @@
 package chat.fold.security;
 
+import chat.fold.db.DmRepository;
 import chat.fold.db.RoleRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import static org.mockito.Mockito.*;
 class PermissionServiceTest {
 
     private RoleRepository roleRepo;
+    private DmRepository dmRepo;
     private PermissionService service;
 
     // Permission combos for readability
@@ -22,11 +24,15 @@ class PermissionServiceTest {
     @BeforeEach
     void setup() throws Exception {
         roleRepo = mock(RoleRepository.class);
+        dmRepo = mock(DmRepository.class);
         service = new PermissionService();
-        // Inject mock via reflection (no CDI in unit tests)
+        // Inject mocks via reflection (no CDI in unit tests)
         var field = PermissionService.class.getDeclaredField("roleRepo");
         field.setAccessible(true);
         field.set(service, roleRepo);
+        var dmField = PermissionService.class.getDeclaredField("dmRepo");
+        dmField.setAccessible(true);
+        dmField.set(service, dmRepo);
     }
 
     // --- Owner bypass ---
