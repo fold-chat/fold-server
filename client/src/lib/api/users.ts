@@ -36,6 +36,8 @@ export interface Member {
 	banned_by: string | null;
 	ban_reason: string | null;
 	banned_by_username: string | null;
+	locked_until: string | null;
+	failed_login_count: number;
 }
 
 export function getMe() {
@@ -86,4 +88,8 @@ export function resetMemberPassword(id: string, new_password: string) {
 		method: 'POST',
 		body: JSON.stringify({ new_password })
 	});
+}
+
+export function unlockMember(id: string) {
+	return api<void>(`/members/${id}/lock`, { method: 'DELETE' });
 }

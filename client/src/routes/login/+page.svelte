@@ -16,6 +16,15 @@
 	const urlReason = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('reason') : null;
 	let error = $state(urlReason ? reasonMessages[urlReason] || '' : '');
 
+	function formatDuration(seconds: number): string {
+		const h = Math.floor(seconds / 3600);
+		const m = Math.floor((seconds % 3600) / 60);
+		if (h > 0 && m > 0) return `${h}h ${m}m`;
+		if (h > 0) return `${h}h`;
+		if (m > 0) return `${m}m`;
+		return `${seconds}s`;
+	}
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 		error = '';
@@ -42,7 +51,7 @@
 				} else if (apiErr.error === 'banned') {
 					error = 'You have been banned from this server.';
 				} else if (apiErr.error === 'account_locked') {
-					error = `Account locked. Try again in ${apiErr.retry_after} seconds.`;
+					error = `Account locked. Try again in ${formatDuration(apiErr.retry_after ?? 0)}.`;
 				} else if (apiErr.status && apiErr.status >= 500) {
 					error = 'Server error. Please try again later.';
 				} else {

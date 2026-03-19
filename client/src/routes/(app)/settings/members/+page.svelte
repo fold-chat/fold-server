@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { getMembers, banMember, unbanMember, resetMemberPassword, type Member } from '$lib/api/users.js';
+	import { getMembers, banMember, unbanMember, resetMemberPassword, unlockMember, type Member } from '$lib/api/users.js';
 	import { assignRole, removeRole } from '$lib/api/roles.js';
 	import { getVoiceModeration, setServerMuteGlobal, clearServerMute, setServerDeafGlobal, clearServerDeaf, type VoiceModeration } from '$lib/api/voice.js';
 	import { getRolesList } from '$lib/stores/roles.svelte.js';
@@ -16,7 +16,7 @@
 	let loading = $state(true);
 	let error = $state('');
 	let editingMember = $state<string | null>(null);
-	let confirmAction = $state<{ type: 'ban' | 'unban' | 'reset-password'; member: Member } | null>(null);
+	let confirmAction = $state<{ type: 'ban' | 'unban' | 'reset-password' | 'unlock'; member: Member } | null>(null);
 	let banReason = $state('');
 	let resetPassword = $state('');
 
@@ -168,9 +168,30 @@
 		return member.banned_at != null;
 	}
 
+	function parseDate(dateStr: string): Date {
+		return new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
+	}
+
+	function isLocked(member: Member): boolean {
+		if (!member.locked_until) return false;
+		return parseDate(member.locked_until) > new Date();
+	}
+
+	function lockTimeRemaining(member: Member): string {
+		if (!member.locked_until) return '';
+		const expiry = parseDate(member.locked_until);
+		const now = new Date();
+		if (expiry <= now) return 'expired';
+		const diffMs = expiry.getTime() - now.getTime();
+		const hours = Math.floor(diffMs / 3_600_000);
+		const mins = Math.floor((diffMs % 3_600_000) / 60_000);
+		if (hours > 0) return `${hours}h ${mins}m remaining`;
+		return `${mins}m remaining`;
+	}
+
 	function formatDate(dateStr: string): string {
 		try {
-			const d = new Date(dateStr + 'Z');
+			const d = parseDate(dateStr);
 			return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 		} catch {
 			return dateStr;
@@ -179,7 +200,7 @@
 
 	function formatDateTime(dateStr: string): string {
 		try {
-			const d = new Date(dateStr + 'Z');
+			const d = parseDate(dateStr);
 			return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 				+ ' at ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 		} catch {
@@ -230,6 +251,10 @@
 		resetPassword = '';
 	}
 
+	function promptUnlock(member: Member) {
+		confirmAction = { type: 'unlock', member };
+	}
+
 	async function executeAction() {
 		if (!confirmAction) return;
 		error = '';
@@ -240,6 +265,8 @@
 				await unbanMember(confirmAction.member.id);
 			} else if (confirmAction.type === 'reset-password') {
 				await resetMemberPassword(confirmAction.member.id, resetPassword);
+			} else if (confirmAction.type === 'unlock') {
+				await unlockMember(confirmAction.member.id);
 			}
 			members = await getMembers();
 		} catch (err) {
@@ -319,6 +346,9 @@
 										{#if isBanned(member)}
 											<span class="banned-badge">Banned</span>
 										{/if}
+										{#if isLocked(member)}
+											<span class="locked-badge" title={lockTimeRemaining(member)}>Locked</span>
+										{/if}
 									</span>
 									{#if member.display_name}
 										<span class="member-username">@{member.username}</span>
@@ -397,6 +427,19 @@
 											</div>
 										</div>
 									{/if}
+									{#if isLocked(member) && canResetPassword}
+										<div class="edit-group">
+											<div class="edit-group-label">Account Lock</div>
+											<div class="ban-info">
+												<div class="ban-info-row"><span class="ban-info-label">Failed attempts</span> {member.failed_login_count}</div>
+												<div class="ban-info-row"><span class="ban-info-label">Locked until</span> {formatDateTime(member.locked_until!)}</div>
+												<div class="ban-info-row"><span class="ban-info-label">Time left</span> {lockTimeRemaining(member)}</div>
+											</div>
+											<div class="edit-btn-row" style="margin-top: 0.4rem;">
+												<button class="btn-sm" onclick={() => promptUnlock(member)}>Unlock Account</button>
+											</div>
+										</div>
+									{/if}
 									{#if isBanned(member) && canBan}
 										<div class="edit-group">
 											<div class="edit-group-label">Ban Info</div>
@@ -460,7 +503,7 @@
 	<div class="modal-overlay" onkeydown={(e) => e.key === 'Escape' && (confirmAction = null)} onclick={() => (confirmAction = null)}>
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div class="modal" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' && (confirmAction = null)}>
-			<h2>{confirmAction.type === 'ban' ? 'Ban' : confirmAction.type === 'unban' ? 'Unban' : 'Reset Password'} — {confirmAction.member.display_name || confirmAction.member.username}</h2>
+		<h2>{confirmAction.type === 'ban' ? 'Ban' : confirmAction.type === 'unban' ? 'Unban' : confirmAction.type === 'unlock' ? 'Unlock Account' : 'Reset Password'} — {confirmAction.member.display_name || confirmAction.member.username}</h2>
 			{#if confirmAction.type === 'ban'}
 				<p class="modal-desc">This user will be permanently banned and unable to rejoin.</p>
 				<div class="form-group">
@@ -469,6 +512,8 @@
 				</div>
 			{:else if confirmAction.type === 'unban'}
 				<p class="modal-desc">This user will be unbanned and able to rejoin.</p>
+			{:else if confirmAction.type === 'unlock'}
+				<p class="modal-desc">This will reset the failed login count and remove the lockout, allowing the user to log in immediately.</p>
 			{:else if confirmAction.type === 'reset-password'}
 				<p class="modal-desc">Set a temporary password. The user will be logged out and forced to change it on next login.</p>
 				<div class="form-group">
@@ -480,6 +525,8 @@
 				<button class="btn-sm" onclick={() => (confirmAction = null)}>Cancel</button>
 				{#if confirmAction.type === 'reset-password'}
 					<button class="btn-sm" onclick={executeAction} disabled={resetPassword.length < 8}>Reset Password</button>
+				{:else if confirmAction.type === 'unlock'}
+					<button class="btn-sm" onclick={executeAction}>Unlock</button>
 				{:else}
 					<button class="btn-sm {confirmAction.type === 'ban' ? 'btn-danger' : ''}" onclick={executeAction}>
 						{confirmAction.type === 'ban' ? 'Ban' : 'Unban'}
@@ -814,6 +861,17 @@
 		border-radius: 3px;
 		margin-left: 0.3rem;
 		font-weight: 500;
+	}
+
+	.locked-badge {
+		font-size: 0.6rem;
+		color: #e67e22;
+		background: rgba(230, 126, 34, 0.15);
+		padding: 0.05rem 0.3rem;
+		border-radius: 3px;
+		margin-left: 0.3rem;
+		font-weight: 500;
+		cursor: help;
 	}
 
 	.btn-active {

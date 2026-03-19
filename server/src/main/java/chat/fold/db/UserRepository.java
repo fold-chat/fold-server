@@ -130,6 +130,7 @@ public class UserRepository {
                 SELECT u.id, u.username, u.display_name, u.avatar_url, u.status_preference,
                        u.status_text, u.bio, u.created_at, u.last_seen_at,
                        u.banned_at, u.banned_by, u.ban_reason,
+                       u.locked_until, u.failed_login_count,
                        u.join_method, i.description AS invite_description,
                        (SELECT u2.username FROM user u2 WHERE u2.id = u.banned_by) AS banned_by_username,
                        JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles
@@ -150,6 +151,7 @@ public class UserRepository {
                 SELECT u.id, u.username, u.display_name, u.avatar_url, u.status_preference,
                        u.status_text, u.bio, u.created_at, u.last_seen_at,
                        u.banned_at, u.banned_by, u.ban_reason,
+                       u.locked_until, u.failed_login_count,
                        u.join_method, i.description AS invite_description,
                        (SELECT u2.username FROM user u2 WHERE u2.id = u.banned_by) AS banned_by_username,
                        JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles

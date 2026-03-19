@@ -56,6 +56,13 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 	}
 
 	if (res.status === 401) {
+		// Auth endpoints handle their own 401s — don't refresh or redirect
+		if (path.startsWith('/auth/')) {
+			const err = (await res.json().catch(() => ({ error: 'invalid_credentials' }))) as ApiError;
+			err.status = 401;
+			throw err;
+		}
+
 		// Attempt refresh once
 		const refreshed = await tryRefresh();
 		if (refreshed) {

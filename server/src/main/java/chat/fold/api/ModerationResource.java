@@ -149,6 +149,26 @@ public class ModerationResource {
         return Response.noContent().build();
     }
 
+    // --- Unlock account ---
+
+    @DELETE
+    @Path("/{id}/lock")
+    public Response unlock(@PathParam("id") String targetId) {
+        var sc = sc();
+        permissionService.requireServerPermission(sc.getUserId(), Permission.RESET_PASSWORDS);
+
+        var target = userRepo.findById(targetId);
+        if (target.isEmpty()) {
+            return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+
+        userRepo.resetFailedLogin(targetId);
+
+        auditLogService.log(sc.getUserId(), "ACCOUNT_UNLOCK", "user", targetId);
+
+        return Response.noContent().build();
+    }
+
     // --- Role assignment ---
 
     @PUT
