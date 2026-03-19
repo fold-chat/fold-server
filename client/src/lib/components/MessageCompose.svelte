@@ -30,8 +30,9 @@
 	let mentionSelectedIndex = $state(0);
 	let rateLimitSeconds = $state(0);
 	let rateLimitTimer: ReturnType<typeof setInterval> | null = null;
+	let sending = $state(false);
 	let rateLimited = $derived(rateLimitSeconds > 0);
-	let canSend = $derived((content.trim().length > 0 || pendingFiles.length > 0) && !rateLimited);
+	let canSend = $derived((content.trim().length > 0 || pendingFiles.length > 0) && !rateLimited && !sending);
 	let showMentionEveryone = $derived(channelId ? hasChannelPermission(channelId, 'MENTION_EVERYONE') : false);
 
 	interface MentionItem {
@@ -176,9 +177,10 @@
 		const trimmed = content.trim();
 		const uploading = pendingFiles.some(f => f.uploading);
 		if (!trimmed && pendingFiles.length === 0) return;
-		if (uploading || rateLimited) return;
+		if (uploading || rateLimited || sending) return;
 
 		const ids = pendingFiles.filter(f => f.id).map(f => f.id!);
+		sending = true;
 		try {
 			await onSend(trimmed, ids.length > 0 ? ids : undefined);
 			content = '';
@@ -188,6 +190,8 @@
 			if (err?.status === 429) {
 				startRateLimit(err.retry_after ?? 10);
 			}
+		} finally {
+			sending = false;
 		}
 	}
 
@@ -393,7 +397,9 @@
 				disabled={disabled || rateLimited}
 			></textarea>
 		</div>
-		<button class="send-btn" onclick={submit} disabled={!canSend || disabled}>Send</button>
+		<button class="send-btn" onclick={submit} disabled={!canSend || disabled} class:sending>
+			{#if sending}<span class="send-spinner"></span> Sending...{:else}Send{/if}
+		</button>
 	</div>
 </div>
 
@@ -511,6 +517,26 @@
 
 	.send-btn:not(:disabled):hover {
 		opacity: 0.9;
+	}
+
+	.send-btn.sending {
+		opacity: 0.7;
+		cursor: wait;
+	}
+
+	.send-spinner {
+		display: inline-block;
+		width: 12px;
+		height: 12px;
+		border: 2px solid rgba(255, 255, 255, 0.3);
+		border-top-color: white;
+		border-radius: 50%;
+		animation: spin 0.6s linear infinite;
+		vertical-align: middle;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 
 	.file-previews {

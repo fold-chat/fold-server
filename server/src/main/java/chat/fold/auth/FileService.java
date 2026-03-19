@@ -181,6 +181,14 @@ public class FileService {
                 thumbFile = null; // moved/cleaned
             }
 
+            // Extract image dimensions
+            Integer width = null, height = null;
+            var dims = mediaService.getImageDimensions(processedFile);
+            if (dims.isPresent()) {
+                width = dims.get()[0];
+                height = dims.get()[1];
+            }
+
             // Store main file
             String hash = sha256(Files.readAllBytes(processedFile));
             String storedName = hash + ext;
@@ -200,7 +208,7 @@ public class FileService {
             } else {
                 id = UUID.randomUUID().toString();
                 fileRepo.create(id, originalName, storedName, mimeType, actualSize, uploaderId,
-                        thumbnailStoredName, "complete", null, null, null);
+                        thumbnailStoredName, "complete", null, width, height);
             }
 
             return Map.of("id", id, "stored_name", storedName,

@@ -15,6 +15,7 @@ import chat.fold.db.ThreadRepository;
 import chat.fold.event.*;
 import chat.fold.security.Permission;
 import chat.fold.security.PermissionService;
+import chat.fold.service.ExternalImageService;
 import chat.fold.util.MentionParser;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -47,6 +48,7 @@ public class MessageResource {
     @Inject EventBus eventBus;
     @Inject DmRepository dmRepo;
     @Inject DmBlockRepository dmBlockRepo;
+    @Inject ExternalImageService externalImageService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -96,7 +98,8 @@ public class MessageResource {
             return Response.status(400).entity(Map.of("error", "content_too_long", "message", "Max 5000 characters")).build();
         }
 
-        messageRepo.updateContent(id, req.content());
+        String editContent = externalImageService.processContent(req.content());
+        messageRepo.updateContent(id, editContent);
         var updated = messageRepo.findByIdWithAuthor(id).map(this::withAttachmentsAndMentions);
         updated.ifPresent(m -> eventBus.publish(Event.of(EventType.MESSAGE_UPDATE, m, Scope.channel((String) msg.get("channel_id")))));
         return updated

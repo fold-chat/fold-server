@@ -270,6 +270,16 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 			return;
 		}
 
+		// Handle proxied image clicks — open lightbox with full-size image
+		const proxyImg = target.closest('img[src*="/api/v0/images/"]') as HTMLImageElement | null;
+		if (proxyImg) {
+			e.preventDefault();
+			const fullUrl = new URL(proxyImg.src, window.location.origin);
+			fullUrl.searchParams.delete('thumb');
+			openLightbox([{ url: fullUrl.pathname + fullUrl.search, name: proxyImg.alt || 'Image' }], 0);
+			return;
+		}
+
 		const mention = target.closest('.mention[data-user-id]') as HTMLElement | null;
 		if (mention) {
 			e.preventDefault();
@@ -283,6 +293,17 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 			scrollContainer.scrollTop = scrollContainer.scrollHeight;
 		}
 	}
+
+	// Catch all image/video load events (including markdown images, GIFs) via capture
+	$effect(() => {
+		if (!scrollContainer) return;
+		function onMediaLoad(e: Event) {
+			const tag = (e.target as HTMLElement)?.tagName;
+			if (tag === 'IMG' || tag === 'VIDEO') scrollToBottomIfNeeded();
+		}
+		scrollContainer.addEventListener('load', onMediaLoad, true);
+		return () => scrollContainer?.removeEventListener('load', onMediaLoad, true);
+	});
 
 	function typingText(users: string[]): string {
 		if (users.length === 0) return '';
@@ -363,7 +384,7 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 										<div class="image-attachments" class:multi={imageAtts.length > 1}>
 											{#each imageAtts as att, idx}
 												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-												<div class="attachment-image-wrapper">
+												<div class="attachment-image-wrapper" style:aspect-ratio={att.width && att.height ? `${att.width} / ${att.height}` : undefined} style:width={att.width ? `min(${att.width}px, 400px)` : undefined} style:max-width="100%" style:max-height="300px">
 													<img
 														src={att.thumbnail_url ?? att.url}
 														alt={att.original_name}
@@ -872,6 +893,10 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 		position: relative;
 		display: inline-block;
 		margin-top: 0.25rem;
+		min-width: 200px;
+		min-height: 150px;
+		background: var(--bg-surface);
+		border-radius: 6px;
 	}
 
 	.gif-image {
@@ -905,7 +930,15 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	}
 
 	.attachment-image-wrapper {
-		display: contents;
+		display: block;
+		overflow: hidden;
+		border-radius: 6px;
+	}
+
+	.attachment-image-wrapper .attachment-image {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
 	}
 
 	.image-broken {

@@ -16,6 +16,9 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 
 @ApplicationScoped
 public class MediaProcessingService {
@@ -257,18 +260,27 @@ public class MediaProcessingService {
 
     /** Generate thumbnail for image, returns path to thumbnail. */
     public Optional<Path> generateImageThumbnail(Path input) {
-        return generateImageThumbnail(input, null);
+        return generateImageThumbnail(input, null, -1);
     }
 
     /** Generate thumbnail for image. Tries ffmpeg → sips → ImageMagick. */
     public Optional<Path> generateImageThumbnail(Path input, String mimeType) {
+        return generateImageThumbnail(input, mimeType, -1);
+    }
+
+    /** Generate thumbnail with optional max height. maxHeight <= 0 means unconstrained. */
+    public Optional<Path> generateImageThumbnail(Path input, String mimeType, int maxHeight) {
         int maxWidth = mediaConfig.thumbnailMaxWidth();
+        boolean fitBox = maxHeight > 0;
         // Try ffmpeg first
         if (ffmpegAvailable) {
             var output = processingDir.resolve("thumb-" + System.nanoTime() + ".jpg");
+            String scaleFilter = fitBox
+                    ? "scale='min(" + maxWidth + ",iw)':'min(" + maxHeight + ",ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2"
+                    : "scale='min(" + maxWidth + ",iw)':-2";
             try {
                 int exit = runProcess(mediaConfig.ffmpegPath(), "-nostdin", "-y", "-i", input.toString(),
-                        "-vf", "scale='min(" + maxWidth + ",iw)':-2",
+                        "-vf", scaleFilter,
                         "-q:v", "3", output.toString());
                 if (exit == 0 && Files.exists(output)) return Optional.of(output);
                 Files.deleteIfExists(output);
@@ -276,12 +288,13 @@ public class MediaProcessingService {
                 LOG.warnf("ffmpeg thumbnail failed: %s", e.getMessage());
             }
         }
-        // sips fallback (macOS)
+        // sips fallback (macOS) — -Z constrains longest edge
         if (sipsAvailable) {
             var output = processingDir.resolve("thumb-" + System.nanoTime() + ".jpg");
+            int sipsMax = fitBox ? Math.min(maxWidth, maxHeight) : maxWidth;
             try {
                 int exit = runProcess("sips", "-s", "format", "jpeg", "-s", "formatOptions", "60",
-                        "-Z", String.valueOf(maxWidth), input.toString(), "--out", output.toString());
+                        "-Z", String.valueOf(sipsMax), input.toString(), "--out", output.toString());
                 if (exit == 0 && Files.exists(output)) return Optional.of(output);
                 Files.deleteIfExists(output);
             } catch (Exception e) {
@@ -291,8 +304,9 @@ public class MediaProcessingService {
         // ImageMagick fallback
         if (imagemagickAvailable) {
             var output = processingDir.resolve("thumb-" + System.nanoTime() + ".jpg");
+            String resize = fitBox ? maxWidth + "x" + maxHeight + ">" : maxWidth + "x>";
             try {
-                int exit = runProcess("magick", input.toString(), "-strip", "-resize", maxWidth + "x>",
+                int exit = runProcess("magick", input.toString(), "-strip", "-resize", resize,
                         "-quality", "75", output.toString());
                 if (exit == 0 && Files.exists(output)) return Optional.of(output);
                 Files.deleteIfExists(output);
@@ -301,6 +315,33 @@ public class MediaProcessingService {
             }
         }
         return Optional.empty();
+    }
+
+    /** Get image dimensions (width, height) from file header. Supports PNG, JPEG, WebP, GIF. */
+    public Optional<int[]> getImageDimensions(Path input) {
+        try (ImageInputStream iis = ImageIO.createImageInputStream(input.toFile())) {
+            if (iis == null) return fallbackImageDimensions(input);
+            var readers = ImageIO.getImageReaders(iis);
+            if (!readers.hasNext()) return fallbackImageDimensions(input);
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(iis);
+                int w = reader.getWidth(0);
+                int h = reader.getHeight(0);
+                return Optional.of(new int[]{w, h});
+            } finally {
+                reader.dispose();
+            }
+        } catch (Exception e) {
+            LOG.debugf("ImageIO dimensions failed, trying fallback: %s", e.getMessage());
+            return fallbackImageDimensions(input);
+        }
+    }
+
+    /** Fallback: use ffprobe to get image dimensions (works for WebP without ImageIO reader). */
+    private Optional<int[]> fallbackImageDimensions(Path input) {
+        if (!ffprobeAvailable) return Optional.empty();
+        return getVideoDimensions(input); // ffprobe works on images too
     }
 
     // --- Video processing ---

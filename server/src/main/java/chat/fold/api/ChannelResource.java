@@ -22,6 +22,7 @@ import chat.fold.db.VoiceStateRepository;
 import chat.fold.config.FoldLiveKitConfig;
 import chat.fold.service.AuditLogService;
 import chat.fold.service.LiveKitService;
+import chat.fold.service.ExternalImageService;
 import chat.fold.service.RoleService;
 import chat.fold.util.MentionParser;
 import jakarta.inject.Inject;
@@ -69,6 +70,7 @@ public class ChannelResource {
     @Inject VoiceStateRepository voiceStateRepo;
     @Inject FoldLiveKitConfig liveKitConfig;
     @Inject LiveKitService liveKitService;
+    @Inject ExternalImageService externalImageService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -274,8 +276,10 @@ public class ChannelResource {
             return Response.status(400).entity(Map.of("error", "content_too_long", "message", "Max 5000 characters")).build();
         }
 
+        String processedContent = externalImageService.processContent(content);
+
         String id = MessageRepository.newId();
-        messageRepo.create(id, channelId, sc.getUserId(), content);
+        messageRepo.create(id, channelId, sc.getUserId(), processedContent);
 
         if (req.attachment_ids() != null) {
             for (String fileId : req.attachment_ids()) {
@@ -303,7 +307,7 @@ public class ChannelResource {
         created.ifPresent(m -> {
             eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId)));
             // Increment mention_count for mentioned users
-            incrementMentionCounts(sc.getUserId(), channelId, content);
+            incrementMentionCounts(sc.getUserId(), channelId, processedContent);
         });
         return created
                 .map(m -> Response.status(201).entity(m).build())
@@ -354,6 +358,8 @@ public class ChannelResource {
             return Response.status(400).entity(Map.of("error", "content_too_long", "message", "Max 5000 characters")).build();
         }
 
+        String threadContent = externalImageService.processContent(threadReq.content());
+
         if (threadReq.parent_message_id() == null && (threadReq.title() == null || threadReq.title().isBlank())) {
             return Response.status(400).entity(Map.of("error", "invalid_request", "message", "Either parent_message_id or title is required")).build();
         }
@@ -376,7 +382,7 @@ public class ChannelResource {
 
         databaseService.transactionVoid(tx -> {
             threadRepo.create(tx, threadId, channelId, threadReq.parent_message_id(), threadReq.title(), sc.getUserId());
-            messageRepo.create(tx, messageId, channelId, sc.getUserId(), threadReq.content(), threadId);
+            messageRepo.create(tx, messageId, channelId, sc.getUserId(), threadContent, threadId);
         });
 
         if (threadReq.attachment_ids() != null) {

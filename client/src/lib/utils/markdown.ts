@@ -135,11 +135,42 @@ export function applyRoleColors(node: HTMLElement) {
 		node.querySelectorAll<HTMLElement>('[data-role-color]').forEach(el => {
 			el.style.color = el.dataset.roleColor ?? '';
 		});
+		// Also apply dimensions to proxied images
+		applyImageDimensions(node);
 	}
 	apply();
 	const observer = new MutationObserver(apply);
 	observer.observe(node, { childList: true, subtree: true });
 	return { destroy() { observer.disconnect(); } };
+}
+
+/**
+ * Apply aspect-ratio and sizing to proxied markdown images.
+ * Reads w/h query params from /api/v0/images/ URLs and sets inline styles.
+ */
+function applyImageDimensions(node: HTMLElement) {
+	node.querySelectorAll<HTMLImageElement>('img[src^="/api/v0/images/"]').forEach(img => {
+		if (img.classList.contains('custom-emoji')) return;
+		if (img.dataset.dimApplied) return;
+		try {
+			const url = new URL(img.src, window.location.origin);
+			const w = parseInt(url.searchParams.get('w') ?? '');
+			const h = parseInt(url.searchParams.get('h') ?? '');
+			if (w > 0 && h > 0) {
+				// Set HTML attributes so browser reserves space before image loads
+				img.setAttribute('width', String(w));
+				img.setAttribute('height', String(h));
+				img.style.width = 'auto';
+				img.style.height = 'auto';
+				img.style.maxWidth = `min(${w}px, 400px)`;
+				img.style.maxHeight = '300px';
+				img.style.borderRadius = '6px';
+				img.style.display = 'block';
+			}
+			img.style.cursor = 'pointer';
+		} catch { /* ignore malformed URLs */ }
+		img.dataset.dimApplied = '1';
+	});
 }
 
 export function formatTimestamp(dateStr: string): string {

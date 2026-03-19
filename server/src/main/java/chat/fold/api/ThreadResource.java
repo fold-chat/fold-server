@@ -14,6 +14,7 @@ import chat.fold.db.UserRepository;
 import chat.fold.event.*;
 import chat.fold.security.Permission;
 import chat.fold.security.PermissionService;
+import chat.fold.service.ExternalImageService;
 import chat.fold.util.MentionParser;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
@@ -43,6 +44,7 @@ public class ThreadResource {
     @Inject PermissionService permissionService;
     @Inject MentionParser mentionParser;
     @Inject EventBus eventBus;
+    @Inject ExternalImageService externalImageService;
     @Context ContainerRequestContext requestContext;
 
     // --- Thread-scoped endpoints ---
@@ -110,8 +112,10 @@ public class ThreadResource {
             return Response.status(400).entity(Map.of("error", "content_too_long", "message", "Max 5000 characters")).build();
         }
 
+        String replyContent = externalImageService.processContent(req.content());
+
         String id = MessageRepository.newId();
-        messageRepo.create(id, channelId, sc.getUserId(), req.content(), threadId);
+        messageRepo.create(id, channelId, sc.getUserId(), replyContent, threadId);
         threadRepo.updateLastActivity(threadId);
 
         if (req.attachment_ids() != null) {

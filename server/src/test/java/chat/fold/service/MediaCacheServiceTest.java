@@ -33,6 +33,8 @@ class MediaCacheServiceTest {
             @Override public long maxCacheSize() { return maxCacheSize; }
             @Override public long cacheTtl() { return cacheTtl; }
             @Override public boolean youtubeEmbed() { return true; }
+            @Override public long maxProxyImageSize() { return 3_145_728; }
+            @Override public int maxImagesPerMessage() { return 5; }
         };
 
         // Initialize cache dir
@@ -109,6 +111,8 @@ class MediaCacheServiceTest {
             @Override public long maxCacheSize() { return 0; }
             @Override public long cacheTtl() { return 0; }
             @Override public boolean youtubeEmbed() { return true; }
+            @Override public long maxProxyImageSize() { return 3_145_728; }
+            @Override public int maxImagesPerMessage() { return 5; }
         };
 
         service.put("https://example.com/1.gif", "data1".getBytes(), "image/gif");

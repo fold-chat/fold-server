@@ -20,4 +20,12 @@ public interface FoldMediaConfig {
     /** Whether YouTube video embedding is enabled */
     @WithDefault("true")
     boolean youtubeEmbed();
+
+    /** Max external image download size in bytes (default 3MB) */
+    @WithDefault("3145728")
+    long maxProxyImageSize();
+
+    /** Max markdown images per message (anti-amplification) */
+    @WithDefault("5")
+    int maxImagesPerMessage();
 }
