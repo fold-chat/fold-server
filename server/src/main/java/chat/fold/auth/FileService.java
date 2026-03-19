@@ -172,7 +172,8 @@ public class FileService {
                 thumbFile = thumb.get();
                 String thumbHash = sha256(Files.readAllBytes(thumbFile));
                 thumbnailStoredName = thumbHash + ".jpg";
-                var thumbTarget = filesDir.resolve(thumbnailStoredName);
+                var thumbTarget = resolveStoredPath(thumbnailStoredName);
+                Files.createDirectories(thumbTarget.getParent());
                 if (!Files.exists(thumbTarget)) {
                     Files.move(thumbFile, thumbTarget, StandardCopyOption.ATOMIC_MOVE);
                 } else {
@@ -192,7 +193,8 @@ public class FileService {
             // Store main file
             String hash = sha256(Files.readAllBytes(processedFile));
             String storedName = hash + ext;
-            var targetPath = filesDir.resolve(storedName);
+            var targetPath = resolveStoredPath(storedName);
+            Files.createDirectories(targetPath.getParent());
             if (Files.exists(targetPath)) {
                 Files.deleteIfExists(processedFile);
             } else {
@@ -239,7 +241,8 @@ public class FileService {
         String hash = sha256(Files.readAllBytes(tmpFile));
         String ext = extensionFromMime(mimeType);
         String storedName = hash + ext;
-        var targetPath = filesDir.resolve(storedName);
+        var targetPath = resolveStoredPath(storedName);
+        Files.createDirectories(targetPath.getParent());
         if (Files.exists(targetPath)) {
             Files.delete(tmpFile);
         } else {
@@ -273,7 +276,8 @@ public class FileService {
                 if (thumb.isPresent()) {
                     String thumbHash = sha256(Files.readAllBytes(thumb.get()));
                     thumbnailStoredName = thumbHash + ".jpg";
-                    var thumbTarget = filesDir.resolve(thumbnailStoredName);
+                    var thumbTarget = resolveStoredPath(thumbnailStoredName);
+                    Files.createDirectories(thumbTarget.getParent());
                     if (!Files.exists(thumbTarget)) {
                         Files.move(thumb.get(), thumbTarget, StandardCopyOption.ATOMIC_MOVE);
                     } else {
@@ -318,7 +322,8 @@ public class FileService {
             String newHash = sha256(Files.readAllBytes(transcoded.get()));
             String newStoredName = newHash + ".mp4";
             long newSize = Files.size(transcoded.get());
-            var newTarget = filesDir.resolve(newStoredName);
+            var newTarget = resolveStoredPath(newStoredName);
+            Files.createDirectories(newTarget.getParent());
             if (!Files.exists(newTarget)) {
                 Files.move(transcoded.get(), newTarget, StandardCopyOption.ATOMIC_MOVE);
             } else {
@@ -331,7 +336,8 @@ public class FileService {
             if (thumb.isPresent()) {
                 String thumbHash = sha256(Files.readAllBytes(thumb.get()));
                 thumbnailStoredName = thumbHash + ".jpg";
-                var thumbTarget = filesDir.resolve(thumbnailStoredName);
+                var thumbTarget = resolveStoredPath(thumbnailStoredName);
+                Files.createDirectories(thumbTarget.getParent());
                 if (!Files.exists(thumbTarget)) {
                     Files.move(thumb.get(), thumbTarget, StandardCopyOption.ATOMIC_MOVE);
                 } else {
@@ -388,7 +394,8 @@ public class FileService {
         String hash = sha256(Files.readAllBytes(tmpFile));
         String ext = extensionFromMime(mimeType);
         String storedName = hash + ext;
-        var targetPath = filesDir.resolve(storedName);
+        var targetPath = resolveStoredPath(storedName);
+        Files.createDirectories(targetPath.getParent());
         if (Files.exists(targetPath)) {
             Files.delete(tmpFile);
         } else {
@@ -409,9 +416,18 @@ public class FileService {
                 "url", "/api/v0/files/" + storedName, "processing_status", "complete");
     }
 
+    /**
+     * Resolve a stored_name to its layered path on disk.
+     * E.g. "77ef212e...bd.png" → filesDir/77/ef212e...bd.png
+     */
+    public Path resolveStoredPath(String storedName) {
+        String prefix = storedName.substring(0, 2);
+        return filesDir.resolve(prefix).resolve(storedName.substring(2));
+    }
+
     /** Get the filesystem path for a stored file */
     public Optional<Path> getFilePath(String storedName) {
-        var path = filesDir.resolve(storedName);
+        var path = resolveStoredPath(storedName);
         if (Files.exists(path)) return Optional.of(path);
         return Optional.empty();
     }
@@ -421,8 +437,8 @@ public class FileService {
             var storedName = (String) file.get("stored_name");
             var thumbName = (String) file.get("thumbnail_stored_name");
             try {
-                Files.deleteIfExists(filesDir.resolve(storedName));
-                if (thumbName != null) Files.deleteIfExists(filesDir.resolve(thumbName));
+                Files.deleteIfExists(resolveStoredPath(storedName));
+                if (thumbName != null) Files.deleteIfExists(resolveStoredPath(thumbName));
             } catch (IOException e) {
                 LOG.warnf("Failed to delete file from disk: %s", storedName);
             }

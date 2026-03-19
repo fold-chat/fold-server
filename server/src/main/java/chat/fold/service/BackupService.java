@@ -1,5 +1,6 @@
 package chat.fold.service;
 
+import chat.fold.auth.FileService;
 import chat.fold.config.FoldConfig;
 import chat.fold.config.FoldFileConfig;
 import chat.fold.db.DatabaseService;
@@ -40,6 +41,7 @@ public class BackupService {
     @Inject FoldFileConfig fileConfig;
     @Inject DatabaseService db;
     @Inject ObjectMapper objectMapper;
+    @Inject FileService fileService;
 
     private volatile boolean restartRequired;
 
@@ -89,12 +91,11 @@ public class BackupService {
                 if (!emojiFiles.isEmpty()) {
                     Path emojisDir = tempDir.resolve("emojis");
                     Files.createDirectories(emojisDir);
-                    Path filesDir = Path.of(fileConfig.dataDir(), "files");
                     for (var row : emojiFiles) {
                         String storedName = (String) row.get("stored_name");
-                        Path src = filesDir.resolve(storedName);
-                        if (Files.exists(src)) {
-                            Files.copy(src, emojisDir.resolve(storedName));
+                        var src = fileService.getFilePath(storedName);
+                        if (src.isPresent()) {
+                            Files.copy(src.get(), emojisDir.resolve(storedName));
                         }
                     }
                 }
@@ -164,11 +165,10 @@ public class BackupService {
         // Emojis — sum actual disk sizes of emoji files
         try {
             var emojiRows = db.query("SELECT f.stored_name FROM custom_emoji e JOIN file f ON e.file_id = f.id");
-            Path filesDir = Path.of(fileConfig.dataDir(), "files");
             for (var row : emojiRows) {
                 String storedName = (String) row.get("stored_name");
-                Path p = filesDir.resolve(storedName);
-                if (Files.exists(p)) emojisSize += Files.size(p);
+                var p = fileService.getFilePath(storedName);
+                if (p.isPresent()) emojisSize += Files.size(p.get());
             }
         } catch (Exception e) {
             LOG.debugf("Failed to estimate emoji size: %s", e.getMessage());
