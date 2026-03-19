@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { getChannels } from '$lib/stores/channels.svelte.js';
-	import {
+import {
 		isSearchOpen,
 		closeSearch,
 		getSearchQuery,
@@ -13,6 +13,7 @@
 		updateFilter,
 		removeFilter
 	} from '$lib/stores/search.svelte.js';
+	import { isDmChannel } from '$lib/stores/dm.svelte.js';
 	import type { SearchFilters } from '$lib/api/search.js';
 
 	let inputEl: HTMLInputElement | undefined = $state();
@@ -47,6 +48,7 @@
 	}
 
 	function channelName(channelId: string): string {
+		if (isDmChannel(channelId)) return 'Direct Message';
 		return channels.find((c) => c.id === channelId)?.name ?? channelId;
 	}
 
@@ -57,7 +59,9 @@
 
 	function navigateToMessage(channelId: string, messageId: string, threadId: string | null) {
 		closeSearch();
-		if (threadId) {
+		if (isDmChannel(channelId)) {
+			goto(`/dm/${channelId}`);
+		} else if (threadId) {
 			goto(`/channels/${channelId}/threads/${threadId}?highlight=${messageId}`);
 		} else {
 			goto(`/channels/${channelId}?around=${messageId}`);
@@ -164,8 +168,8 @@
 								<span class="result-author">
 									{result.author_display_name ?? result.author_username ?? 'Unknown'}
 								</span>
-								<span class="result-meta">
-									<span class="result-channel"># {channelName(result.channel_id)}</span>
+						<span class="result-meta">
+							<span class="result-channel">{isDmChannel(result.channel_id) ? '' : '# '}{channelName(result.channel_id)}</span>
 									<span class="result-time">{formatTime(result.created_at)}</span>
 								</span>
 							</div>

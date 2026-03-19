@@ -2,8 +2,10 @@ import type { Channel, Category } from '$lib/api/channels.js';
 import type { Member, RoleBadge } from '$lib/api/users.js';
 import type { Role } from '$lib/api/roles.js';
 import type { ThreadReadState } from '$lib/api/threads.js';
+import type { DmConversation } from '$lib/api/dm.js';
 import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates, setUnreadCounts, markChannelRead } from './channels.svelte.js';
 import { handleMessageEvent, handleTypingEvent, handleReactionEvent, handleAttachmentUpdate } from './messages.svelte.js';
+import { setDmConversations, addDmConversation, setBlockedUserIds, setDmUnreadCounts, updateDmLastActivity, isDmChannel, incrementDmUnread } from './dm.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
 import { setMembers, addMember, removeMember, updateMember, getMembers as getStoreMembers, updateMemberRoleBadge } from './members.svelte.js';
@@ -159,9 +161,22 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 		case 'HEARTBEAT_ACK':
 			break;
 		case 'MESSAGE_CREATE':
+			handleMessageEvent(msg.op, msg.d);
+			// Update DM last_activity + unread if this is a DM channel message
+			if (msg.d?.channel_id && isDmChannel(msg.d.channel_id as string)) {
+				updateDmLastActivity(msg.d.channel_id as string);
+				const me = getUser();
+				if (me && msg.d.author_id !== me.id) {
+					incrementDmUnread(msg.d.channel_id as string);
+				}
+			}
+			break;
 		case 'MESSAGE_UPDATE':
 		case 'MESSAGE_DELETE':
 			handleMessageEvent(msg.op, msg.d);
+			break;
+		case 'DM_CONVERSATION_CREATE':
+			if (msg.d) addDmConversation(msg.d as unknown as DmConversation);
 			break;
 		case 'CHANNEL_CREATE':
 			if (msg.d) addChannel(msg.d as unknown as Channel);
@@ -309,6 +324,9 @@ interface HelloPayload {
 	voice_states?: Array<import('$lib/api/voice.js').VoiceState> | Record<string, Array<import('$lib/api/voice.js').VoiceState>>;
 	capabilities?: { voice_video?: boolean; voice_mode?: string; e2ee?: boolean; media_search?: boolean };
 	custom_emoji?: CustomEmoji[];
+	dm_conversations?: DmConversation[];
+	dm_blocked_user_ids?: string[];
+	dm_unread_counts?: Array<{ channel_id: string; unread_count: number }>;
 }
 
 function handleUserStateUpdate(data: Record<string, unknown>) {
@@ -400,6 +418,10 @@ function handleHello(data: HelloPayload) {
 	if (data.online_user_ids) setOnlineUserIds(data.online_user_ids);
 	setCustomEmoji(data.custom_emoji ?? []);
 	if (data.version) setServerVersion(data.version);
+	// DM state
+	setDmConversations(data.dm_conversations ?? []);
+	setBlockedUserIds(data.dm_blocked_user_ids ?? []);
+	setDmUnreadCounts(data.dm_unread_counts ?? []);
 	// Server sends voice_states as { channelId: VoiceState[] } — flatten to array
 	const rawVs = data.voice_states;
 	let voiceArr: import('$lib/api/voice.js').VoiceState[] = [];

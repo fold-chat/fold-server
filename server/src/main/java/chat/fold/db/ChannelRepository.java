@@ -29,6 +29,11 @@ public class ChannelRepository {
         return db.query("SELECT * FROM channel ORDER BY position, created_at");
     }
 
+    /** List only server channels (excludes DM type) */
+    public List<Map<String, Object>> listServerChannels() {
+        return db.query("SELECT * FROM channel WHERE type != 'DM' ORDER BY position, created_at");
+    }
+
     public void update(String id, String name, String topic, String description, String categoryId, Integer position, String icon, String iconUrl) {
         db.execute(
                 "UPDATE channel SET name = ?, topic = ?, description = ?, category_id = ?, position = ?, icon = ?, icon_url = ? WHERE id = ?",

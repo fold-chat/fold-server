@@ -5,6 +5,7 @@ import chat.fold.auth.RateLimitFilter;
 import chat.fold.auth.RateLimitPolicy;
 import chat.fold.auth.RateLimitService;
 import chat.fold.db.ChannelRepository;
+import chat.fold.db.DmRepository;
 import chat.fold.db.SearchRepository;
 import chat.fold.security.PermissionService;
 import jakarta.inject.Inject;
@@ -23,6 +24,7 @@ public class SearchResource {
 
     @Inject SearchRepository searchRepo;
     @Inject ChannelRepository channelRepo;
+    @Inject DmRepository dmRepo;
     @Inject RateLimitService rateLimitService;
     @Inject PermissionService permissionService;
     @Context ContainerRequestContext requestContext;
@@ -52,11 +54,15 @@ public class SearchResource {
         if (limit < 1) limit = 1;
         if (limit > 100) limit = 100;
 
-        // Resolve viewable channels
-        var allChannelIds = channelRepo.listAll().stream()
+        // Resolve viewable channels — server channels only + user's own DM channels
+        var serverChannelIds = channelRepo.listServerChannels().stream()
                 .map(c -> (String) c.get("id"))
                 .collect(Collectors.toSet());
-        var viewable = permissionService.filterViewableChannels(sc.getUserId(), allChannelIds);
+        var dmChannelIds = dmRepo.findConversationsForUser(sc.getUserId()).stream()
+                .map(c -> (String) c.get("channel_id"))
+                .collect(Collectors.toSet());
+        serverChannelIds.addAll(dmChannelIds);
+        var viewable = permissionService.filterViewableChannels(sc.getUserId(), serverChannelIds);
 
         // If filtering by channel, verify it's viewable
         if (channelId != null && !viewable.contains(channelId)) {

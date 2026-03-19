@@ -7,8 +7,9 @@ import { getThreads } from '$lib/api/threads.js';
 	import { getMessages, setMessages, prependMessages, setLoading, setHasMore, hasMore, isLoading, setActiveChannelId, getTypingUsers } from '$lib/stores/messages.svelte.js';
 import { markChannelRead, getChannelById, getCategories } from '$lib/stores/channels.svelte.js';
 	import { getActiveThread, setActiveThread, findThreadByParentMessage, getChannelThreads, setChannelThreads, getPendingThread, setPendingThread } from '$lib/stores/threads.svelte.js';
-	import { send } from '$lib/stores/ws.svelte.js';
+import { send } from '$lib/stores/ws.svelte.js';
 	import { getUser, hasChannelPermission, hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { isDmChannel } from '$lib/stores/dm.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
@@ -229,7 +230,9 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	}
 </script>
 
-{#if isForumChannel}
+{#if isDmChannel(channelId)}
+	<div class="not-found">Channel not found.</div>
+{:else if isForumChannel}
 	<ForumView {channelId} channelName={channel?.name ?? ''} channelTopic={channel?.topic ?? null} channelDescription={channel?.description ?? null} />
 {:else if isVoiceChannel}
 	<VoiceChannelView {channelId} channelName={channel?.name ?? ''} />
@@ -379,4 +382,12 @@ import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 		text-align: center;
 	}
 
+	.not-found {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--text-muted);
+		font-size: 0.9rem;
+	}
 </style>

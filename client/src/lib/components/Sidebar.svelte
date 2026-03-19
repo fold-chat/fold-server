@@ -21,7 +21,7 @@ import {
 	import type { Category, Channel } from '$lib/api/channels.js';
 	import { getActiveChannelId } from '$lib/stores/messages.svelte.js';
 	import { getConnectionState } from '$lib/stores/ws.svelte.js';
-	import { hasServerPermission, getServerSettings, getServerName } from '$lib/stores/auth.svelte.js';
+import { hasServerPermission, hasChannelPermission, getUser, getServerSettings, getServerName } from '$lib/stores/auth.svelte.js';
 	import { getMembers } from '$lib/stores/members.svelte.js';
 	import { DEFAULT_ICONS } from '$lib/icons.js';
 	import { PermissionName } from '$lib/permissions.js';
@@ -29,9 +29,9 @@ import {
 import ConfirmDialog from './ConfirmDialog.svelte';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
 import { isSidebarCollapsed, isSidebarExpanded, isNarrowScreen, closeSidebar, toggleSidebar } from '$lib/stores/sidebar.svelte.js';
+import { getDmConversations, getDmUnreadCount, getTotalDmUnreadCount } from '$lib/stores/dm.svelte.js';
 import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, isE2eeCapability, getLivekitConnectionState, getLastJoinError, optimisticSetServerMute, optimisticSetServerDeaf } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
-	import { hasChannelPermission, getUser } from '$lib/stores/auth.svelte.js';
 	import { serverMute, serverUnmute, serverDeafen, serverUndeafen, disconnectUser, moveUser } from '$lib/api/voice.js';
 	import type { VoiceState } from '$lib/api/voice.js';
 
@@ -630,6 +630,40 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 			{/if}
 		{/each}
 	</nav>
+
+	<!-- Direct Messages section -->
+	{@const recentDms = getDmConversations().slice(0, 5)}
+	{#if recentDms.length > 0}
+		<div class="dm-section">
+			<a class="dm-section-header" href="/dm">
+				<span class="category-name">Direct Messages</span>
+				{#if getTotalDmUnreadCount() > 0}
+					<span class="dm-total-badge">{getTotalDmUnreadCount() > 99 ? '99+' : getTotalDmUnreadCount()}</span>
+				{/if}
+			</a>
+			{#each recentDms as dm}
+				{@const me = getUser()}
+				{@const other = dm.participants.find(p => p.id !== me?.id) ?? dm.participants[0]}
+				{@const dmUnread = getDmUnreadCount(dm.channel_id)}
+				<a
+					class="dm-item"
+					class:unread={dmUnread > 0}
+					href="/dm/{dm.channel_id}"
+					onclick={() => { if (isNarrowScreen()) closeSidebar(); }}
+				>
+					{#if other?.avatar_url}
+						<img class="dm-avatar" src={other.avatar_url} alt="" />
+					{:else}
+						<span class="dm-avatar-placeholder">{(other?.display_name || other?.username || '?').charAt(0).toUpperCase()}</span>
+					{/if}
+					<span class="dm-name">{other?.display_name || other?.username || 'Unknown'}</span>
+					{#if dmUnread > 0}
+						<span class="unread-badge">{dmUnread > 99 ? '99+' : dmUnread}</span>
+					{/if}
+				</a>
+			{/each}
+		</div>
+	{/if}
 
 	{#if getLastJoinError()}
 		<div class="voice-error-banner">
@@ -1688,5 +1722,94 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 
 	.voice-ctx-item.danger:hover {
 		background: rgba(231, 76, 60, 0.15);
+	}
+
+	/* DM section */
+	.dm-section {
+		border-top: 1px solid var(--border);
+		padding: 0.5rem 0;
+	}
+
+	.dm-section-header {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.4rem 0.75rem;
+		text-decoration: none;
+		color: inherit;
+		border-radius: 6px;
+		margin: 0 0.25rem;
+		transition: background 0.12s;
+	}
+
+	.dm-section-header:hover {
+		background: var(--bg-hover);
+		text-decoration: none;
+	}
+
+	.dm-total-badge {
+		background: var(--accent);
+		color: white;
+		font-size: 0.55rem;
+		font-weight: 700;
+		padding: 0.05rem 0.3rem;
+		border-radius: 9999px;
+		min-width: 0.9rem;
+		text-align: center;
+		line-height: 1.3;
+		margin-left: auto;
+	}
+
+	.dm-item {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.3rem 0.75rem;
+		margin: 1px 0.5rem;
+		border-radius: 8px;
+		text-decoration: none;
+		color: var(--text-muted);
+		font-size: var(--channel-font, 0.85rem);
+		transition: background 0.12s, color 0.12s;
+	}
+
+	.dm-item:hover {
+		background: var(--bg-hover);
+		color: var(--text);
+		text-decoration: none;
+	}
+
+	.dm-item.unread {
+		color: var(--text);
+		font-weight: 600;
+	}
+
+	.dm-avatar {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		object-fit: cover;
+		flex-shrink: 0;
+	}
+
+	.dm-avatar-placeholder {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background: var(--bg-active, #3a3d41);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.65rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		flex-shrink: 0;
+	}
+
+	.dm-name {
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 </style>

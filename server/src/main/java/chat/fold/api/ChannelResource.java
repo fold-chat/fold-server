@@ -62,6 +62,8 @@ public class ChannelResource {
     @Inject UserRepository userRepo;
     @Inject MentionParser mentionParser;
     @Inject EventBus eventBus;
+    @Inject chat.fold.db.DmRepository dmRepo;
+    @Inject chat.fold.db.DmBlockRepository dmBlockRepo;
     @Inject AuditLogService auditLogService;
     @Inject VoiceKeyRepository voiceKeyRepo;
     @Inject VoiceStateRepository voiceStateRepo;
@@ -71,7 +73,7 @@ public class ChannelResource {
 
     @GET
     public Response list() {
-        return Response.ok(channelRepo.listAll()).build();
+        return Response.ok(channelRepo.listServerChannels()).build();
     }
 
     @POST
@@ -211,6 +213,10 @@ public class ChannelResource {
             @QueryParam("around") String around,
             @QueryParam("limit") @DefaultValue("50") int limit
     ) {
+        // DM guard: non-participants get 404
+        var dmGuard = guardDmChannel(channelId, sc().getUserId());
+        if (dmGuard != null) return dmGuard;
+
         permissionService.requirePermission(sc().getUserId(), channelId, Permission.VIEW_CHANNEL);
         if (channelRepo.findById(channelId).isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
@@ -233,6 +239,21 @@ public class ChannelResource {
     @Path("/{channelId}/messages")
     public Response sendMessage(@PathParam("channelId") String channelId, SendMessageRequest req) {
         var sc = sc();
+        boolean isDm = permissionService.isDmChannel(channelId);
+
+        // DM guard: non-participants get 404
+        var dmGuard = guardDmChannel(channelId, sc.getUserId());
+        if (dmGuard != null) return dmGuard;
+
+        // DM block check: if a block exists in either direction, reject
+        if (isDm) {
+            var participants = dmRepo.findParticipants(channelId);
+            var otherUserId = participants.stream().filter(id -> !id.equals(sc.getUserId())).findFirst();
+            if (otherUserId.isPresent() && dmBlockRepo.isBlockedEither(sc.getUserId(), otherUserId.get())) {
+                return Response.status(403).entity(Map.of("error", "dm_blocked", "message", "Cannot send messages in this conversation")).build();
+            }
+        }
+
         permissionService.requirePermission(sc.getUserId(), channelId, Permission.SEND_MESSAGES);
         var rl = checkRate("message_send", sc.getUserId(), RateLimitPolicy.MESSAGE_SEND);
         if (rl != null) return rl;
@@ -265,6 +286,19 @@ public class ChannelResource {
         // Update sender's read state so their own messages don't appear unread
         readStateRepo.upsert(sc.getUserId(), channelId, id);
 
+        // DM channels: skip mentions, use Scope.users, update last_activity
+        if (isDm) {
+            dmRepo.updateLastActivity(channelId);
+            var created = messageRepo.findByIdWithAuthor(id).map(this::withAttachments);
+            created.ifPresent(m -> {
+                var participantIds = dmRepo.findParticipants(channelId);
+                eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.users(participantIds)));
+            });
+            return created
+                    .map(m -> Response.status(201).entity(m).build())
+                    .orElse(Response.status(500).build());
+        }
+
         var created = messageRepo.findByIdWithAuthor(id).map(m -> withAttachmentsAndMentions(m, sc.getUserId()));
         created.ifPresent(m -> {
             eventBus.publish(Event.of(EventType.MESSAGE_CREATE, m, Scope.channel(channelId)));
@@ -280,6 +314,10 @@ public class ChannelResource {
     @Path("/{channelId}/read-state")
     public Response updateReadState(@PathParam("channelId") String channelId, ReadStateRequest req) {
         var sc = sc();
+        // DM guard: non-participants get 404
+        var dmGuard = guardDmChannel(channelId, sc.getUserId());
+        if (dmGuard != null) return dmGuard;
+
         if (channelRepo.findById(channelId).isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
         }
@@ -394,7 +432,7 @@ public class ChannelResource {
             channelRepo.findById(item.id()).ifPresent(c ->
                     eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, withCategory(c), Scope.server())));
         }
-        return Response.ok(channelRepo.listAll()).build();
+        return Response.ok(channelRepo.listServerChannels()).build();
     }
 
     // --- Channel permission overrides ---
@@ -477,6 +515,14 @@ public class ChannelResource {
     public record CreateThreadRequest(String parent_message_id, String title, String content, List<String> attachment_ids) {}
 
     // --- Helpers ---
+
+    /** Returns 404 if channelId is a DM channel and userId is not a participant; null if OK or not DM. */
+    private Response guardDmChannel(String channelId, String userId) {
+        if (permissionService.isDmChannel(channelId) && !permissionService.isDmParticipant(channelId, userId)) {
+            return Response.status(404).entity(Map.of("error", "not_found")).build();
+        }
+        return null;
+    }
 
     /** Resolve all mentioned user IDs from content and increment their mention_count. */
     private void incrementMentionCounts(String authorId, String channelId, String content) {

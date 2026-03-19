@@ -1,9 +1,12 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { getMembers } from '$lib/stores/members.svelte.js';
 	import { getPendingUserId, clearPendingUserId } from '$lib/stores/membersPanel.svelte.js';
 	import { isUserOnline, getOnlineCount } from '$lib/stores/presence.svelte.js';
-	import { hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { getUser, hasServerPermission } from '$lib/stores/auth.svelte.js';
+	import { isBlocked as isUserBlocked, addBlock, removeBlock, setDmConversations, getDmConversations, updateDmConversation } from '$lib/stores/dm.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
+	import { openDm, blockUser, unblockUser, getDmConversations as fetchDmConversations } from '$lib/api/dm.js';
 	import type { Member, RoleBadge } from '$lib/api/users.js';
 
 	let selectedMember = $state<Member | null>(null);
@@ -114,7 +117,44 @@
 		}
 	}
 
+	const me = $derived(getUser());
+	const canDm = $derived(hasServerPermission(PermissionName.INITIATE_DM));
 	const canManageInvites = $derived(hasServerPermission(PermissionName.MANAGE_INVITES));
+
+	async function messageMember(member: Member) {
+		try {
+			const conv = await openDm(member.id);
+			// Update store
+			const existing = getDmConversations();
+			if (!existing.find(c => c.channel_id === conv.channel_id)) {
+				setDmConversations([conv, ...existing]);
+			}
+			goto(`/dm/${conv.channel_id}`);
+		} catch { /* */ }
+	}
+
+	async function toggleBlockMember(member: Member) {
+		try {
+			if (isUserBlocked(member.id)) {
+				await unblockUser(member.id);
+				removeBlock(member.id);
+				// Refresh is_blocked on any shared DM
+				const conv = getDmConversations().find(c => c.participants.some(p => p.id === member.id));
+				if (conv) {
+					try {
+						const all = await fetchDmConversations();
+						const updated = all.find(c => c.channel_id === conv.channel_id);
+						if (updated) updateDmConversation(conv.channel_id, { is_blocked: updated.is_blocked });
+					} catch { /* */ }
+				}
+			} else {
+				await blockUser(member.id);
+				addBlock(member.id);
+				const conv = getDmConversations().find(c => c.participants.some(p => p.id === member.id));
+				if (conv) updateDmConversation(conv.channel_id, { is_blocked: true });
+			}
+		} catch { /* */ }
+	}
 
 	function joinMethodLabel(method: string | null): string {
 		switch (method) {
@@ -163,6 +203,16 @@
 					{/if}
 				{/if}
 			</div>
+			{#if selectedMember.id !== me?.id}
+				<div class="profile-actions">
+					{#if canDm}
+						<button class="profile-action-btn" onclick={() => selectedMember && messageMember(selectedMember)}>Message</button>
+					{/if}
+					<button class="profile-action-btn danger" onclick={() => selectedMember && toggleBlockMember(selectedMember)}>
+						{isUserBlocked(selectedMember.id) ? 'Unblock' : 'Block'}
+					</button>
+				</div>
+			{/if}
 			{#if selectedMember.status_text}
 				<div class="profile-field">
 					<span class="field-label">Status</span>
@@ -504,5 +554,35 @@
 	.join-detail {
 		color: var(--text-muted);
 		font-size: 0.8rem;
+	}
+
+	.profile-actions {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.profile-action-btn {
+		flex: 1;
+		padding: 0.4rem 0.6rem;
+		font-size: 0.75rem;
+		border: 1px solid var(--border);
+		background: none;
+		color: var(--text);
+		border-radius: 4px;
+		cursor: pointer;
+		transition: background 0.12s;
+	}
+
+	.profile-action-btn:hover {
+		background: var(--bg-hover);
+	}
+
+	.profile-action-btn.danger {
+		color: var(--danger, #e74c3c);
+		border-color: color-mix(in srgb, var(--danger, #e74c3c) 30%, transparent);
+	}
+
+	.profile-action-btn.danger:hover {
+		background: color-mix(in srgb, var(--danger, #e74c3c) 15%, transparent);
 	}
 </style>

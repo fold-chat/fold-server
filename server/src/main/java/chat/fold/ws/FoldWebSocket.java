@@ -35,6 +35,8 @@ public class FoldWebSocket {
     @Inject RoleRepository roleRepo;
     @Inject PermissionService permissionService;
     @Inject RoleService roleService;
+    @Inject DmRepository dmRepo;
+    @Inject DmBlockRepository dmBlockRepo;
     @Inject FoldMediaConfig mediaConfig;
     @Inject DatabaseService db;
     @Inject VoiceStateRepository voiceStateRepo;
@@ -277,13 +279,17 @@ public class FoldWebSocket {
         String channelId = (String) data.get("channel_id");
         if (channelId == null) return;
 
+        // DM channels: only participants can send typing events
+        if (permissionService.isDmChannel(channelId)) {
+            if (!permissionService.isDmParticipant(channelId, userId)) return;
+        }
+
         var meta = registry.getMeta(connection);
-        eventBus.publish(Event.of(
-                EventType.TYPING_START,
-                Map.of("channel_id", channelId, "user_id", userId, "username", meta != null ? meta.username() : ""),
-                Scope.channel(channelId),
-                userId
-        ));
+        var payload = Map.of("channel_id", channelId, "user_id", userId, "username", meta != null ? meta.username() : "");
+        Scope scope = permissionService.isDmChannel(channelId)
+                ? Scope.users(dmRepo.findParticipants(channelId))
+                : Scope.channel(channelId);
+        eventBus.publish(Event.of(EventType.TYPING_START, payload, scope, userId));
     }
 
     @SuppressWarnings("unchecked")
@@ -296,19 +302,22 @@ public class FoldWebSocket {
         String channelId = (String) data.get("channel_id");
         if (channelId == null) return;
 
+        if (permissionService.isDmChannel(channelId)) {
+            if (!permissionService.isDmParticipant(channelId, userId)) return;
+        }
+
         var meta = registry.getMeta(connection);
-        eventBus.publish(Event.of(
-                EventType.TYPING_STOP,
-                Map.of("channel_id", channelId, "user_id", userId, "username", meta != null ? meta.username() : ""),
-                Scope.channel(channelId),
-                userId
-        ));
+        var payload = Map.of("channel_id", channelId, "user_id", userId, "username", meta != null ? meta.username() : "");
+        Scope scope = permissionService.isDmChannel(channelId)
+                ? Scope.users(dmRepo.findParticipants(channelId))
+                : Scope.channel(channelId);
+        eventBus.publish(Event.of(EventType.TYPING_STOP, payload, scope, userId));
     }
 
     private String buildHello(String userId, String sessionId) {
         try {
             var user = userRepo.findById(userId).orElse(Map.of());
-            var allChannels = channelRepo.listAll();
+            var allChannels = channelRepo.listServerChannels();
             var categories = categoryRepo.listAll();
 var members = userRepo.listMembers(false);
             var readStates = readStateRepo.findAllForUser(userId);
@@ -407,6 +416,27 @@ var members = userRepo.listMembers(false);
             serverSettings.put("maintenance_enabled", maintenanceService.isEnabled());
             serverSettings.put("maintenance_message", maintenanceService.getMessage());
             hello.put("server_settings", serverSettings);
+
+            // DM conversations
+            var dmConversations = dmRepo.findConversationsForUser(userId);
+            var dmConvList = new ArrayList<Map<String, Object>>();
+            var dmChannelIds = new HashSet<String>();
+            for (var conv : dmConversations) {
+                var enriched = new LinkedHashMap<String, Object>(conv);
+                String dmChId = (String) conv.get("channel_id");
+                dmChannelIds.add(dmChId);
+                enriched.put("participants", dmRepo.findParticipantDetails(dmChId));
+                enriched.put("is_blocked", java.util.Objects.equals(conv.get("is_blocked"), 1L));
+                dmConvList.add(enriched);
+            }
+            hello.put("dm_conversations", dmConvList);
+            hello.put("dm_blocked_user_ids", dmBlockRepo.getBlockedIds(userId));
+
+            // DM unread counts (filter from existing unreadCounts)
+            var dmUnreadCounts = unreadCounts.stream()
+                    .filter(uc -> dmChannelIds.contains(uc.get("channel_id")))
+                    .toList();
+            hello.put("dm_unread_counts", dmUnreadCounts);
 
             // Custom emoji
             var customEmoji = emojiRepo.listAll().stream().map(e -> {

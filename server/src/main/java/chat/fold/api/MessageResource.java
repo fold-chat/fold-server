@@ -7,6 +7,8 @@ import chat.fold.auth.RateLimitPolicy;
 import chat.fold.auth.RateLimitService;
 import chat.fold.db.ChannelRepository;
 import chat.fold.db.DatabaseService;
+import chat.fold.db.DmBlockRepository;
+import chat.fold.db.DmRepository;
 import chat.fold.db.MessageRepository;
 import chat.fold.db.ReactionRepository;
 import chat.fold.db.ThreadRepository;
@@ -43,6 +45,8 @@ public class MessageResource {
     @Inject PermissionService permissionService;
     @Inject MentionParser mentionParser;
     @Inject EventBus eventBus;
+    @Inject DmRepository dmRepo;
+    @Inject DmBlockRepository dmBlockRepo;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -75,6 +79,9 @@ public class MessageResource {
         if (editChannel.isPresent() && editChannel.get().get("archived_at") != null) {
             return Response.status(403).entity(Map.of("error", "channel_archived", "message", "Cannot edit messages in an archived channel")).build();
         }
+
+        var dmBlock = guardDmBlock(editChannelId, sc.getUserId());
+        if (dmBlock != null) return dmBlock;
 
         boolean isAuthor = sc.getUserId().equals(msg.get("author_id"));
         if (isAuthor) {
@@ -163,6 +170,9 @@ public class MessageResource {
         permissionService.requirePermission(sc.getUserId(), channelId, Permission.VIEW_CHANNEL);
         permissionService.requirePermission(sc.getUserId(), channelId, Permission.ADD_REACTIONS);
 
+        var dmBlock = guardDmBlock(channelId, sc.getUserId());
+        if (dmBlock != null) return dmBlock;
+
         if (reactionRepo.countUniqueEmojiForMessage(messageId) >= 25) {
             // Only block if this would be a NEW emoji (user might already have reacted with an existing one)
             var existing = reactionRepo.findByMessageId(messageId);
@@ -195,6 +205,9 @@ public class MessageResource {
         }
         String channelId = (String) msgOpt.get().get("channel_id");
 
+        var dmBlock = guardDmBlock(channelId, sc.getUserId());
+        if (dmBlock != null) return dmBlock;
+
         reactionRepo.delete(messageId, sc.getUserId(), emoji);
 
         eventBus.publish(Event.of(EventType.REACTION_REMOVE,
@@ -205,6 +218,17 @@ public class MessageResource {
     }
 
     public record EditMessageRequest(String content) {}
+
+    /** Returns 403 if channelId is a DM channel with a block between participants; null if OK. */
+    private Response guardDmBlock(String channelId, String userId) {
+        if (!permissionService.isDmChannel(channelId)) return null;
+        var participants = dmRepo.findParticipants(channelId);
+        var otherId = participants.stream().filter(id -> !id.equals(userId)).findFirst();
+        if (otherId.isPresent() && dmBlockRepo.isBlockedEither(userId, otherId.get())) {
+            return Response.status(403).entity(Map.of("error", "dm_blocked", "message", "Cannot modify messages in a blocked conversation")).build();
+        }
+        return null;
+    }
 
     private FoldSecurityContext sc() {
         return (FoldSecurityContext) requestContext.getSecurityContext();

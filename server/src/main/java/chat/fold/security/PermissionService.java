@@ -1,5 +1,6 @@
 package chat.fold.security;
 
+import chat.fold.db.DmRepository;
 import chat.fold.db.RoleRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -11,11 +12,22 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PermissionService {
 
     @Inject RoleRepository roleRepo;
+    @Inject DmRepository dmRepo;
 
     private final Map<String, Long> basePermCache = new ConcurrentHashMap<>();
     private final Map<String, Long> effectivePermCache = new ConcurrentHashMap<>();
     private final Set<String> ownerCache = ConcurrentHashMap.newKeySet();
     private volatile boolean ownerCacheLoaded = false;
+
+    /** DM participant cache: channelId → participant user IDs */
+    private final Map<String, Set<String>> dmParticipantCache = new ConcurrentHashMap<>();
+
+    /** Permissions granted to DM channel participants */
+    private static final long DM_PERMISSIONS = Permission.VIEW_CHANNEL.value
+            | Permission.SEND_MESSAGES.value
+            | Permission.MANAGE_OWN_MESSAGES.value
+            | Permission.UPLOAD_FILES.value
+            | Permission.ADD_REACTIONS.value;
 
     // --- Owner checks ---
 
@@ -90,6 +102,14 @@ public class PermissionService {
     // --- Permission checks ---
 
     public boolean hasPermission(String userId, String channelId, Permission p) {
+        // DM fast path — participant-only, no role-based bypass
+        if (isDmParticipant(channelId, userId)) {
+            return Permission.has(DM_PERMISSIONS, p);
+        }
+        // If it's a DM channel but user is NOT a participant → deny
+        if (dmParticipantCache.containsKey(channelId)) {
+            return false;
+        }
         long effective = computeEffectivePermissions(userId, channelId);
         return Permission.has(effective, p);
     }
@@ -98,6 +118,31 @@ public class PermissionService {
         if (!hasPermission(userId, channelId, p)) {
             throw new PermissionException(p);
         }
+    }
+
+    /** Check if user is a DM channel participant (lazy-loads and caches) */
+    public boolean isDmParticipant(String channelId, String userId) {
+        var participants = dmParticipantCache.get(channelId);
+        if (participants != null) {
+            return participants.contains(userId);
+        }
+        // Check if this is a DM channel at all
+        if (!dmRepo.isDmChannel(channelId)) {
+            return false;
+        }
+        // Populate cache
+        participants = dmRepo.findParticipants(channelId);
+        dmParticipantCache.put(channelId, participants);
+        return participants.contains(userId);
+    }
+
+    /** Check if a channel is a DM channel (uses cache if available) */
+    public boolean isDmChannel(String channelId) {
+        if (dmParticipantCache.containsKey(channelId)) return true;
+        if (!dmRepo.isDmChannel(channelId)) return false;
+        // Populate cache while we're here
+        dmParticipantCache.put(channelId, dmRepo.findParticipants(channelId));
+        return true;
     }
 
     public boolean hasServerPermission(String userId, Permission p) {
@@ -156,6 +201,7 @@ public class PermissionService {
 
     public void invalidateChannel(String channelId) {
         effectivePermCache.keySet().removeIf(key -> key.endsWith(":" + channelId));
+        dmParticipantCache.remove(channelId);
     }
 
     public void invalidateAll() {
@@ -163,6 +209,7 @@ public class PermissionService {
         effectivePermCache.clear();
         ownerCache.clear();
         ownerCacheLoaded = false;
+        dmParticipantCache.clear();
     }
 
     // --- Exception ---

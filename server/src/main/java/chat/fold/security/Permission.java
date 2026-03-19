@@ -36,7 +36,8 @@ public enum Permission {
     CHANGE_NICKNAME(23),
     MANAGE_NICKNAMES(24),
     RESET_PASSWORDS(25),
-    // bits 26-30 reserved
+    INITIATE_DM(26),
+    // bits 27-30 reserved
     ADMINISTRATOR(31),
 
     // Voice permissions (bits 32-47)
@@ -61,7 +62,7 @@ public enum Permission {
     private static final EnumSet<Permission> SERVER_LEVEL = EnumSet.of(
             MANAGE_CHANNELS, MANAGE_ROLES, MANAGE_SERVER,
             BAN_MEMBERS, CREATE_INVITES, MANAGE_INVITES,
-            CHANGE_NICKNAME, MANAGE_NICKNAMES, RESET_PASSWORDS, ADMINISTRATOR
+            CHANGE_NICKNAME, MANAGE_NICKNAMES, RESET_PASSWORDS, INITIATE_DM, ADMINISTRATOR
     );
 
     public static boolean has(long bitmask, Permission p) {
