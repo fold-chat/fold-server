@@ -32,7 +32,7 @@
 
 <style>
 	.collapsible {
-max-height: 7em;
+		max-height: 21em;
 		overflow: hidden;
 	}
 
@@ -42,8 +42,8 @@ max-height: 7em;
 	}
 
 	.collapsible.overflows:not(.expanded) {
-		-webkit-mask-image: linear-gradient(to bottom, black 50%, transparent);
-		mask-image: linear-gradient(to bottom, black 50%, transparent);
+		-webkit-mask-image: linear-gradient(to bottom, black 70%, transparent);
+		mask-image: linear-gradient(to bottom, black 70%, transparent);
 	}
 
 	.expand-toggle {
@@ -57,5 +57,6 @@ max-height: 7em;
 
 	.expand-toggle:hover {
 		text-decoration: underline;
+		background: none;
 	}
 </style>

@@ -166,28 +166,31 @@ public class FileService {
                 }
             }
 
-            // Generate thumbnail
-            var thumb = mediaService.generateImageThumbnail(processedFile, mimeType);
-            if (thumb.isPresent()) {
-                thumbFile = thumb.get();
-                String thumbHash = sha256(Files.readAllBytes(thumbFile));
-                thumbnailStoredName = thumbHash + ".jpg";
-                var thumbTarget = resolveStoredPath(thumbnailStoredName);
-                Files.createDirectories(thumbTarget.getParent());
-                if (!Files.exists(thumbTarget)) {
-                    Files.move(thumbFile, thumbTarget, StandardCopyOption.ATOMIC_MOVE);
-                } else {
-                    Files.deleteIfExists(thumbFile);
-                }
-                thumbFile = null; // moved/cleaned
-            }
-
             // Extract image dimensions
             Integer width = null, height = null;
             var dims = mediaService.getImageDimensions(processedFile);
             if (dims.isPresent()) {
                 width = dims.get()[0];
                 height = dims.get()[1];
+            }
+
+            // Generate thumbnail — skip if image is already smaller than thumbnail max width
+            int thumbMaxWidth = mediaService.getDefaultThumbnailMaxWidth();
+            if (width == null || width > thumbMaxWidth) {
+                var thumb = mediaService.generateImageThumbnail(processedFile, mimeType);
+                if (thumb.isPresent()) {
+                    thumbFile = thumb.get();
+                    String thumbHash = sha256(Files.readAllBytes(thumbFile));
+                    thumbnailStoredName = thumbHash + ".jpg";
+                    var thumbTarget = resolveStoredPath(thumbnailStoredName);
+                    Files.createDirectories(thumbTarget.getParent());
+                    if (!Files.exists(thumbTarget)) {
+                        Files.move(thumbFile, thumbTarget, StandardCopyOption.ATOMIC_MOVE);
+                    } else {
+                        Files.deleteIfExists(thumbFile);
+                    }
+                    thumbFile = null; // moved/cleaned
+                }
             }
 
             // Store main file

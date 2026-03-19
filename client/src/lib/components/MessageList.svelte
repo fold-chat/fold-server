@@ -384,7 +384,9 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 										<div class="image-attachments" class:multi={imageAtts.length > 1}>
 											{#each imageAtts as att, idx}
 												<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-												<div class="attachment-image-wrapper" style:aspect-ratio={att.width && att.height ? `${att.width} / ${att.height}` : undefined} style:width={att.width ? `min(${att.width}px, 400px)` : undefined} style:max-width="100%" style:max-height="300px">
+												{@const isSingle = imageAtts.length <= 1}
+												{@const fitWidth = isSingle && att.width && att.height ? Math.round(Math.min(att.width, 400, 300 * att.width / att.height)) : null}
+												<div class="attachment-image-wrapper" style:aspect-ratio={isSingle && att.width && att.height ? `${att.width} / ${att.height}` : undefined} style:width={fitWidth ? `${fitWidth}px` : isSingle && att.width ? `min(${att.width}px, 400px)` : undefined} style:max-width="100%" style:max-height={isSingle ? "300px" : undefined}>
 													<img
 														src={att.thumbnail_url ?? att.url}
 														alt={att.original_name}
@@ -631,6 +633,7 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 
 	.author:hover {
 		text-decoration: underline;
+		background: none;
 	}
 
 	.timestamp {
@@ -886,7 +889,12 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	.image-attachments.multi .attachment-image {
 		max-width: 150px;
 		max-height: 150px;
-		object-fit: cover;
+		object-fit: contain;
+	}
+
+	.image-attachments.multi .attachment-image-wrapper {
+		max-width: 150px;
+		max-height: 150px;
 	}
 
 	.gif-message {

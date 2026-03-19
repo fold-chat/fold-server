@@ -138,7 +138,11 @@ public class ExternalImageService {
 
             // Read dimensions once from cached file, reuse for URL and thumbnail decision
             var dims = mediaProcessingService.getImageDimensions(cachedFile).orElse(null);
-            ensureThumbnail(urlHash, cachedFile);
+            // Skip thumbnail if image already fits within the thumbnail box (400x300)
+            int thumbMaxWidth = mediaProcessingService.getDefaultThumbnailMaxWidth();
+            if (dims == null || dims[0] > thumbMaxWidth || dims[1] > 300) {
+                ensureThumbnail(urlHash, cachedFile);
+            }
             return buildRewrittenMarkdown(alt, urlHash, dims);
 
         } catch (Exception e) {
