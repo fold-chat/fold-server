@@ -279,7 +279,7 @@ public class RoleService {
 
     /** Compute permissions + viewable channels + visible categories for a user */
     private Map<String, Object> computeUserState(String userId) {
-        var allChannels = channelRepo.listAll();
+        var allChannels = channelRepo.listServerChannels();
         var allChannelIds = allChannels.stream()
                 .map(c -> (String) c.get("id"))
                 .collect(Collectors.toSet());

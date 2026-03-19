@@ -417,7 +417,7 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 		<div class="rail-divider"></div>
 
 		<nav class="rail-channels">
-			{#each getChannels() as channel}
+			{#each getChannelsByCategory().flatMap(g => g.channels) as channel}
 				{@const unread = getUnreadCount(channel.id)}
 				{@const mentions = getMentionCount(channel.id)}
 				<button
@@ -554,8 +554,8 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 					{/if}
 				</div>
 			{/if}
-			{#if !group.category || !collapsedCategories.has(group.category.id)}
 			{#each group.channels as channel}
+			{#if !group.category || !collapsedCategories.has(group.category.id) || getActiveChannelId() === channel.id}
 			{@const unread = getUnreadCount(channel.id)}
 			{@const mentions = getMentionCount(channel.id)}
 			{@const isVoice = channel.type === 'VOICE'}
@@ -626,8 +626,8 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 					</div>
 				{/if}
 				</div>
-			{/each}
 			{/if}
+			{/each}
 		{/each}
 	</nav>
 
