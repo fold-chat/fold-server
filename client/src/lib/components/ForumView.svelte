@@ -9,6 +9,7 @@
 	import { getChannelById, getCategories } from '$lib/stores/channels.svelte.js';
 import { contentPreview } from '$lib/utils/markdown.js';
 	import { getMemberRoleColor } from '$lib/stores/members.svelte.js';
+	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 
 	let { channelId, channelName, channelTopic = null, channelDescription = null }: { channelId: string; channelName: string; channelTopic?: string | null; channelDescription?: string | null } = $props();
 
@@ -126,9 +127,11 @@ import { contentPreview } from '$lib/utils/markdown.js';
 				{/if}
 				<div class="card-author">
 					{#if thread.author_avatar_url}
-						<img class="avatar avatar-sm" src={thread.author_avatar_url} alt="" />
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+						<img class="avatar avatar-sm clickable" src={thread.author_avatar_url} alt="" onclick={(e) => { e.stopPropagation(); openMemberProfile(thread.author_id); }} />
 					{:else}
-						<div class="avatar avatar-sm avatar-fallback">{(thread.author_display_name || thread.author_username || '?')[0].toUpperCase()}</div>
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div class="avatar avatar-sm avatar-fallback clickable" onclick={(e) => { e.stopPropagation(); openMemberProfile(thread.author_id); }}>{(thread.author_display_name || thread.author_username || '?')[0].toUpperCase()}</div>
 					{/if}
 					<span class="author-name" style:color={getMemberRoleColor(thread.author_id)}>{thread.author_display_name || thread.author_username || 'Unknown'}</span>
 					<span class="card-dot">·</span>
@@ -335,6 +338,14 @@ import { contentPreview } from '$lib/utils/markdown.js';
 		border-radius: 50%;
 		object-fit: cover;
 		flex-shrink: 0;
+	}
+
+	.clickable {
+		cursor: pointer;
+	}
+
+	.clickable:hover {
+		opacity: 0.8;
 	}
 
 	.avatar-sm {

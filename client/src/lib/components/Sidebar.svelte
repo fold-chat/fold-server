@@ -27,6 +27,7 @@ import { hasServerPermission, hasChannelPermission, getUser, getServerSettings, 
 	import { PermissionName } from '$lib/permissions.js';
 	import { goto } from '$app/navigation';
 import ConfirmDialog from './ConfirmDialog.svelte';
+import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
 import { isSidebarCollapsed, isSidebarExpanded, isNarrowScreen, closeSidebar, toggleSidebar } from '$lib/stores/sidebar.svelte.js';
 import { getDmConversations, getDmUnreadCount, getTotalDmUnreadCount } from '$lib/stores/dm.svelte.js';
@@ -609,9 +610,11 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div class="voice-user" class:muted={vu.self_mute || vu.server_mute} class:deafened={vu.self_deaf || vu.server_deaf} class:speaking={isSpeaking(vu.user_id)} oncontextmenu={(e) => openVoiceCtx(e, vu, channel.id)}>
 								{#if vu.avatar_url}
-									<img class="voice-avatar" src={vu.avatar_url} alt="" />
+									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+									<img class="voice-avatar clickable" src={vu.avatar_url} alt="" onclick={(e) => { e.stopPropagation(); openMemberProfile(vu.user_id); }} />
 								{:else}
-									<span class="voice-avatar-placeholder">{(vu.display_name || vu.username).charAt(0).toUpperCase()}</span>
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<span class="voice-avatar-placeholder clickable" onclick={(e) => { e.stopPropagation(); openMemberProfile(vu.user_id); }}>{(vu.display_name || vu.username).charAt(0).toUpperCase()}</span>
 								{/if}
 								<span class="voice-username">{vu.display_name || vu.username}</span>
 								{#if vu.server_mute}<span class="voice-indicator server" title="Server muted"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="10" height="10"><line x1="1" y1="1" x2="23" y2="23" /><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6" /><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .64-.09 1.26-.25 1.85" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg></span>
@@ -1473,6 +1476,14 @@ import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId
 	.voice-users {
 		padding: 0.15rem 0 0.15rem 2.5rem;
 		margin: 0 0.5rem;
+	}
+
+	.clickable {
+		cursor: pointer;
+	}
+
+	.clickable:hover {
+		opacity: 0.8;
 	}
 
 	.voice-user {

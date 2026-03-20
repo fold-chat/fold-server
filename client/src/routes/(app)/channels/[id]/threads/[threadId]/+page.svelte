@@ -17,7 +17,8 @@ import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } f
 	import { getYoutubeEmbedEnabled } from '$lib/stores/auth.svelte.js';
 	import YouTubeEmbed from '$lib/components/YouTubeEmbed.svelte';
 import { send } from '$lib/stores/ws.svelte.js';
-	import { getMemberRoleColor } from '$lib/stores/members.svelte.js';
+import { getMemberRoleColor } from '$lib/stores/members.svelte.js';
+	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	import MessageList from '$lib/components/MessageList.svelte';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -75,6 +76,11 @@ import { send } from '$lib/stores/ws.svelte.js';
 	let deleteThreadConfirmOpen = $state(false);
 	let lockConfirmOpen = $state(false);
 	let pendingInsert = $state<string | null>(null);
+	let threadTopAnchor = $state<HTMLDivElement | null>(null);
+
+	function scrollToTop() {
+		threadTopAnchor?.scrollIntoView({ behavior: 'smooth' });
+	}
 
 	$effect(() => {
 		const tId = threadId;
@@ -285,87 +291,95 @@ import { send } from '$lib/stores/ws.svelte.js';
 		</nav>
 	</div>
 
-	{#if thread}
-		<div class="thread-hero">
-			<div class="op-author">
-				{#if originalPost?.author_avatar_url || thread.author_avatar_url}
-					<img class="op-avatar" src={originalPost?.author_avatar_url || thread.author_avatar_url} alt="" />
-				{:else}
-					<div class="op-avatar op-avatar-fallback">{(thread.author_display_name || thread.author_username || '?')[0].toUpperCase()}</div>
-				{/if}
-				<div class="op-author-info">
-					<span class="op-name" style:color={getMemberRoleColor(thread.author_id)}>{thread.author_display_name || thread.author_username || 'Unknown'}</span>
-					<span class="op-time">{timeAgo(thread.created_at)}</span>
+	{#snippet threadHeaderContent()}
+		<div class="thread-top-anchor" bind:this={threadTopAnchor}></div>
+		{#if thread}
+			<div class="thread-sticky-header">
+				<div class="op-author">
+					{#if originalPost?.author_avatar_url || thread.author_avatar_url}
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+						<img class="op-avatar clickable" src={originalPost?.author_avatar_url || thread.author_avatar_url} alt="" onclick={() => openMemberProfile(thread!.author_id)} />
+					{:else}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<div class="op-avatar op-avatar-fallback clickable" onclick={() => openMemberProfile(thread!.author_id)}>{(thread.author_display_name || thread.author_username || '?')[0].toUpperCase()}</div>
+					{/if}
+					<div class="op-author-info">
+						<button class="op-name" style:color={getMemberRoleColor(thread.author_id)} onclick={() => openMemberProfile(thread!.author_id)}>{thread.author_display_name || thread.author_username || 'Unknown'}</button>
+						<span class="op-time">{timeAgo(thread.created_at)}</span>
+					</div>
+					{#if thread.pinned || isLocked}
+						<div class="thread-badges-inline">
+							{#if thread.pinned}<span class="badge badge-pin">📌</span>{/if}
+							{#if isLocked}<span class="badge badge-lock">🔒</span>{/if}
+						</div>
+					{/if}
+				</div>
+				<div class="sticky-title-row">
+					<h1 class="thread-title">{thread.title || 'Thread'}</h1>
+					<button class="jump-top-btn" onclick={scrollToTop} title="Jump to top">
+						<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+					</button>
 				</div>
 			</div>
-			<h1 class="thread-title">{thread.title || 'Thread'}</h1>
-			{#if originalPost}
-				<div class="op-content" class:emoji-only={isEmojiOnly(originalPost.content)}>{@html renderMarkdown(originalPost.content, { mentions: originalPost.mentions, mention_roles: originalPost.mention_roles, mention_everyone: originalPost.mention_everyone })}</div>
-				{#if getYoutubeEmbedEnabled()}
-					{#each extractYouTubeVideoIds(originalPost.content) as videoId}
-						<YouTubeEmbed {videoId} />
-					{/each}
-				{/if}
-				{#if originalPost.attachments?.length}
-					<div class="op-attachments">
-						{#each originalPost.attachments as att}
-						{#if att.mime_type.startsWith('image/')}
-								<div class="op-attachment-wrapper">
-									<img class="op-attachment-img" src={att.url} alt={att.original_name} onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
-									<div class="image-broken hidden">
-										<span class="image-broken-icon">🖼️</span>
-										<span class="image-broken-text">{att.original_name ?? 'Image'} could not be loaded</span>
-									</div>
-								</div>
-							{:else}
-								<a class="op-attachment-file" href={att.url} download={att.original_name}>
-									📄 {att.original_name}
-								</a>
-							{/if}
+			<div class="thread-op-body">
+				{#if originalPost}
+					<div class="op-content" class:emoji-only={isEmojiOnly(originalPost.content)}>{@html renderMarkdown(originalPost.content, { mentions: originalPost.mentions, mention_roles: originalPost.mention_roles, mention_everyone: originalPost.mention_everyone })}</div>
+					{#if getYoutubeEmbedEnabled()}
+						{#each extractYouTubeVideoIds(originalPost.content) as videoId}
+							<YouTubeEmbed {videoId} />
 						{/each}
+					{/if}
+					{#if originalPost.attachments?.length}
+						<div class="op-attachments">
+							{#each originalPost.attachments as att}
+							{#if att.mime_type.startsWith('image/')}
+									<div class="op-attachment-wrapper">
+										<img class="op-attachment-img" src={att.url} alt={att.original_name} onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }} />
+										<div class="image-broken hidden">
+											<span class="image-broken-icon">🖼️</span>
+											<span class="image-broken-text">{att.original_name ?? 'Image'} could not be loaded</span>
+										</div>
+									</div>
+								{:else}
+									<a class="op-attachment-file" href={att.url} download={att.original_name}>
+										📄 {att.original_name}
+									</a>
+								{/if}
+							{/each}
+						</div>
+					{/if}
+				{:else if thread.first_message_content}
+					<p class="op-preview">{contentPreview(thread.first_message_content)}</p>
+				{/if}
+				{#if canPin || canLock || canDeleteThread}
+					<div class="thread-actions">
+						{#if canPin}
+							<button class="action-btn" onclick={handlePin} title={thread.pinned ? 'Unpin thread' : 'Pin thread'}>
+								📌 {thread.pinned ? 'Unpin' : 'Pin'}
+							</button>
+						{/if}
+						{#if canLock}
+							<button class="action-btn" onclick={handleLockClick} title={isLocked ? 'Unlock thread' : 'Lock thread'}>
+								{isLocked ? '🔓 Unlock' : '🔒 Lock'}
+							</button>
+						{/if}
+						{#if canDeleteThread}
+							<button class="action-btn action-btn-danger" onclick={handleDeleteThreadClick} title="Delete thread">
+								🗑️ Delete
+							</button>
+						{/if}
 					</div>
 				{/if}
-			{:else if thread.first_message_content}
-				<p class="op-preview">{contentPreview(thread.first_message_content)}</p>
-			{/if}
-			{#if thread.pinned || isLocked}
-				<div class="thread-meta">
-					{#if thread.pinned}
-						<span class="badge badge-pin">📌 Pinned</span>
-					{/if}
-					{#if isLocked}
-						<span class="badge badge-lock">🔒 Locked</span>
-					{/if}
-				</div>
-			{/if}
-			{#if canPin || canLock || canDeleteThread}
-				<div class="thread-actions">
-					{#if canPin}
-						<button class="action-btn" onclick={handlePin} title={thread.pinned ? 'Unpin thread' : 'Pin thread'}>
-							📌 {thread.pinned ? 'Unpin' : 'Pin'}
-						</button>
-					{/if}
-					{#if canLock}
-						<button class="action-btn" onclick={handleLockClick} title={isLocked ? 'Unlock thread' : 'Lock thread'}>
-							{isLocked ? '🔓 Unlock' : '🔒 Lock'}
-						</button>
-					{/if}
-					{#if canDeleteThread}
-						<button class="action-btn action-btn-danger" onclick={handleDeleteThreadClick} title="Delete thread">
-							🗑️ Delete
-						</button>
-					{/if}
-				</div>
-			{/if}
-		</div>
-	{/if}
+			</div>
+		{/if}
+		{#if replies.length > 0}
+			<div class="replies-header">{replyCountLabel}</div>
+		{/if}
+	{/snippet}
 
 	{#if loadError}
 		<div class="error-state">Thread not found or could not be loaded.</div>
 	{:else}
-		{#if replies.length > 0}
-			<div class="replies-header">{replyCountLabel}</div>
-		{/if}
 		<MessageList
 			messages={replies}
 			{loading}
@@ -379,6 +393,7 @@ import { send } from '$lib/stores/ws.svelte.js';
 			{canAddReactions}
 			{highlightMessageId}
 			threadMode
+			headerContent={threadHeaderContent}
 			onLoadMore={loadOlder}
 			onStartEdit={startEdit}
 			onCancelEdit={cancelEdit}
@@ -474,13 +489,20 @@ import { send } from '$lib/stores/ws.svelte.js';
 		color: var(--accent, #5865f2);
 	}
 
-	/* ── Thread hero ── */
-	.thread-hero {
-		padding: 1.25rem 1.5rem;
+	/* ── Sticky thread header ── */
+	.thread-sticky-header {
+		position: sticky;
+		top: 0;
+		z-index: 10;
+		background: color-mix(in srgb, var(--bg) 88%, transparent);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
+		padding: 0.75rem 1.5rem;
 		border-bottom: 1px solid var(--border);
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
+		gap: 0.4rem;
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 	}
 
 	.op-author {
@@ -490,11 +512,19 @@ import { send } from '$lib/stores/ws.svelte.js';
 	}
 
 	.op-avatar {
-		width: 48px;
-		height: 48px;
+		width: 36px;
+		height: 36px;
 		border-radius: 50%;
 		object-fit: cover;
 		flex-shrink: 0;
+	}
+
+	.clickable {
+		cursor: pointer;
+	}
+
+	.clickable:hover {
+		opacity: 0.8;
 	}
 
 	.op-avatar-fallback {
@@ -503,7 +533,7 @@ import { send } from '$lib/stores/ws.svelte.js';
 		justify-content: center;
 		background: var(--accent, #5865f2);
 		color: white;
-		font-size: 1rem;
+		font-size: 0.85rem;
 		font-weight: 600;
 	}
 
@@ -514,19 +544,72 @@ import { send } from '$lib/stores/ws.svelte.js';
 
 	.op-name {
 		font-weight: 600;
-		font-size: 0.9rem;
+		font-size: 0.85rem;
+		background: none;
+		border: none;
+		padding: 0;
+		cursor: pointer;
+		font-family: inherit;
+		text-align: left;
+	}
+
+	.op-name:hover {
+		text-decoration: underline;
+		background: none;
 	}
 
 	.op-time {
-		font-size: 0.75rem;
+		font-size: 0.7rem;
 		color: var(--text-muted);
 	}
 
+	.thread-badges-inline {
+		display: flex;
+		gap: 0.3rem;
+		margin-left: auto;
+	}
+
+	.sticky-title-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
 	.thread-title {
-		font-size: 1.5rem;
+		font-size: 1.15rem;
 		font-weight: 700;
 		margin: 0;
 		line-height: 1.3;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.jump-top-btn {
+		background: var(--bg-surface);
+		border: 1px solid var(--border);
+		color: var(--text-muted);
+		border-radius: 6px;
+		padding: 0.3rem;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		flex-shrink: 0;
+		transition: color 0.15s ease, background 0.15s ease;
+	}
+
+	.jump-top-btn:hover {
+		color: var(--text);
+		background: var(--bg-hover);
+	}
+
+	/* ── Scrollable OP body ── */
+	.thread-op-body {
+		padding: 1rem 1.5rem 1.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		border-bottom: 1px solid var(--border);
 	}
 
 	.op-content {
@@ -653,33 +736,17 @@ import { send } from '$lib/stores/ws.svelte.js';
 		line-height: 1.5;
 	}
 
-	.thread-meta {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.8rem;
-		color: var(--text-muted);
-		flex-wrap: wrap;
-		padding-top: 0.5rem;
-		border-top: 1px solid var(--border);
-	}
-
 	.badge {
-		font-size: 0.68rem;
-		font-weight: 600;
-		padding: 0.1rem 0.4rem;
-		border-radius: 4px;
-		white-space: nowrap;
+		font-size: 0.75rem;
+		line-height: 1;
 	}
 
 	.badge-pin {
 		color: var(--accent, #5865f2);
-		background: rgba(88, 101, 242, 0.12);
 	}
 
 	.badge-lock {
 		color: var(--text-muted);
-		background: rgba(255, 255, 255, 0.06);
 	}
 
 	.error-state {

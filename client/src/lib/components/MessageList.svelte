@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Snippet } from 'svelte';
 import type { Message } from '$lib/api/messages.js';
 	import type { Thread } from '$lib/api/threads.js';
 	import { addReaction, removeReaction } from '$lib/api/reactions.js';
@@ -44,7 +45,8 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 		onDelete,
 		onStartThread,
 		onOpenThread,
-		onQuoteReply
+		onQuoteReply,
+		headerContent
 	}: {
 		messages: Message[];
 		loading?: boolean;
@@ -68,6 +70,7 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 		onStartThread?: (messageId: string) => void;
 		onOpenThread?: (thread: Thread) => void;
 		onQuoteReply?: (msg: Message) => void;
+		headerContent?: Snippet;
 	} = $props();
 
 	let scrollContainer = $state<HTMLDivElement | null>(null);
@@ -316,6 +319,9 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 <div class="message-list-container" class:thread-mode={threadMode}>
 	<!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 	<div class="message-list" bind:this={scrollContainer} onscroll={handleScroll} onclick={handleContentClick}>
+		{#if headerContent}
+			{@render headerContent()}
+		{/if}
 		{#if loading && messages.length === 0}
 			<div class="loading">Loading messages...</div>
 		{/if}
@@ -336,9 +342,11 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 				{#if newGroup}
 					<div class="message-header">
 						{#if msg.author_avatar_url}
-							<img class="msg-avatar" src={msg.author_avatar_url} alt="" />
+							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+							<img class="msg-avatar clickable" src={msg.author_avatar_url} alt="" onclick={() => openMemberProfile(msg.author_id)} />
 						{:else}
-							<div class="msg-avatar msg-avatar-fallback">{(msg.author_display_name || msg.author_username || '?')[0].toUpperCase()}</div>
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div class="msg-avatar msg-avatar-fallback clickable" onclick={() => openMemberProfile(msg.author_id)}>{(msg.author_display_name || msg.author_username || '?')[0].toUpperCase()}</div>
 						{/if}
 						<button class="author" style:color={roleColor} onclick={() => openMemberProfile(msg.author_id)}>{ msg.author_display_name || msg.author_username || 'Unknown'}</button>
 						<span class="timestamp">{formatTimestamp(msg.created_at)}</span>
@@ -1227,6 +1235,14 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 		border-radius: 50%;
 		object-fit: cover;
 		flex-shrink: 0;
+	}
+
+	.msg-avatar.clickable {
+		cursor: pointer;
+	}
+
+	.msg-avatar.clickable:hover {
+		opacity: 0.8;
 	}
 
 	.msg-avatar-fallback {

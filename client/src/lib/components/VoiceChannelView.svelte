@@ -25,7 +25,8 @@
 		optimisticSetServerDeaf
 	} from '$lib/stores/voice.svelte.js';
 import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, type ScreenSharePreset } from '$lib/voice/livekit.js';
-	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
+import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
+	import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { serverMute, serverUnmute, serverDeafen, serverUndeafen, disconnectUser } from '$lib/api/voice.js';
 	import { goto } from '$app/navigation';
@@ -825,9 +826,11 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 								class:deafened={vu.self_deaf || vu.server_deaf}
 							>
 								{#if vu.avatar_url}
-									<img class="user-avatar" src={vu.avatar_url} alt="" />
+									<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+									<img class="user-avatar clickable" src={vu.avatar_url} alt="" onclick={() => openMemberProfile(vu.user_id)} />
 								{:else}
-									<div class="user-avatar-placeholder">
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<div class="user-avatar-placeholder clickable" onclick={() => openMemberProfile(vu.user_id)}>
 										{(vu.display_name || vu.username).charAt(0).toUpperCase()}
 									</div>
 								{/if}
@@ -1067,6 +1070,14 @@ import { getRoom, getVideoTracks, getLocalVideoTracks, SCREEN_SHARE_PRESETS, typ
 		border-radius: 50%;
 		object-fit: cover;
 		display: block;
+	}
+
+	.clickable {
+		cursor: pointer;
+	}
+
+	.clickable:hover {
+		opacity: 0.8;
 	}
 
 	.tile-avatar-placeholder {
