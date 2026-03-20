@@ -40,6 +40,9 @@
 			const path = page.url.pathname;
 			if (isSetupRequired() && path !== '/setup') {
 				goto('/setup');
+			} else if (!isSetupRequired() && path === '/setup') {
+				// Setup complete — redirect away from setup wizard
+				goto(isAuthenticated() ? '/' : '/login');
 			} else if (getPasswordMustChange() && path !== '/change-password') {
 				goto('/change-password');
 			} else if (!isSetupRequired() && !isAuthenticated() && !isPublicRoute(path)) {

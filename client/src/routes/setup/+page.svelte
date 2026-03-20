@@ -77,10 +77,15 @@
 			const formData = new FormData();
 			formData.append('backup', backupFile);
 			if (backupPassword) formData.append('password', backupPassword);
-			await apiRaw('/setup/restore', { method: 'POST', body: formData });
-			goto('/login');
+			const res = await apiRaw('/setup/restore', { method: 'POST', body: formData });
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({ message: 'Restore failed' }));
+				error = body.message || body.error || 'Restore failed';
+				return;
+			}
+			goto('/maintenance');
 		} catch (err) {
-			error = (err as ApiError).message || 'Restore failed';
+			error = (err as ApiError).message || 'Network error — could not reach server';
 		} finally {
 			restoring = false;
 		}
@@ -207,21 +212,19 @@
 				<p class="muted">If you're migrating from another Fold server or restoring from a backup, you can upload it here. This will restore all your data including users, channels, messages, and files. The server will restart after a successful restore.</p>
 
 				<div class="form-group">
-					<label for="backup-file">Backup File</label>
-					<input id="backup-file" type="file" accept=".zip,.tar,.tar.gz" onchange={onBackupFileChange} />
+					<label for="backup-file">Backup File (.tar.gz)</label>
+					<input id="backup-file" type="file" accept=".tar.gz,.tgz,application/gzip,application/x-gzip,application/x-tar" onchange={onBackupFileChange} />
 				</div>
-				{#if backupFile}
-					<div class="form-group">
-						<label for="backup-pw">Backup Password</label>
-						<input id="backup-pw" type="password" bind:value={backupPassword} placeholder="Leave empty if not encrypted" />
-						<span class="hint">Only needed if the backup was created with a password.</span>
-					</div>
-					<div class="form-actions">
-						<button class="btn-primary" onclick={handleRestore} disabled={restoring}>
-							{restoring ? 'Restoring...' : 'Restore Backup'}
-						</button>
-					</div>
-				{/if}
+				<div class="form-group">
+					<label for="backup-pw">Database Password</label>
+					<input id="backup-pw" type="password" bind:value={backupPassword} placeholder="Leave empty if backup was not encrypted" />
+					<span class="hint">Only required if the backup was created with a database password.</span>
+				</div>
+				<div class="form-actions">
+					<button class="btn-primary" onclick={handleRestore} disabled={restoring || !backupFile}>
+						{restoring ? 'Restoring...' : 'Restore Backup'}
+					</button>
+				</div>
 
 				<div class="section-divider"></div>
 

@@ -28,7 +28,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 	if (res.status === 503) {
 		const body = await res.json().catch(() => ({ error: 'maintenance' })) as ApiError;
 		body.status = res.status;
-		if (body.error === 'maintenance') {
+		if (body.error === 'maintenance' || body.error === 'restart_required') {
 			if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/maintenance')) {
 				window.location.href = '/maintenance';
 			}

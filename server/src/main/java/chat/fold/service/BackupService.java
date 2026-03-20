@@ -394,12 +394,14 @@ public class BackupService {
     }
 
     private void extractTarGz(InputStream archiveStream, Path targetDir) throws IOException {
+        // Normalize to absolute path so Path.startsWith() works correctly across symlinked paths (e.g. macOS /var → /private/var)
+        Path safeTarget = targetDir.toAbsolutePath().normalize();
         try (var gzis = new GZIPInputStream(archiveStream);
              var tis = new org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gzis)) {
             org.apache.commons.compress.archivers.tar.TarArchiveEntry entry;
             while ((entry = tis.getNextEntry()) != null) {
-                Path entryPath = targetDir.resolve(entry.getName()).normalize();
-                if (!entryPath.startsWith(targetDir)) {
+                Path entryPath = safeTarget.resolve(entry.getName()).normalize();
+                if (!entryPath.startsWith(safeTarget)) {
                     throw new IOException("Tar entry outside target directory: " + entry.getName());
                 }
                 if (entry.isDirectory()) {

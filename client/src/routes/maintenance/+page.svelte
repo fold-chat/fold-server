@@ -6,6 +6,7 @@ import { onMount } from 'svelte';
 	import ServerBranding from '$lib/components/ServerBranding.svelte';
 
 	let message = $state('');
+	let restartRequired = $state(false);
 	let loading = $state(true);
 	let checking = $state(false);
 
@@ -15,8 +16,14 @@ import { onMount } from 'svelte';
 				headers: { 'Content-Type': 'application/json' }
 			});
 			const data = await res.json();
-		if (!data.maintenance) {
-				// Server is back up — restore session then redirect
+			if (data.restart_required) {
+				restartRequired = true;
+				message = data.message || 'Backup restored. Please restart the server to continue.';
+			} else if (data.maintenance) {
+				restartRequired = false;
+				message = data.maintenance_message || '';
+			} else {
+				// Server is back up
 				try {
 					const user = await getMe();
 					setUser(user);
@@ -24,7 +31,6 @@ import { onMount } from 'svelte';
 				goto('/');
 				return;
 			}
-			message = data.maintenance_message || '';
 		} catch {
 			message = 'Unable to reach server.';
 		} finally {
@@ -52,11 +58,14 @@ import { onMount } from 'svelte';
 			<p class="muted">Checking server status…</p>
 		{:else}
 			<ServerBranding />
-			<h2>Under Maintenance</h2>
+			<h2>{restartRequired ? 'Restart Required' : 'Under Maintenance'}</h2>
 			{#if message}
 				<p class="maintenance-message">{message}</p>
 			{:else}
 				<p class="muted">The server is temporarily unavailable. Please check back soon.</p>
+			{/if}
+			{#if restartRequired}
+				<p class="muted">This page will automatically redirect once the server is back online.</p>
 			{/if}
 			<button onclick={handleRetry} disabled={checking}>
 				{checking ? 'Checking…' : 'Check Again'}
