@@ -59,9 +59,11 @@ public class ServerSettingsResource {
         try {
             byte[] data = Files.readAllBytes(filePath.get());
             String mimeType = (String) meta.get().get("mime_type");
+            String etag = "\"" + storedName.hashCode() + "-" + data.length + "\"";
             return Response.ok(data)
                     .type(mimeType)
-                    .header("Cache-Control", "public, max-age=86400")
+                    .header("Cache-Control", "public, no-cache")
+                    .header("ETag", etag)
                     .build();
         } catch (IOException e) {
             return Response.status(500).build();
