@@ -9,6 +9,7 @@ export interface UserPermissions {
 
 let user = $state<User | null>(null);
 let setupRequired = $state(false);
+let insecureMode = $state(false);
 let initialized = $state(false);
 let passwordMustChange = $state(false);
 let permissions = $state<UserPermissions>({ server: [], channels: new Map() });
@@ -39,6 +40,10 @@ export function isSetupRequired(): boolean {
 	return setupRequired;
 }
 
+export function isInsecureMode(): boolean {
+	return insecureMode;
+}
+
 export function getPasswordMustChange(): boolean {
 	return passwordMustChange;
 }
@@ -55,8 +60,9 @@ export async function init() {
 	if (initialized) return;
 
 	try {
-		const status = await getSetupStatus();
+	const status = await getSetupStatus();
 		setupRequired = status.setup_required;
+		insecureMode = status.insecure;
 
 		if (!setupRequired) {
 			try {
@@ -150,6 +156,7 @@ export function reset() {
 	user = null;
 	initialized = false;
 	setupRequired = false;
+	insecureMode = false;
 	passwordMustChange = false;
 	permissions = { server: [], channels: new Map() };
 	permissionsLoaded = false;

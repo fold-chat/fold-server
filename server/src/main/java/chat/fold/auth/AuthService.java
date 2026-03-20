@@ -265,13 +265,21 @@ public class AuthService {
 
     // --- Cookie helpers ---
 
+    private boolean secureCookies() {
+        return !authConfig.dev() && !authConfig.insecure();
+    }
+
+    public boolean isInsecureMode() {
+        return authConfig.insecure();
+    }
+
     public NewCookie accessCookie(String token) {
         return new NewCookie.Builder("fold_access")
                 .value(token)
                 .path("/api")
                 .maxAge((int) jwtService.getAccessTokenTtl().toSeconds())
                 .httpOnly(true)
-                .secure(!authConfig.dev())
+                .secure(secureCookies())
                 .sameSite(NewCookie.SameSite.STRICT)
                 .build();
     }
@@ -282,7 +290,7 @@ public class AuthService {
                 .path("/api/v0/auth")
                 .maxAge((int) REFRESH_TOKEN_TTL.toSeconds())
                 .httpOnly(true)
-                .secure(!authConfig.dev())
+                .secure(secureCookies())
                 .sameSite(NewCookie.SameSite.STRICT)
                 .build();
     }
@@ -293,7 +301,7 @@ public class AuthService {
                 .path("/api")
                 .maxAge(0)
                 .httpOnly(true)
-                .secure(!authConfig.dev())
+                .secure(secureCookies())
                 .sameSite(NewCookie.SameSite.STRICT)
                 .build();
     }
@@ -304,7 +312,7 @@ public class AuthService {
                 .path("/api/v0/auth")
                 .maxAge(0)
                 .httpOnly(true)
-                .secure(!authConfig.dev())
+                .secure(secureCookies())
                 .sameSite(NewCookie.SameSite.STRICT)
                 .build();
     }

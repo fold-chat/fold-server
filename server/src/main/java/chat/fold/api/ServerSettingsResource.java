@@ -25,7 +25,7 @@ import java.util.Set;
 @Consumes(MediaType.APPLICATION_JSON)
 public class ServerSettingsResource {
 
-    private static final Set<String> PUBLIC_KEYS = Set.of("server_name", "server_icon", "server_description");
+    private static final Set<String> PUBLIC_KEYS = Set.of("server_name", "server_icon", "server_description", "server_url");
 
     @Inject DatabaseService db;
     @Inject PermissionService permissionService;
@@ -35,7 +35,7 @@ public class ServerSettingsResource {
 
     @GET
     public Map<String, Object> getSettings() {
-        var rows = db.query("SELECT key, value FROM server_config WHERE key IN ('server_name', 'server_icon', 'server_description')");
+        var rows = db.query("SELECT key, value FROM server_config WHERE key IN ('server_name', 'server_icon', 'server_description', 'server_url')");
         var result = new LinkedHashMap<String, Object>();
         for (var row : rows) {
             result.put((String) row.get("key"), row.get("value"));

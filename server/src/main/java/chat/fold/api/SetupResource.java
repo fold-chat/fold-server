@@ -27,8 +27,11 @@ public class SetupResource {
 
     @GET
     @Path("/status")
-    public Map<String, Boolean> status() {
-        return Map.of("setup_required", setupService.isSetupRequired());
+    public Map<String, Object> status() {
+        return Map.of(
+                "setup_required", setupService.isSetupRequired(),
+                "insecure", authService.isInsecureMode()
+        );
     }
 
     @POST

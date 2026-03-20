@@ -13,6 +13,7 @@ export interface RegisterResponse {
 
 export interface SetupStatusResponse {
 	setup_required: boolean;
+	insecure: boolean;
 }
 
 export function login(username: string, password: string) {

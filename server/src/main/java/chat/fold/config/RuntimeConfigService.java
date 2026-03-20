@@ -37,14 +37,16 @@ public class RuntimeConfigService {
             "fold.media-processing.max-video-size",
             "fold.media-processing.max-image-size",
             "fold.media-processing.thumbnail-max-width",
-            "fold.media-processing.hw-accel"
+            "fold.media-processing.hw-accel",
+            "fold.media.klipy-api-key"
     );
 
     /** Keys whose values are obscured in GET responses */
     public static final Set<String> SENSITIVE_KEYS = Set.of(
             "fold.livekit.api-key",
             "fold.livekit.api-secret",
-            "fold.livekit.central-api-key"
+            "fold.livekit.central-api-key",
+            "fold.media.klipy-api-key"
     );
 
     private final ConcurrentHashMap<String, String> cache = new ConcurrentHashMap<>();

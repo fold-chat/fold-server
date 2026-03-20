@@ -23,6 +23,10 @@ public interface FoldAuthConfig {
     @WithDefault("false")
     boolean dev();
 
+    /** Allow non-TLS cookies. For deployments without HTTPS. */
+    @WithDefault("false")
+    boolean insecure();
+
     Optional<String> adminUsername();
 
     Optional<String> adminPassword();
