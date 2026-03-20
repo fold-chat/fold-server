@@ -15,16 +15,15 @@ import java.util.Optional;
 @Singleton
 public class BotRepository {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     @Inject DatabaseService db;
 
     // --- Token helpers ---
 
     /** Generate a new bot API token: fold_bot_<32 random bytes, url-safe base64> */
     public static String generateToken() {
+        var random = new SecureRandom();
         byte[] bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
+        random.nextBytes(bytes);
         return "fold_bot_" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
