@@ -39,6 +39,7 @@
 		'/settings/emoji': 'Emoji',
 		'/settings/voice': 'Voice',
 		'/settings/media': 'Media',
+		'/settings/rate-limits': 'Rate Limits',
 		'/settings/maintenance': 'Maintenance',
 		'/settings/backups': 'Backups',
 		'/settings/audit-log': 'Audit Log',
@@ -139,6 +140,9 @@
 			{/if}
 			{#if canManageServer}
 				<a class="nav-item" class:active={isActive('/settings/media')} href="/settings/media">Media</a>
+			{/if}
+			{#if canManageServer}
+				<a class="nav-item" class:active={isActive('/settings/rate-limits')} href="/settings/rate-limits">Rate Limits</a>
 			{/if}
 			{#if canManageServer}
 				<a class="nav-item" class:active={isActive('/settings/maintenance')} href="/settings/maintenance">Maintenance</a>

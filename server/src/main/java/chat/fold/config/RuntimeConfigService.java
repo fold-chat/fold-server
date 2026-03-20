@@ -38,7 +38,27 @@ public class RuntimeConfigService {
             "fold.media-processing.max-image-size",
             "fold.media-processing.thumbnail-max-width",
             "fold.media-processing.hw-accel",
-            "fold.media.klipy-api-key"
+            "fold.media.klipy-api-key",
+            // Rate limits (count/windowSeconds format, e.g. "10/60")
+            "fold.rate-limit.login",
+            "fold.rate-limit.register",
+            "fold.rate-limit.refresh",
+            "fold.rate-limit.invite-join",
+            "fold.rate-limit.password-change",
+            "fold.rate-limit.profile-update",
+            "fold.rate-limit.message-send",
+            "fold.rate-limit.message-edit",
+            "fold.rate-limit.message-delete",
+            "fold.rate-limit.thread-create",
+            "fold.rate-limit.reaction-add",
+            "fold.rate-limit.reaction-remove",
+            "fold.rate-limit.search",
+            "fold.rate-limit.media-search",
+            "fold.rate-limit.voice-token",
+            "fold.rate-limit.voice-state",
+            "fold.rate-limit.voice-moderation",
+            "fold.rate-limit.emoji-upload",
+            "fold.rate-limit.emoji-delete"
     );
 
     /** Keys whose values are obscured in GET responses */

@@ -1,6 +1,7 @@
 package chat.fold.auth;
 
 import chat.fold.config.FoldRateLimitConfig;
+import chat.fold.config.RuntimeConfigService;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -14,6 +15,9 @@ public class RateLimitService {
 
     @Inject
     FoldRateLimitConfig config;
+
+    @Inject
+    RuntimeConfigService runtimeConfig;
 
     private final ConcurrentHashMap<String, TokenBucket> buckets = new ConcurrentHashMap<>();
 
@@ -30,9 +34,17 @@ public class RateLimitService {
         return bucket.tryConsume(policy);
     }
 
-    /** Resolve effective policy, checking config overrides first */
+    /** Resolve effective policy: runtime config (DB) → env config → hardcoded default */
     public RateLimitPolicy resolvePolicy(String action, RateLimitPolicy defaultPolicy) {
-        var override = switch (action) {
+        // 1. Check runtime config (DB-backed, admin-overridable)
+        String key = "fold.rate-limit." + action.replace("_", "-");
+        String runtimeVal = runtimeConfig.getString(key, null);
+        if (runtimeVal != null && !runtimeVal.isBlank()) {
+            return RateLimitPolicy.parse(runtimeVal);
+        }
+
+        // 2. Check env-based config (@ConfigMapping)
+        var envOverride = switch (action) {
             case "login" -> config.login();
             case "register" -> config.register();
             case "invite_join" -> config.inviteJoin();
@@ -41,9 +53,12 @@ public class RateLimitService {
             case "password_change" -> config.passwordChange();
             case "search" -> config.search();
             case "media_search" -> config.mediaSearch();
+            case "voice_token" -> config.voiceToken();
+            case "voice_state" -> config.voiceState();
+            case "voice_moderation" -> config.voiceModeration();
             default -> java.util.Optional.<String>empty();
         };
-        return override.filter(s -> !s.isBlank()).map(RateLimitPolicy::parse).orElse(defaultPolicy);
+        return envOverride.filter(s -> !s.isBlank()).map(RateLimitPolicy::parse).orElse(defaultPolicy);
     }
 
     @Scheduled(every = "5m")
