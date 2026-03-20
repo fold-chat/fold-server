@@ -11,6 +11,7 @@ import { editMessage, deleteMessage, type Message } from '$lib/api/messages.js';
 		getThreadTypingUsers, markThreadRead
 	} from '$lib/stores/threads.svelte.js';
 	import { getChannelById, getCategories } from '$lib/stores/channels.svelte.js';
+	import { setActiveChannelId } from '$lib/stores/messages.svelte.js';
 	import { getUser, hasChannelPermission } from '$lib/stores/auth.svelte.js';
 import { PermissionName } from '$lib/permissions.js';
 import { renderMarkdown, contentPreview, isEmojiOnly, extractYouTubeVideoIds } from '$lib/utils/markdown.js';
@@ -81,6 +82,12 @@ import { getMemberRoleColor } from '$lib/stores/members.svelte.js';
 	function scrollToTop() {
 		threadTopAnchor?.scrollIntoView({ behavior: 'smooth' });
 	}
+
+	// Keep sidebar channel highlighted while in thread view
+	$effect(() => {
+		setActiveChannelId(channelId);
+		return () => setActiveChannelId(null);
+	});
 
 	$effect(() => {
 		const tId = threadId;

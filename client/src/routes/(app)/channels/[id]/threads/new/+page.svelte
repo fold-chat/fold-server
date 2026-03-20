@@ -4,6 +4,7 @@
 	import { createThread } from '$lib/api/threads.js';
 	import { addChannelThread } from '$lib/stores/threads.svelte.js';
 	import { getChannelById, getCategories } from '$lib/stores/channels.svelte.js';
+	import { setActiveChannelId } from '$lib/stores/messages.svelte.js';
 	import { hasChannelPermission } from '$lib/stores/auth.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
@@ -19,6 +20,12 @@
 	let title = $state('');
 	let submitting = $state(false);
 	let titleError = $state('');
+
+	// Keep sidebar channel highlighted while in new-thread view
+	$effect(() => {
+		setActiveChannelId(channelId);
+		return () => setActiveChannelId(null);
+	});
 
 	async function handleSubmit(content: string, attachmentIds?: string[]) {
 		titleError = '';
