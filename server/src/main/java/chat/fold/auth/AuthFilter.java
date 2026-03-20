@@ -169,6 +169,7 @@ public class AuthFilter implements ContainerRequestFilter {
         if (p.startsWith("api/v0/setup")) return true;
         if (p.startsWith("api/v0/avatars/default/")) return true;
         if (p.startsWith("api/v0/webhooks/")) return true;
+        if (p.equals("api/v0/settings/icon")) return true;
 
         // Invite GET only (public info)
         if (p.startsWith("api/v0/invites/") && "GET".equals(method)) return true;

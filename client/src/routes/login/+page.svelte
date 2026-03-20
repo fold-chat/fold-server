@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { login } from '$lib/api/auth.js';
+import { login } from '$lib/api/auth.js';
 	import { getMe } from '$lib/api/users.js';
 	import { setUser, setPasswordMustChange } from '$lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
 	import type { ApiError } from '$lib/api/client.js';
+	import ServerBranding from '$lib/components/ServerBranding.svelte';
 
 	let username = $state('');
 	let password = $state('');
@@ -68,8 +69,8 @@
 
 <div class="auth-page">
 	<div class="auth-card">
+		<ServerBranding />
 		<h1>Sign in</h1>
-		<p>Welcome back to Fold</p>
 
 		{#if error}
 			<div class="error-message">{error}</div>

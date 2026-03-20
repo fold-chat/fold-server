@@ -35,6 +35,9 @@ public class StatusResource {
         result.put("version", "0.1.0");
         var rows = db.query("SELECT value FROM server_config WHERE key = 'server_name'");
         result.put("server_name", rows.isEmpty() ? "Fold" : rows.getFirst().get("value"));
+        var iconRows = db.query("SELECT value FROM server_config WHERE key = 'server_icon'");
+        boolean hasIcon = !iconRows.isEmpty() && iconRows.getFirst().get("value") != null;
+        result.put("server_icon_url", hasIcon ? "/api/v0/settings/icon" : null);
         result.put("maintenance", maintenanceService.isEnabled());
         if (maintenanceService.isEnabled()) {
             result.put("maintenance_message", maintenanceService.getMessage());

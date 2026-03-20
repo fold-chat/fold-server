@@ -1,7 +1,9 @@
 package chat.fold.api;
 
+import chat.fold.auth.FileService;
 import chat.fold.auth.FoldSecurityContext;
 import chat.fold.db.DatabaseService;
+import chat.fold.db.FileRepository;
 import chat.fold.event.Event;
 import chat.fold.event.EventBus;
 import chat.fold.event.EventType;
@@ -16,6 +18,9 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.io.IOException;
+import java.nio.file.Files;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -28,10 +33,40 @@ public class ServerSettingsResource {
     private static final Set<String> PUBLIC_KEYS = Set.of("server_name", "server_icon", "server_description", "server_url");
 
     @Inject DatabaseService db;
+    @Inject FileService fileService;
+    @Inject FileRepository fileRepo;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
     @Inject AuditLogService auditLogService;
     @Context ContainerRequestContext requestContext;
+
+    /** Public endpoint — serves the server icon image (no auth required) */
+    @GET
+    @Path("/icon")
+    public Response getIcon() {
+        var rows = db.query("SELECT value FROM server_config WHERE key = 'server_icon'");
+        if (rows.isEmpty() || rows.getFirst().get("value") == null) {
+            return Response.status(404).build();
+        }
+        String iconUrl = (String) rows.getFirst().get("value");
+        // URL is like /api/v0/files/<storedName>
+        String storedName = iconUrl.substring(iconUrl.lastIndexOf('/') + 1);
+        var meta = fileRepo.findByStoredName(storedName);
+        var filePath = fileService.getFilePath(storedName);
+        if (meta.isEmpty() || filePath.isEmpty()) {
+            return Response.status(404).build();
+        }
+        try {
+            byte[] data = Files.readAllBytes(filePath.get());
+            String mimeType = (String) meta.get().get("mime_type");
+            return Response.ok(data)
+                    .type(mimeType)
+                    .header("Cache-Control", "public, max-age=86400")
+                    .build();
+        } catch (IOException e) {
+            return Response.status(500).build();
+        }
+    }
 
     @GET
     public Map<String, Object> getSettings() {

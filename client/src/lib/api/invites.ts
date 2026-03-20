@@ -16,6 +16,8 @@ export interface InviteInfo {
 	code: string;
 	valid: boolean;
 	expires_at: string;
+	server_name: string;
+	server_icon: string | null;
 }
 
 export function createInvite(data: { description: string; max_uses?: number; expires_at?: string }) {

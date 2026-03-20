@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { register } from '$lib/api/auth.js';
+import { register } from '$lib/api/auth.js';
 	import { getMe } from '$lib/api/users.js';
 	import { setUser } from '$lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { ApiError } from '$lib/api/client.js';
+	import ServerBranding from '$lib/components/ServerBranding.svelte';
 
 	let username = $state('');
 	let password = $state('');
@@ -47,8 +48,8 @@
 
 <div class="auth-page">
 	<div class="auth-card">
+		<ServerBranding />
 		<h1>Create account</h1>
-		<p>Join the community</p>
 
 		{#if error}
 			<div class="error-message">{error}</div>

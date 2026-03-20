@@ -27,15 +27,30 @@
 		{:else if error}
 			<h1>Invalid invite</h1>
 			<p>{error}</p>
-		{:else if invite && invite.valid}
-			<h1>You've been invited!</h1>
-			<p>Join the Fold community</p>
-			<a href="/register?invite={code}">
-				<button style="width: 100%">Accept invite</button>
-			</a>
+	{:else if invite && invite.valid}
+		{#if invite.server_icon}
+			<img src={invite.server_icon} alt="" class="server-icon" />
+		{/if}
+		<h1>You've been invited!</h1>
+		<p>Join <strong>{invite.server_name}</strong></p>
+		<a href="/register?invite={code}">
+			<button style="width: 100%">Accept invite</button>
+		</a>
 		{:else}
 			<h1>Invite expired</h1>
 			<p>This invite is no longer valid.</p>
 		{/if}
 	</div>
+<div class="powered-by">Powered by <a href="https://fold.chat" target="_blank" rel="noopener">fold.chat</a></div>
 </div>
+
+<style>
+	.server-icon {
+		width: 80px;
+		height: 80px;
+		border-radius: 16px;
+		object-fit: cover;
+		margin: 0 auto 0.75rem;
+		display: block;
+	}
+</style>

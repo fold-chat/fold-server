@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { forceChangePassword } from '$lib/api/auth.js';
+import { forceChangePassword } from '$lib/api/auth.js';
 	import { getMe } from '$lib/api/users.js';
 	import { getPasswordMustChange, setPasswordMustChange, setUser } from '$lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
 	import type { ApiError } from '$lib/api/client.js';
 	import { onMount } from 'svelte';
+	import ServerBranding from '$lib/components/ServerBranding.svelte';
 
 	let newPassword = $state('');
 	let confirmPassword = $state('');
@@ -48,6 +49,7 @@
 
 <div class="auth-page">
 	<div class="auth-card">
+		<ServerBranding />
 		<h1>Change Your Password</h1>
 		<p>An administrator has reset your password. You must set a new password to continue.</p>
 

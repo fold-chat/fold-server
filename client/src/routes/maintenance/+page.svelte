@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { getMe } from '$lib/api/users.js';
 	import { setUser } from '$lib/stores/auth.svelte.js';
+	import ServerBranding from '$lib/components/ServerBranding.svelte';
 
 	let message = $state('');
-	let serverName = $state('Fold');
 	let loading = $state(true);
 	let checking = $state(false);
 
@@ -15,7 +15,6 @@
 				headers: { 'Content-Type': 'application/json' }
 			});
 			const data = await res.json();
-		serverName = data.server_name || 'Fold';
 		if (!data.maintenance) {
 				// Server is back up — restore session then redirect
 				try {
@@ -52,8 +51,7 @@
 		{#if loading}
 			<p class="muted">Checking server status…</p>
 		{:else}
-			<div class="icon">🔧</div>
-			<h1>{serverName}</h1>
+			<ServerBranding />
 			<h2>Under Maintenance</h2>
 			{#if message}
 				<p class="maintenance-message">{message}</p>
@@ -85,11 +83,6 @@
 		max-width: 440px;
 		width: 100%;
 		text-align: center;
-	}
-
-	.icon {
-		font-size: 3rem;
-		margin-bottom: 1rem;
 	}
 
 	h1 {

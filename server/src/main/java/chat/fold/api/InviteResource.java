@@ -1,6 +1,7 @@
 package chat.fold.api;
 
 import chat.fold.auth.FoldSecurityContext;
+import chat.fold.db.DatabaseService;
 import chat.fold.db.InviteRepository;
 import chat.fold.security.Permission;
 import chat.fold.security.PermissionService;
@@ -24,6 +25,7 @@ public class InviteResource {
     private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
 
     @Inject InviteRepository inviteRepo;
+    @Inject DatabaseService db;
     @Inject PermissionService permissionService;
     @Inject AuditLogService auditLogService;
     @Context ContainerRequestContext requestContext;
@@ -68,11 +70,20 @@ public class InviteResource {
         }
         var inv = invite.get();
         boolean valid = isValid(inv);
-        return Response.ok(Map.of(
-                "code", code,
-                "valid", valid,
-                "expires_at", inv.get("expires_at") != null ? inv.get("expires_at") : ""
-        )).build();
+        var serverConfig = db.query("SELECT key, value FROM server_config WHERE key IN ('server_name', 'server_icon')");
+        String serverName = "Fold";
+        String serverIcon = null;
+        for (var row : serverConfig) {
+            if ("server_name".equals(row.get("key"))) serverName = (String) row.get("value");
+            if ("server_icon".equals(row.get("key"))) serverIcon = (String) row.get("value");
+        }
+        var result = new java.util.LinkedHashMap<String, Object>();
+        result.put("code", code);
+        result.put("valid", valid);
+        result.put("expires_at", inv.get("expires_at") != null ? inv.get("expires_at") : "");
+        result.put("server_name", serverName);
+        result.put("server_icon", serverIcon != null ? "/api/v0/settings/icon" : null);
+        return Response.ok(result).build();
     }
 
     @DELETE
