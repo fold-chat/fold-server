@@ -1,7 +1,7 @@
 package chat.fold.db;
 
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-@ApplicationScoped
+@Singleton
 public class BotRepository {
 
     private static final SecureRandom RANDOM = new SecureRandom();
