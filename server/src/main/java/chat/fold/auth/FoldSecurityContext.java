@@ -7,10 +7,16 @@ public class FoldSecurityContext implements SecurityContext {
 
     private final String userId;
     private final String username;
+    private final boolean isBot;
 
     public FoldSecurityContext(String userId, String username) {
+        this(userId, username, false);
+    }
+
+    public FoldSecurityContext(String userId, String username, boolean isBot) {
         this.userId = userId;
         this.username = username;
+        this.isBot = isBot;
     }
 
     public String getUserId() {
@@ -19,6 +25,10 @@ public class FoldSecurityContext implements SecurityContext {
 
     public String getUsername() {
         return username;
+    }
+
+    public boolean isBot() {
+        return isBot;
     }
 
     @Override

@@ -56,7 +56,8 @@ public class MessageRepository {
 
     public Optional<Map<String, Object>> findByIdWithAuthor(String id) {
         var rows = db.query("""
-                SELECT m.*, u.username AS author_username, u.display_name AS author_display_name, u.avatar_url AS author_avatar_url
+                SELECT m.*, u.username AS author_username, u.display_name AS author_display_name,
+                       u.avatar_url AS author_avatar_url, u.is_bot AS author_is_bot
                 FROM message m JOIN user u ON m.author_id = u.id
                 WHERE m.id = ?""", id);
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
@@ -101,7 +102,8 @@ public class MessageRepository {
     /** Get message with author info for API responses — excludes threaded messages */
     public List<Map<String, Object>> paginateWithAuthor(String channelId, String before, String after, int limit) {
         String baseQuery = """
-                SELECT m.*, u.username AS author_username, u.display_name AS author_display_name, u.avatar_url AS author_avatar_url
+                SELECT m.*, u.username AS author_username, u.display_name AS author_display_name,
+                       u.avatar_url AS author_avatar_url, u.is_bot AS author_is_bot
                 FROM message m
                 JOIN user u ON m.author_id = u.id
                 WHERE m.channel_id = ? AND m.thread_id IS NULL""";
@@ -122,7 +124,8 @@ public class MessageRepository {
     /** Paginate messages within a thread */
     public List<Map<String, Object>> paginateThreadMessages(String threadId, String before, String after, int limit) {
         String baseQuery = """
-                SELECT m.*, u.username AS author_username, u.display_name AS author_display_name, u.avatar_url AS author_avatar_url
+                SELECT m.*, u.username AS author_username, u.display_name AS author_display_name,
+                       u.avatar_url AS author_avatar_url, u.is_bot AS author_is_bot
                 FROM message m
                 JOIN user u ON m.author_id = u.id
                 WHERE m.thread_id = ?""";
@@ -146,7 +149,8 @@ public class MessageRepository {
      */
     public List<Map<String, Object>> paginateAround(String channelId, String messageId, int limit) {
         String baseSelect = """
-                SELECT m.*, u.username AS author_username, u.display_name AS author_display_name, u.avatar_url AS author_avatar_url
+                SELECT m.*, u.username AS author_username, u.display_name AS author_display_name,
+                       u.avatar_url AS author_avatar_url, u.is_bot AS author_is_bot
                 FROM message m
                 JOIN user u ON m.author_id = u.id""";
 

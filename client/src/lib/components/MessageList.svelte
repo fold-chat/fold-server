@@ -348,8 +348,11 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div class="msg-avatar msg-avatar-fallback clickable" onclick={() => openMemberProfile(msg.author_id)}>{(msg.author_display_name || msg.author_username || '?')[0].toUpperCase()}</div>
 						{/if}
-						<button class="author" style:color={roleColor} onclick={() => openMemberProfile(msg.author_id)}>{ msg.author_display_name || msg.author_username || 'Unknown'}</button>
-						<span class="timestamp">{formatTimestamp(msg.created_at)}</span>
+					<button class="author" style:color={roleColor} onclick={() => openMemberProfile(msg.author_id)}>{ msg.author_display_name || msg.author_username || 'Unknown'}</button>
+					{#if msg.author_is_bot}
+						<span class="bot-tag">BOT</span>
+					{/if}
+					<span class="timestamp">{formatTimestamp(msg.created_at)}</span>
 					</div>
 				{/if}
 				<div class="message-body">
@@ -642,6 +645,18 @@ import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	.author:hover {
 		text-decoration: underline;
 		background: none;
+	}
+
+	.bot-tag {
+		display: inline-block;
+		font-size: 0.55rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		background: var(--accent, #5865f2);
+		color: white;
+		padding: 0.05rem 0.3rem;
+		border-radius: 3px;
+		vertical-align: middle;
 	}
 
 	.timestamp {

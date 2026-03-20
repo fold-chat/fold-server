@@ -116,6 +116,11 @@ public class AuthService {
             throw new AuthException("invalid_credentials", "Invalid username or password");
         }
         var user = userOpt.get();
+        // Bots cannot log in — treat as non-existent to avoid leaking their existence
+        Long isBot = (Long) user.get("is_bot");
+        if (isBot != null && isBot != 0) {
+            throw new AuthException("invalid_credentials", "Invalid username or password");
+        }
         String userId = (String) user.get("id");
 
         // Check lockout

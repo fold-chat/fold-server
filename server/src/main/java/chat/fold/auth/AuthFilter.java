@@ -1,5 +1,6 @@
 package chat.fold.auth;
 
+import chat.fold.db.BotRepository;
 import chat.fold.db.UserRepository;
 import chat.fold.security.Permission;
 import chat.fold.security.PermissionService;
@@ -25,6 +26,9 @@ public class AuthFilter implements ContainerRequestFilter {
 
     @Inject
     UserRepository userRepo;
+
+    @Inject
+    BotRepository botRepo;
 
     @Inject
     MaintenanceService maintenanceService;
@@ -55,6 +59,48 @@ public class AuthFilter implements ContainerRequestFilter {
         }
 
         if (isPublicPath(path, method)) return;
+
+        // --- Bot token auth: Authorization: Bot <token> ---
+        String authHeader = ctx.getHeaderString("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bot ")) {
+            String rawToken = authHeader.substring(4).trim();
+            String hash = BotRepository.hashToken(rawToken);
+            var botUserOpt = botRepo.findByTokenHash(hash);
+            if (botUserOpt.isEmpty()) {
+                ctx.abortWith(Response.status(Response.Status.UNAUTHORIZED)
+                        .entity(java.util.Map.of("error", "invalid_token"))
+                        .build());
+                return;
+            }
+            var botUser = botUserOpt.get();
+            Long botEnabled = (Long) botUser.get("bot_enabled");
+            if (botEnabled == null || botEnabled == 0) {
+                ctx.abortWith(Response.status(403)
+                        .entity(java.util.Map.of("error", "bot_disabled", "message", "Bot is disabled"))
+                        .build());
+                return;
+            }
+            String botId = (String) botUser.get("id");
+            String botUsername = (String) botUser.get("username");
+            ctx.setSecurityContext(new FoldSecurityContext(botId, botUsername, true));
+            botRepo.updateLastUsed(botId);
+            // Bots: skip isBanned + password_must_change checks
+            // Maintenance: same rule as human users
+            if (maintenanceService.isEnabled() && !isAdminPath(path)) {
+                if (!permissionService.hasServerPermission(botId, Permission.MANAGE_SERVER)) {
+                    ctx.abortWith(Response.status(503)
+                            .entity(java.util.Map.of(
+                                    "error", "maintenance",
+                                    "message", maintenanceService.getMessage() != null
+                                            ? maintenanceService.getMessage()
+                                            : "Server is under maintenance"
+                            ))
+                            .build());
+                    return;
+                }
+            }
+            return;
+        }
 
         Cookie cookie = ctx.getCookies().get(ACCESS_COOKIE);
         if (cookie == null || cookie.getValue().isBlank()) {

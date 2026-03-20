@@ -41,7 +41,8 @@
 		'/settings/media': 'Media',
 		'/settings/maintenance': 'Maintenance',
 		'/settings/backups': 'Backups',
-		'/settings/audit-log': 'Audit Log'
+		'/settings/audit-log': 'Audit Log',
+		'/settings/bots': 'Bots'
 	};
 
 	const currentLabel = $derived(PAGE_LABELS[page.url.pathname] ?? 'Settings');
@@ -144,6 +145,9 @@
 			{/if}
 			{#if canManageServer}
 				<a class="nav-item" class:active={isActive('/settings/backups')} href="/settings/backups">Backups</a>
+			{/if}
+			{#if canManageServer}
+				<a class="nav-item" class:active={isActive('/settings/bots')} href="/settings/bots">Bots</a>
 			{/if}
 			{#if canViewAudit}
 				<a class="nav-item" class:active={isActive('/settings/audit-log')} href="/settings/audit-log">Audit Log</a>

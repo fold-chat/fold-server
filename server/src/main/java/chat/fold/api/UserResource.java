@@ -112,6 +112,9 @@ public class UserResource {
         profile.put("bio", user.get("bio"));
         profile.put("created_at", user.get("created_at"));
         profile.put("last_seen_at", user.get("last_seen_at"));
+        // Bot flag
+        var isBot = user.get("is_bot");
+        profile.put("is_bot", isBot != null && ((Long) isBot) != 0);
         if (full) {
             // Include roles for own profile
             var roles = userRepo.getUserRoles((String) user.get("id"));

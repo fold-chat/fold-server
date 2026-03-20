@@ -44,7 +44,7 @@ public class DmResource {
         }
 
         // Rate limit
-        var rl = checkRate("message_send", sc.getUserId(), RateLimitPolicy.MESSAGE_SEND);
+        var rl = checkRate("message_send", sc.getUserId(), sc.isBot() ? RateLimitPolicy.BOT_MESSAGE_SEND : RateLimitPolicy.MESSAGE_SEND);
         if (rl != null) return rl;
 
         // Permission check

@@ -20,14 +20,18 @@ public class SessionRegistry {
     // sessionId → suspended session info (for sessions that disconnected but may resume)
     private final Map<String, SuspendedSession> suspendedSessions = new ConcurrentHashMap<>();
 
-    public record SessionMeta(String userId, String username, String sessionId, long connectedAt) {}
-    public record SuspendedSession(String userId, String username, String sessionId, long suspendedAt) {}
+    public record SessionMeta(String userId, String username, String sessionId, long connectedAt, boolean isBot) {}
+    public record SuspendedSession(String userId, String username, String sessionId, long suspendedAt, boolean isBot) {}
 
     public void register(String userId, String username, String sessionId, WebSocketConnection connection) {
+        register(userId, username, sessionId, connection, false);
+    }
+
+    public void register(String userId, String username, String sessionId, WebSocketConnection connection, boolean isBot) {
         sessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(connection);
         connectionToUser.put(connection.id(), userId);
         connectionToSessionId.put(connection.id(), sessionId);
-        sessionMeta.put(connection.id(), new SessionMeta(userId, username, sessionId, System.currentTimeMillis()));
+        sessionMeta.put(connection.id(), new SessionMeta(userId, username, sessionId, System.currentTimeMillis(), isBot));
     }
 
     /**
@@ -51,7 +55,7 @@ public class SessionRegistry {
         // Add to suspended if we have session info
         if (meta != null && sid != null) {
             suspendedSessions.put(sid, new SuspendedSession(
-                    meta.userId(), meta.username(), sid, System.currentTimeMillis()));
+                    meta.userId(), meta.username(), sid, System.currentTimeMillis(), meta.isBot()));
         }
     }
 
@@ -60,9 +64,13 @@ public class SessionRegistry {
      * Returns the SuspendedSession if found and resumed, null otherwise.
      */
     public SuspendedSession resume(String sessionId, WebSocketConnection connection) {
+        return resume(sessionId, connection, false);
+    }
+
+    public SuspendedSession resume(String sessionId, WebSocketConnection connection, boolean isBot) {
         var suspended = suspendedSessions.remove(sessionId);
         if (suspended == null) return null;
-        register(suspended.userId(), suspended.username(), sessionId, connection);
+        register(suspended.userId(), suspended.username(), sessionId, connection, isBot);
         return suspended;
     }
 

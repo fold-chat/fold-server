@@ -50,8 +50,10 @@
 					return;
 				} else if (apiErr.error === 'banned') {
 					error = 'You have been banned from this server.';
-				} else if (apiErr.error === 'account_locked') {
-					error = `Account locked. Try again in ${formatDuration(apiErr.retry_after ?? 0)}.`;
+					} else if (apiErr.error === 'rate_limited') {
+						error = `Too many attempts. Try again in ${formatDuration(apiErr.retry_after ?? 0)}.`;
+					} else if (apiErr.error === 'account_locked') {
+						error = `Account locked. Try again in ${formatDuration(apiErr.retry_after ?? 0)}.`;
 				} else if (apiErr.status && apiErr.status >= 500) {
 					error = 'Server error. Please try again later.';
 				} else {

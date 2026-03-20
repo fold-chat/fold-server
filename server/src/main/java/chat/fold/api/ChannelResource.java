@@ -257,7 +257,7 @@ public class ChannelResource {
         }
 
         permissionService.requirePermission(sc.getUserId(), channelId, Permission.SEND_MESSAGES);
-        var rl = checkRate("message_send", sc.getUserId(), RateLimitPolicy.MESSAGE_SEND);
+        var rl = checkRate("message_send", sc.getUserId(), sc.isBot() ? RateLimitPolicy.BOT_MESSAGE_SEND : RateLimitPolicy.MESSAGE_SEND);
         if (rl != null) return rl;
 
         var channelOpt = channelRepo.findById(channelId);
@@ -340,7 +340,7 @@ public class ChannelResource {
     public Response createThread(@PathParam("channelId") String channelId, CreateThreadRequest threadReq) {
         var sc = sc();
         permissionService.requirePermission(sc.getUserId(), channelId, Permission.CREATE_THREADS);
-        var rl = checkRate("thread_create", sc.getUserId(), RateLimitPolicy.THREAD_CREATE);
+        var rl = checkRate("thread_create", sc.getUserId(), sc.isBot() ? RateLimitPolicy.BOT_THREAD_CREATE : RateLimitPolicy.THREAD_CREATE);
         if (rl != null) return rl;
 
         var threadChannelOpt = channelRepo.findById(channelId);

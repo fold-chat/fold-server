@@ -31,6 +31,7 @@ export interface Message {
 	author_username?: string;
 	author_display_name?: string;
 	author_avatar_url?: string;
+	author_is_bot?: number;
 	attachments?: FileAttachment[];
 	reactions?: ReactionGroup[];
 	mentions?: MentionedUser[];

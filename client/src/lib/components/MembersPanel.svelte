@@ -49,8 +49,12 @@
 		members: Member[];
 	}
 
+	/** Bots from the members store */
+	const botMembers = $derived(getMembers().filter(m => m.is_bot && !m.banned_at));
+
 	const groupedMembers = $derived.by(() => {
-		const members = getMembers().filter(m => !m.banned_at);
+		// Only human members (exclude bots)
+		const members = getMembers().filter(m => !m.banned_at && !m.is_bot);
 		const roleMap = new Map<string, { role: RoleBadge; members: Member[] }>();
 
 		for (const m of members) {
@@ -165,7 +169,8 @@
 		}
 	}
 
-	const activeMembers = $derived(getMembers().filter(m => !m.banned_at));
+	// Only count human members for the header
+	const activeMembers = $derived(getMembers().filter(m => !m.banned_at && !m.is_bot));
 	const onlineCount = $derived.by(() => {
 		let count = 0;
 		for (const m of activeMembers) {
@@ -203,7 +208,20 @@
 					{/if}
 				{/if}
 			</div>
-			{#if selectedMember.id !== me?.id}
+			{#if selectedMember.is_bot}
+				<div class="bot-indicator">BOT</div>
+				{#if !selectedMember.bot_enabled}
+					<div class="bot-disabled-note">This bot is currently disabled</div>
+				{/if}
+				<div class="profile-actions">
+					{#if canDm}
+						<button class="profile-action-btn" onclick={() => selectedMember && messageMember(selectedMember)}>Message</button>
+					{/if}
+					<button class="profile-action-btn danger" onclick={() => selectedMember && toggleBlockMember(selectedMember)}>
+						{isUserBlocked(selectedMember.id) ? 'Unblock' : 'Block'}
+					</button>
+				</div>
+			{:else if selectedMember.id !== me?.id}
 				<div class="profile-actions">
 					{#if canDm}
 						<button class="profile-action-btn" onclick={() => selectedMember && messageMember(selectedMember)}>Message</button>
@@ -277,6 +295,28 @@
 					{/each}
 				</div>
 			{/each}
+			{#if botMembers.length > 0}
+				<div class="role-group">
+					<div class="role-name">Bots — {botMembers.length}</div>
+					{#each botMembers as bot}
+						<button class="member-item" class:bot-disabled={!bot.bot_enabled} onclick={() => selectMember(bot)}>
+							<div class="avatar-wrapper">
+								{#if bot.avatar_url}
+									<img class="member-avatar" src={bot.avatar_url} alt="" />
+								{:else}
+									<span class="member-avatar-placeholder">{(bot.display_name || bot.username).charAt(0).toUpperCase()}</span>
+								{/if}
+							</div>
+							<div class="member-info">
+								<span class="member-name">
+									{bot.display_name || bot.username}
+									<span class="bot-badge">BOT</span>
+								</span>
+							</div>
+						</button>
+					{/each}
+				</div>
+			{/if}
 		</div>
 	{/if}
 </aside>
@@ -584,5 +624,41 @@
 
 	.profile-action-btn.danger:hover {
 		background: color-mix(in srgb, var(--danger, #e74c3c) 15%, transparent);
+	}
+
+	/* Bot styles */
+	.bot-badge {
+		display: inline-block;
+		margin-left: 0.3rem;
+		font-size: 0.55rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		background: var(--accent, #5865f2);
+		color: white;
+		padding: 0.05rem 0.3rem;
+		border-radius: 3px;
+		vertical-align: middle;
+	}
+
+	.member-item.bot-disabled {
+		opacity: 0.4;
+	}
+
+	.bot-indicator {
+		display: inline-block;
+		font-size: 0.65rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		background: var(--accent, #5865f2);
+		color: white;
+		padding: 0.15rem 0.5rem;
+		border-radius: 4px;
+		width: fit-content;
+	}
+
+	.bot-disabled-note {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		font-style: italic;
 	}
 </style>

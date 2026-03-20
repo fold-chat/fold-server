@@ -38,6 +38,8 @@ export interface Member {
 	banned_by_username: string | null;
 	locked_until: string | null;
 	failed_login_count: number;
+	is_bot?: boolean;
+	bot_enabled?: number;
 }
 
 export function getMe() {

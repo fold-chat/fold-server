@@ -67,7 +67,7 @@ public class MessageResource {
     @Path("/{id}")
     public Response edit(@PathParam("id") String id, EditMessageRequest req) {
         var sc = sc();
-        var rl = checkRate("message_edit", sc.getUserId(), RateLimitPolicy.MESSAGE_EDIT);
+        var rl = checkRate("message_edit", sc.getUserId(), sc.isBot() ? RateLimitPolicy.BOT_MESSAGE_EDIT : RateLimitPolicy.MESSAGE_EDIT);
         if (rl != null) return rl;
 
         var msgOpt = messageRepo.findById(id);
@@ -111,7 +111,7 @@ public class MessageResource {
     @Path("/{id}")
     public Response delete(@PathParam("id") String id) {
         var sc = sc();
-        var rl = checkRate("message_delete", sc.getUserId(), RateLimitPolicy.MESSAGE_DELETE);
+        var rl = checkRate("message_delete", sc.getUserId(), sc.isBot() ? RateLimitPolicy.BOT_MESSAGE_DELETE : RateLimitPolicy.MESSAGE_DELETE);
         if (rl != null) return rl;
 
         var msgOpt = messageRepo.findById(id);
@@ -161,7 +161,7 @@ public class MessageResource {
     @Path("/{messageId}/reactions/{emoji}")
     public Response addReaction(@PathParam("messageId") String messageId, @PathParam("emoji") String emoji) {
         var sc = sc();
-        var rl = checkRate("reaction_add", sc.getUserId(), RateLimitPolicy.REACTION_ADD);
+        var rl = checkRate("reaction_add", sc.getUserId(), sc.isBot() ? RateLimitPolicy.BOT_REACTION_ADD : RateLimitPolicy.REACTION_ADD);
         if (rl != null) return rl;
 
         var msgOpt = messageRepo.findById(messageId);
@@ -199,7 +199,7 @@ public class MessageResource {
     @Path("/{messageId}/reactions/{emoji}")
     public Response removeReaction(@PathParam("messageId") String messageId, @PathParam("emoji") String emoji) {
         var sc = sc();
-        var rl = checkRate("reaction_remove", sc.getUserId(), RateLimitPolicy.REACTION_REMOVE);
+        var rl = checkRate("reaction_remove", sc.getUserId(), sc.isBot() ? RateLimitPolicy.BOT_REACTION_REMOVE : RateLimitPolicy.REACTION_REMOVE);
         if (rl != null) return rl;
 
         var msgOpt = messageRepo.findById(messageId);

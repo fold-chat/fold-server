@@ -27,6 +27,14 @@ public record RateLimitPolicy(int maxTokens, Duration window) {
     public static final RateLimitPolicy EMOJI_UPLOAD = new RateLimitPolicy(5, Duration.ofMinutes(1));
     public static final RateLimitPolicy EMOJI_DELETE = new RateLimitPolicy(5, Duration.ofMinutes(1));
 
+    // Bot policies — higher limits for programmatic, multi-channel usage
+    public static final RateLimitPolicy BOT_MESSAGE_SEND   = new RateLimitPolicy(60, Duration.ofSeconds(10));
+    public static final RateLimitPolicy BOT_MESSAGE_EDIT   = new RateLimitPolicy(30, Duration.ofSeconds(10));
+    public static final RateLimitPolicy BOT_MESSAGE_DELETE = new RateLimitPolicy(30, Duration.ofSeconds(10));
+    public static final RateLimitPolicy BOT_REACTION_ADD   = new RateLimitPolicy(30, Duration.ofSeconds(10));
+    public static final RateLimitPolicy BOT_REACTION_REMOVE= new RateLimitPolicy(30, Duration.ofSeconds(10));
+    public static final RateLimitPolicy BOT_THREAD_CREATE  = new RateLimitPolicy(30, Duration.ofMinutes(1));
+
     /** Parse from string format "count/windowSeconds", e.g. "5/60" */
     public static RateLimitPolicy parse(String spec) {
         var parts = spec.split("/");

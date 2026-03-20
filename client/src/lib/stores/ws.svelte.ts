@@ -237,6 +237,9 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 		case 'MEMBER_JOIN':
 			if (msg.d) addMember(normalizeMember(msg.d as unknown as Member));
 			break;
+		case 'MEMBER_LEAVE':
+			if (msg.d?.user_id) removeMember(msg.d.user_id as string);
+			break;
 		case 'MEMBER_BAN':
 			if (msg.d?.user_id) {
 				const userId = msg.d.user_id as string;
@@ -299,6 +302,15 @@ function handleEvent(msg: { op: string; d?: Record<string, unknown>; s?: number 
 					const newMode = configData['fold.livekit.mode'];
 					setVoiceMode(newMode);
 					setVoiceVideoEnabled(newMode !== 'off');
+				}
+			}
+			break;
+		case 'BOT_UPDATED':
+			if (msg.d?.user_id) {
+				const botId = msg.d.user_id as string;
+				const existing = getStoreMembers().find(m => m.id === botId);
+				if (existing) {
+					updateMember({ ...existing, bot_enabled: msg.d.bot_enabled as number });
 				}
 			}
 			break;

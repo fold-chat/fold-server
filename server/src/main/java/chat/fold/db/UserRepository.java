@@ -132,6 +132,7 @@ public class UserRepository {
                        u.banned_at, u.banned_by, u.ban_reason,
                        u.locked_until, u.failed_login_count,
                        u.join_method, i.description AS invite_description,
+                       u.is_bot, u.bot_enabled,
                        (SELECT u2.username FROM user u2 WHERE u2.id = u.banned_by) AS banned_by_username,
                        JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles
                 FROM user u
@@ -144,7 +145,7 @@ public class UserRepository {
         return rows.isEmpty() ? Optional.empty() : Optional.of(rows.getFirst());
     }
 
-    /** List all members with their roles as JSON array of role objects */
+    /** List human members (excludes bots) with their roles — used by /members endpoint and settings page */
     public List<Map<String, Object>> listMembers(boolean includeBanned) {
         String banFilter = includeBanned ? "" : "AND u.banned_at IS NULL";
         return db.query("""
@@ -153,6 +154,29 @@ public class UserRepository {
                        u.banned_at, u.banned_by, u.ban_reason,
                        u.locked_until, u.failed_login_count,
                        u.join_method, i.description AS invite_description,
+                       u.is_bot, u.bot_enabled,
+                       (SELECT u2.username FROM user u2 WHERE u2.id = u.banned_by) AS banned_by_username,
+                       JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles
+                FROM user u
+                LEFT JOIN user_role ur ON u.id = ur.user_id
+                LEFT JOIN role r ON ur.role_id = r.id
+                LEFT JOIN invite i ON u.joined_via_invite_id = i.id
+                WHERE u.deleted_at IS NULL AND u.is_bot = 0 %s
+                GROUP BY u.id
+                ORDER BY u.banned_at IS NOT NULL, u.created_at
+                """.formatted(banFilter));
+    }
+
+    /** List all members including bots — used by HELLO payload */
+    public List<Map<String, Object>> listAllMembers(boolean includeBanned) {
+        String banFilter = includeBanned ? "" : "AND u.banned_at IS NULL";
+        return db.query("""
+                SELECT u.id, u.username, u.display_name, u.avatar_url, u.status_preference,
+                       u.status_text, u.bio, u.created_at, u.last_seen_at,
+                       u.banned_at, u.banned_by, u.ban_reason,
+                       u.locked_until, u.failed_login_count,
+                       u.join_method, i.description AS invite_description,
+                       u.is_bot, u.bot_enabled,
                        (SELECT u2.username FROM user u2 WHERE u2.id = u.banned_by) AS banned_by_username,
                        JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles
                 FROM user u
@@ -161,7 +185,12 @@ public class UserRepository {
                 LEFT JOIN invite i ON u.joined_via_invite_id = i.id
                 WHERE u.deleted_at IS NULL %s
                 GROUP BY u.id
-                ORDER BY u.banned_at IS NOT NULL, u.created_at
+                ORDER BY u.is_bot, u.banned_at IS NOT NULL, u.created_at
                 """.formatted(banFilter));
+    }
+
+    /** Hard-delete a user row — cascades to messages, reactions, user_role, bot_token via FK */
+    public void hardDelete(String id) {
+        db.execute("DELETE FROM user WHERE id = ?", id);
     }
 }

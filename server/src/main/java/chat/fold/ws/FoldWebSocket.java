@@ -25,6 +25,7 @@ public class FoldWebSocket {
     private static final long HEARTBEAT_TIMEOUT_MS = 45_000;
 
     @Inject JwtService jwtService;
+    @Inject chat.fold.db.BotRepository botRepo;
     @Inject SessionRegistry registry;
     @Inject EventBus eventBus;
     @Inject EventBuffer eventBuffer;
@@ -71,8 +72,27 @@ public class FoldWebSocket {
         var cookieHeader = connection.handshakeRequest().header("Cookie");
         String token = parseCookie(cookieHeader, "fold_access");
 
+        // Bot token auth fallback
         if (token == null) {
-            rejectAuth(connection, "no fold_access cookie");
+            var authHeader = connection.handshakeRequest().header("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bot ")) {
+                String rawToken = authHeader.substring(4).trim();
+                String hash = chat.fold.db.BotRepository.hashToken(rawToken);
+                var botUser = botRepo.findByTokenHash(hash);
+                if (botUser.isPresent()) {
+                    Long botEnabled = (Long) botUser.get().get("bot_enabled");
+                    if (botEnabled != null && botEnabled != 0) {
+                        LOG.debugf("WS bot authenticated: %s (%s)", botUser.get().get("username"), connection.id());
+                        try {
+                            connection.sendText("{\"op\":\"READY\"}").subscribe().with(v -> {}, e -> {});
+                        } catch (Exception e) {
+                            LOG.debugf("Failed to send READY: %s", e.getMessage());
+                        }
+                        return;
+                    }
+                }
+            }
+            rejectAuth(connection, "no auth");
             return;
         }
 
@@ -138,23 +158,48 @@ public class FoldWebSocket {
     private void handleIdentify(WebSocketConnection connection) {
         var cookieHeader = connection.handshakeRequest().header("Cookie");
         String token = parseCookie(cookieHeader, "fold_access");
-        if (token == null) {
-            rejectAuth(connection, "no fold_access cookie");
-            return;
-        }
-        var claims = jwtService.verify(token);
-        if (claims.isEmpty()) {
-            rejectAuth(connection, "invalid token");
-            return;
-        }
 
-        var c = claims.get();
-        String userId = c.getSubject();
-        String username = (String) c.get("usr");
+        String userId;
+        String username;
+        boolean isBot = false;
+
+        if (token != null) {
+            var claims = jwtService.verify(token);
+            if (claims.isEmpty()) {
+                rejectAuth(connection, "invalid token");
+                return;
+            }
+            var c = claims.get();
+            userId = c.getSubject();
+            username = (String) c.get("usr");
+        } else {
+            // Try bot token
+            var authHeader = connection.handshakeRequest().header("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bot ")) {
+                rejectAuth(connection, "no auth");
+                return;
+            }
+            String rawToken = authHeader.substring(4).trim();
+            String hash = chat.fold.db.BotRepository.hashToken(rawToken);
+            var botUser = botRepo.findByTokenHash(hash);
+            if (botUser.isEmpty()) {
+                rejectAuth(connection, "invalid bot token");
+                return;
+            }
+            Long botEnabled = (Long) botUser.get().get("bot_enabled");
+            if (botEnabled == null || botEnabled == 0) {
+                rejectAuth(connection, "bot disabled");
+                return;
+            }
+            userId = (String) botUser.get().get("id");
+            username = (String) botUser.get().get("username");
+            isBot = true;
+            botRepo.updateLastUsed(userId);
+        }
 
         String sessionId = UUID.randomUUID().toString();
         boolean wasOnline = registry.isOnline(userId);
-        registry.register(userId, username, sessionId, connection);
+        registry.register(userId, username, sessionId, connection, isBot);
         eventBuffer.createBuffer(sessionId, userId);
         LOG.debugf("WS identified: %s (%s) session=%s", username, connection.id(), sessionId);
 
@@ -210,17 +255,39 @@ public class FoldWebSocket {
         // Authenticate the connection
         var cookieHeader = connection.handshakeRequest().header("Cookie");
         String token = parseCookie(cookieHeader, "fold_access");
-        if (token == null) {
-            sendResumeError(connection, "no fold_access cookie");
-            return;
-        }
-        var claims = jwtService.verify(token);
-        if (claims.isEmpty()) {
-            sendResumeError(connection, "invalid token");
-            return;
-        }
 
-        String userId = claims.get().getSubject();
+        String userId;
+        boolean isBot = false;
+
+        if (token != null) {
+            var claims = jwtService.verify(token);
+            if (claims.isEmpty()) {
+                sendResumeError(connection, "invalid token");
+                return;
+            }
+            userId = claims.get().getSubject();
+        } else {
+            var authHeader = connection.handshakeRequest().header("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bot ")) {
+                sendResumeError(connection, "no auth");
+                return;
+            }
+            String rawToken = authHeader.substring(4).trim();
+            String hash = chat.fold.db.BotRepository.hashToken(rawToken);
+            var botUser = botRepo.findByTokenHash(hash);
+            if (botUser.isEmpty()) {
+                sendResumeError(connection, "invalid bot token");
+                return;
+            }
+            Long botEnabled = (Long) botUser.get().get("bot_enabled");
+            if (botEnabled == null || botEnabled == 0) {
+                sendResumeError(connection, "bot disabled");
+                return;
+            }
+            userId = (String) botUser.get().get("id");
+            isBot = true;
+            botRepo.updateLastUsed(userId);
+        }
 
         // Verify the session belongs to this user
         String bufferUserId = eventBuffer.getUserId(reqSessionId);
@@ -239,11 +306,11 @@ public class FoldWebSocket {
 
         // Resume the session
         boolean wasOnline = registry.isOnline(userId);
-        var suspended = registry.resume(reqSessionId, connection);
+        var suspended = registry.resume(reqSessionId, connection, isBot);
         if (suspended == null) {
             // Not in suspended state — register fresh with the same session ID
-            String username = (String) claims.get().get("usr");
-            registry.register(userId, username, reqSessionId, connection);
+            String username = userRepo.findById(userId).map(u -> (String) u.get("username")).orElse(userId);
+            registry.register(userId, username, reqSessionId, connection, isBot);
         }
 
         LOG.debugf("WS resumed: user=%s session=%s replaying %d events from seq %d",
@@ -335,7 +402,7 @@ public class FoldWebSocket {
             var user = userRepo.findById(userId).orElse(Map.of());
             var allChannels = channelRepo.listServerChannels();
             var categories = categoryRepo.listAll();
-var members = userRepo.listMembers(false);
+var members = userRepo.listAllMembers(false);
             var readStates = readStateRepo.findAllForUser(userId);
             var unreadCounts = readStateRepo.unreadCounts(userId);
 
