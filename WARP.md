@@ -3,7 +3,8 @@ Open-source, self-hostable community platform. Discord alternative for small, pr
 
 ## Project Structure
 - `server/` — Quarkus server (Java 25). REST API + WebSocket. See `server/WARP.md`.
-- `client/` — SvelteKit web client (TypeScript). See `client/WARP.md`.
+- `client/` — SvelteKit web client (TypeScript) + Tauri desktop shell (Rust). See `client/WARP.md`.
+- `client/src-tauri/` — Tauri v2 desktop app. See `client/WARP.md` § Desktop.
 - `docs/plan/` — Feature specs, architecture, roadmap.
 - `docs/server-patterns.md` — Detailed server patterns reference.
 - `docs/client-patterns.md` — Detailed client patterns reference.
@@ -11,6 +12,7 @@ Open-source, self-hostable community platform. Discord alternative for small, pr
 ## Tech Stack
 - **Server:** Quarkus (Java 25), GraalVM native image, Gradle 9.1+ / Kotlin DSL
 - **Client:** SvelteKit, TypeScript, Vite, pnpm
+- **Desktop:** Tauri v2 (Rust), OS-native webview (WebKit/WebView2/WebKitGTK)
 - **Database:** libSQL via FFM (`libsql-c` Rust wrapper). Embedded for self-hosting.
 
 ## Key Architecture Decisions
@@ -28,5 +30,5 @@ Open-source, self-hostable community platform. Discord alternative for small, pr
 
 ## Running Locally
 - Server: `./gradlew quarkusDev` from `server/`
-- Client: `pnpm dev` from `client/`
-- Client proxies API to `localhost:8080`
+- Client (web): `pnpm dev` from `client/` — proxies API to `localhost:8080`
+- Client (desktop): `pnpm tauri dev` from `client/` — requires Rust toolchain, see `client/WARP.md` § Desktop

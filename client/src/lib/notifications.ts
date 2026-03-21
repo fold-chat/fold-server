@@ -1,33 +1,22 @@
 import type { Message } from '$lib/api/messages.js';
 import { contentPreview } from '$lib/utils/markdown.js';
+import { showNotification, requestNotificationPermission } from '$lib/platform/index.js';
 
-let permissionRequested = false;
-
-/** Request Notification permission if not already granted. */
-function ensurePermission() {
-	if (permissionRequested || typeof Notification === 'undefined') return;
-	if (Notification.permission === 'default') {
-		permissionRequested = true;
-		Notification.requestPermission();
-	}
+/** Request notification permission on first load. */
+export function ensurePermission() {
+	requestNotificationPermission();
 }
 
-/** Show a desktop notification for a mention, only when tab is not focused. */
+/** Show a desktop notification for a mention (native on desktop, web Notification API on browser). */
 export function showMentionNotification(msg: Message, channelName?: string) {
-	if (typeof Notification === 'undefined') return;
-	ensurePermission();
-
-	if (document.hasFocus()) return;
-	if (Notification.permission !== 'granted') return;
-
 	const author = msg.author_display_name || msg.author_username || 'Someone';
 	const title = channelName ? `#${channelName}` : 'New mention';
 	const body = `${author}: ${contentPreview(msg.content, 200, msg.mentions)}`;
 
-	const n = new Notification(title, { body, tag: `mention-${msg.id}` });
-	n.onclick = () => {
-		window.focus();
-		window.location.href = `/channels/${msg.channel_id}`;
-		n.close();
-	};
+	showNotification({
+		title,
+		body,
+		tag: `mention-${msg.id}`,
+		channelId: msg.channel_id
+	});
 }

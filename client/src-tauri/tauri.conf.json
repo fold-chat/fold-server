@@ -1,0 +1,40 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Fold",
+  "version": "0.1.0",
+  "identifier": "chat.fold.desktop",
+  "build": {
+    "frontendDist": "./picker"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/fold-chat/fold/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["fold"]
+      }
+    }
+  }
+}

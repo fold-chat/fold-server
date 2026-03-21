@@ -4,6 +4,7 @@
 	import { PermissionName } from '$lib/permissions.js';
 	import '$lib/styles/settings.css';
 	import { getClientVersion } from '$lib/stores/version.svelte.js';
+	import { isDesktop } from '$lib/platform/index.js';
 
 	let { children } = $props();
 
@@ -32,6 +33,7 @@
 		'/settings/account': 'Account',
 		'/settings/appearance': 'Appearance',
 		'/settings/devices': 'Devices',
+		'/settings/keybinds': 'Keybinds',
 		'/settings/server': 'Server',
 		'/settings/roles': 'Roles',
 		'/settings/members': 'Members',
@@ -115,6 +117,9 @@
 		<a class="nav-item" class:active={isActive('/settings/account')} href="/settings/account">Account</a>
 		<a class="nav-item" class:active={isActive('/settings/appearance')} href="/settings/appearance">Appearance</a>
 		<a class="nav-item" class:active={isActive('/settings/devices')} href="/settings/devices">Devices</a>
+		{#if isDesktop()}
+			<a class="nav-item" class:active={isActive('/settings/keybinds')} href="/settings/keybinds">Keybinds</a>
+		{/if}
 	</div>
 
 	{#if showServerGroup}

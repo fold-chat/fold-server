@@ -6,6 +6,7 @@
 	import { isShortcutHelpOpen, closeShortcutHelp, toggleShortcutHelp } from '$lib/stores/shortcuts.svelte.js';
 	import { isPttEnabled, getPttKey, pttKeyDown, pttKeyUp, getCurrentVoiceChannelId, getJoiningChannelId } from '$lib/stores/voice.svelte.js';
 	import { isNotificationPanelOpen } from '$lib/stores/notifications.svelte.js';
+	import { updateTrayBadge } from '$lib/platform/index.js';
 	import { isNarrowScreen, isSidebarExpanded, closeSidebar } from '$lib/stores/sidebar.svelte.js';
 	import { goto } from '$app/navigation';
 	import Sidebar from '$lib/components/Sidebar.svelte';
@@ -24,6 +25,7 @@
 		const count = getTotalMentionCount();
 		const name = getServerName();
 		document.title = count > 0 ? `(${count}) ${name}` : name;
+		updateTrayBadge(count);
 	});
 
 	function isTyping(e: KeyboardEvent): boolean {

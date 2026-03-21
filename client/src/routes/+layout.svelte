@@ -6,6 +6,8 @@
 	import { initTheme } from '$lib/stores/theme.svelte.js';
 	import { initDensity } from '$lib/stores/density.svelte.js';
 	import { initDevices } from '$lib/stores/devices.svelte.js';
+	import { initVoiceShortcuts, destroyVoiceShortcuts } from '$lib/platform/voice-shortcuts.js';
+	import { ensurePermission } from '$lib/notifications.js';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -49,12 +51,17 @@
 				goto('/login');
 			}
 		});
-		return () => disconnect();
+		return () => {
+			disconnect();
+			destroyVoiceShortcuts();
+		};
 	});
 
 	$effect(() => {
 		if (isInitialized() && isAuthenticated()) {
 			connect();
+			ensurePermission();
+			initVoiceShortcuts();
 		}
 	});
 </script>

@@ -9,6 +9,10 @@ client/node_modules/
 client/.svelte-kit/
 client/build/
 
+# Tauri
+client/src-tauri/target/
+client/src-tauri/gen/
+
 # IDE
 .idea/
 *.iml

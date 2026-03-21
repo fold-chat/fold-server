@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fold</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --sidebar-w: 72px;
+    --bg: #1a1a2e;
+    --sidebar-bg: #12122a;
+    --bg-surface: #16213e;
+    --bg-input: #0f3460;
+    --border: #2a2a4a;
+    --text: #e0e0e0;
+    --text-muted: #888;
+    --accent: #e94560;
+    --accent-hover: #d63851;
+    --danger: #e74c3c;
+    --success: #4caf50;
+    --radius: 8px;
+    --bg-hover: rgba(255, 255, 255, 0.05);
+    --bg-active: rgba(255, 255, 255, 0.08);
+  }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 0;
+    gap: 8px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+  }
+  .server-icon-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--bg-surface);
+    border: 2px solid transparent;
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-radius 0.15s, border-color 0.15s, background 0.15s;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .server-icon-btn:hover { border-radius: 35%; background: var(--accent); }
+  .server-icon-btn.active { border-radius: 35%; border-color: var(--accent); background: var(--accent); }
+
+  .sidebar-separator {
+    width: 32px;
+    height: 2px;
+    background: var(--border);
+    margin: 4px 0;
+    flex-shrink: 0;
+  }
+
+  .add-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--bg-surface);
+    border: 2px dashed var(--border);
+    color: var(--accent);
+    font-size: 1.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s, background 0.15s, border-radius 0.15s;
+    flex-shrink: 0;
+  }
+  .add-btn:hover { border-color: var(--accent); background: var(--accent); color: white; border-radius: 35%; border-style: solid; }
+
+  /* ── Content ── */
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px;
+    min-width: 0;
+  }
+  .content h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 8px; }
+  .content p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px; }
+  .add-form { display: flex; gap: 8px; width: 100%; max-width: 480px; }
+  .add-form input {
+    flex: 1;
+    padding: 12px 16px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .add-form input:focus { border-color: var(--accent); }
+  .add-form input::placeholder { color: var(--text-muted); }
+  .btn {
+    padding: 12px 24px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .status { width: 100%; max-width: 480px; margin-top: 12px; min-height: 1.2em; }
+  .status .error { color: var(--danger); font-size: 0.85rem; }
+  .status .loading { color: var(--text-muted); font-size: 0.85rem; }
+
+  .server-icon-btn[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--bg-surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 400;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  .server-icon-btn img {
+    width: 100%; height: 100%; border-radius: inherit; object-fit: cover;
+  }
+  .server-icon-btn.dragging { opacity: 0.4; }
+  .server-icon-btn.drop-target { box-shadow: 0 -3px 0 0 var(--accent); }
+
+</style>
+</head>
+<body>
+  <div class="sidebar" id="sidebar"></div>
+  <div class="content" id="content">
+    <h2>Add a Server</h2>
+    <p>Enter the URL of a Fold server to connect</p>
+    <form class="add-form" id="add-form">
+      <input type="url" id="url-input" placeholder="https://chat.example.com" autocomplete="off" required />
+      <button class="btn" type="submit" id="add-btn">Add</button>
+    </form>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+    function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    function showError(msg) { document.getElementById('status').innerHTML = '<div class="error">' + esc(msg) + '</div>'; }
+    function showLoading(msg) { document.getElementById('status').innerHTML = '<div class="loading">' + esc(msg) + '</div>'; }
+    function clearStatus() { document.getElementById('status').innerHTML = ''; }
+
+    function waitForTauri(timeout) {
+      return new Promise(function(resolve, reject) {
+        if (window.__TAURI__) return resolve(window.__TAURI__);
+        var start = Date.now();
+        var check = setInterval(function() {
+          if (window.__TAURI__) { clearInterval(check); resolve(window.__TAURI__); }
+          else if (Date.now() - start > timeout) { clearInterval(check); reject(new Error('timeout')); }
+        }, 50);
+      });
+    }
+
+    var invoke;
+    var activeServerId = null;
+    var cachedServers = [];
+    var dragSrcId = null;
+
+    async function init() {
+      try {
+        var tauri = await waitForTauri(3000);
+        invoke = tauri.core.invoke;
+      } catch (e) {
+        showError('Desktop bridge not available.');
+        document.getElementById('add-btn').disabled = true;
+        return;
+      }
+      document.getElementById('add-form').addEventListener('submit', handleAdd);
+      // Re-render sidebar when Rust emits servers-changed (e.g. from native context menu actions)
+      tauri.event.listen('servers-changed', function() { renderSidebar(); });
+      await renderSidebar();
+      // Auto-open first server on launch
+      if (cachedServers.length > 0) {
+        await selectServer(cachedServers[0].id);
+      }
+    }
+
+    function serverIconContent(s) {
+      // Build icon URL: server_url + icon_url (e.g. /api/v0/settings/icon)
+      if (s.icon_url) {
+        var base = s.icon_url.startsWith('http') ? s.icon_url : s.url + '/api/v0/settings/icon';
+        var src = base + (base.indexOf('?') === -1 ? '?' : '&') + 't=' + Date.now();
+        return '<img src="' + esc(src) + '" alt="' + esc(s.name) + '" onerror="this.replaceWith(document.createTextNode(\'' + esc(s.name.charAt(0).toUpperCase()) + '\'))">';
+      }
+      return s.name.charAt(0).toUpperCase();
+    }
+
+    async function renderSidebar() {
+      var sidebar = document.getElementById('sidebar');
+      try { cachedServers = await invoke('list_servers'); } catch(e) { cachedServers = []; }
+
+      var html = '';
+      for (var i = 0; i < cachedServers.length; i++) {
+        var s = cachedServers[i];
+        var active = s.id === activeServerId ? ' active' : '';
+        html += '<button class="server-icon-btn' + active + '" data-id="' + s.id + '" data-idx="' + i + '" data-tooltip="' + esc(s.name) + '" draggable="true">' + serverIconContent(s) + '</button>';
+      }
+      if (cachedServers.length > 0) html += '<div class="sidebar-separator"></div>';
+      html += '<button class="add-btn" id="add-nav-btn" title="Add Server">+</button>';
+      sidebar.innerHTML = html;
+
+      sidebar.querySelectorAll('.server-icon-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() { selectServer(btn.dataset.id); });
+        btn.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+          invoke('show_server_context_menu', { id: btn.dataset.id }).catch(function() {});
+        });
+        // Drag and drop
+        btn.addEventListener('dragstart', function(e) {
+          dragSrcId = btn.dataset.id;
+          btn.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        btn.addEventListener('dragend', function() {
+          btn.classList.remove('dragging');
+          dragSrcId = null;
+          sidebar.querySelectorAll('.drop-target').forEach(function(el) { el.classList.remove('drop-target'); });
+        });
+        btn.addEventListener('dragover', function(e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (btn.dataset.id !== dragSrcId) btn.classList.add('drop-target');
+        });
+        btn.addEventListener('dragleave', function() { btn.classList.remove('drop-target'); });
+        btn.addEventListener('drop', function(e) {
+          e.preventDefault();
+          btn.classList.remove('drop-target');
+          if (!dragSrcId || dragSrcId === btn.dataset.id) return;
+          reorderDrop(dragSrcId, btn.dataset.id);
+        });
+      });
+
+      var addNavBtn = document.getElementById('add-nav-btn');
+      if (addNavBtn) addNavBtn.addEventListener('click', showAddForm);
+    }
+
+    async function reorderDrop(fromId, toId) {
+      var ids = cachedServers.map(function(s) { return s.id; });
+      var fromIdx = ids.indexOf(fromId);
+      var toIdx = ids.indexOf(toId);
+      if (fromIdx < 0 || toIdx < 0) return;
+      ids.splice(fromIdx, 1);
+      ids.splice(toIdx, 0, fromId);
+      try { await invoke('reorder_servers', { ids: ids }); } catch(e) {}
+      await renderSidebar();
+    }
+
+    async function refreshServer(id) {
+      try {
+        await invoke('refresh_server', { id: id });
+        await renderSidebar();
+      } catch (err) {
+        showError(String(err));
+      }
+    }
+
+    function showAddForm() {
+      activeServerId = null;
+      document.getElementById('content').style.display = '';
+      invoke('close_server_webview').catch(function() {});
+      renderSidebar();
+    }
+
+    async function selectServer(id) {
+      activeServerId = id;
+      document.getElementById('content').style.display = 'none';
+      clearStatus();
+      try {
+        await invoke('open_server_in_content', { id: id });
+      } catch (err) {
+        document.getElementById('content').style.display = '';
+        showError(String(err));
+        activeServerId = null;
+      }
+      renderSidebar();
+    }
+
+    async function removeServer(id) {
+      try {
+        if (id === activeServerId) {
+          activeServerId = null;
+          document.getElementById('content').style.display = '';
+          await invoke('close_server_webview').catch(function() {});
+        }
+        await invoke('remove_server', { id: id });
+        await renderSidebar();
+      } catch (err) {
+        showError(String(err));
+      }
+    }
+
+    async function handleAdd(e) {
+      e.preventDefault();
+      var input = document.getElementById('url-input');
+      var btn = document.getElementById('add-btn');
+      var url = input.value.trim();
+      if (!url) return;
+      btn.disabled = true;
+      showLoading('Connecting to server...');
+      try {
+        var server = await invoke('add_server', { url: url });
+        input.value = '';
+        clearStatus();
+        await renderSidebar();
+        await selectServer(server.id);
+      } catch (err) {
+        showError(String(err));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
