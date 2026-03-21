@@ -164,6 +164,7 @@ public class AuthFilter implements ContainerRequestFilter {
         if (p.equals("api/v0/auth/register")) return true;
         if (p.equals("api/v0/auth/refresh")) return true;
         if (p.equals("api/v0/status")) return true;
+        if (p.equals("api/v0/info")) return true;
 
         // Prefix public paths
         if (p.startsWith("api/v0/setup")) return true;
