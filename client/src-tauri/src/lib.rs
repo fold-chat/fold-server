@@ -190,6 +190,9 @@ pub fn run() {
                 }
             });
 
+            // Evict stale client bundles not referenced by any server
+            bundle_cache::evict_stale_bundles(&handle);
+
             // Pre-create hidden webviews for all saved servers so they load in the background
             let window_for_preload = _window.as_ref().window().clone();
             let servers = servers::load_servers(&handle);

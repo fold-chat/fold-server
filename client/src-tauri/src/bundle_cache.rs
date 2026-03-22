@@ -25,6 +25,7 @@ pub fn is_cached(app: &tauri::AppHandle, version: &str) -> bool {
 ///
 /// For local dev, `cdn_base` can be a file:// URL or a local HTTP server.
 /// Production: something like https://releases.fold.chat/client/
+#[allow(dead_code)]
 pub async fn download_bundle(
     app: &tauri::AppHandle,
     version: &str,
@@ -79,6 +80,7 @@ pub async fn download_bundle(
 
 /// For local development: copy the local SvelteKit build output into the cache
 /// as if it were a downloaded bundle. This avoids needing a CDN during dev.
+#[allow(dead_code)]
 pub async fn cache_local_build(
     app: &tauri::AppHandle,
     version: &str,
