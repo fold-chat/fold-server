@@ -41,7 +41,7 @@ job "fold-main" {
         FOLD_PORT         = "8080"
         FOLD_LIVEKIT_MODE        = "off"
         FOLD_LIVEKIT_WEBHOOK_URL = "https://__FOLD_DOMAIN__"
-        JAVA_OPTS         = "--enable-native-access=ALL-UNNAMED"
+        JAVA_OPTS         = "-Xmx320m -Xms128m --enable-native-access=ALL-UNNAMED"
       }
 
       template {
@@ -55,7 +55,7 @@ EOT
 
       resources {
         cpu    = 500
-        memory = 256
+        memory = 512
       }
 
       service {
