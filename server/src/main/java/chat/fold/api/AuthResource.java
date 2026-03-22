@@ -16,11 +16,21 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.util.Map;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Path("/api/v0/auth")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class AuthResource {
+
+    // Throttle concurrent login/register attempts to prevent Argon2id OOM.
+    // Only 1 password hash runs at a time, max 5 requests waiting, 5s timeout.
+    private static final Semaphore LOGIN_THROTTLE = new Semaphore(1, true);
+    private static final int MAX_QUEUED = 5;
+    private static final long ACQUIRE_TIMEOUT_MS = 5_000;
+    private static final AtomicInteger queued = new AtomicInteger(0);
 
     @Inject AuthService authService;
     @Inject RateLimitService rateLimitService;
@@ -43,6 +53,8 @@ public class AuthResource {
                     .build();
         }
 
+        var busy = acquireLoginSlot();
+        if (busy != null) return busy;
         try {
             var result = authService.register(req);
 
@@ -65,6 +77,8 @@ public class AuthResource {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("error", e.code, "message", e.getMessage()))
                     .build();
+        } finally {
+            releaseLoginSlot();
         }
     }
 
@@ -81,6 +95,8 @@ public class AuthResource {
                     .build();
         }
 
+        var busy = acquireLoginSlot();
+        if (busy != null) return busy;
         try {
             var result = authService.login(req);
 
@@ -112,6 +128,8 @@ public class AuthResource {
             return Response.status(Response.Status.UNAUTHORIZED)
                     .entity(Map.of("error", e.code, "message", e.getMessage()))
                     .build();
+        } finally {
+            releaseLoginSlot();
         }
     }
 
@@ -222,5 +240,38 @@ public class AuthResource {
 
     private void setRateLimit(RateLimitResult rl) {
         requestContext.setProperty(RateLimitFilter.RATE_LIMIT_RESULT_KEY, rl);
+    }
+
+    /**
+     * Try to acquire a login slot. Returns null on success, or a 503 response if the server is too busy.
+     * Rejects immediately if too many requests are already queued; otherwise waits up to ACQUIRE_TIMEOUT_MS.
+     */
+    private Response acquireLoginSlot() {
+        if (queued.incrementAndGet() > MAX_QUEUED + 1) {
+            queued.decrementAndGet();
+            return Response.status(503)
+                    .entity(Map.of("error", "server_busy", "message", "Server is busy, please try again in a few minutes"))
+                    .build();
+        }
+        try {
+            if (!LOGIN_THROTTLE.tryAcquire(ACQUIRE_TIMEOUT_MS, TimeUnit.MILLISECONDS)) {
+                queued.decrementAndGet();
+                return Response.status(503)
+                        .entity(Map.of("error", "server_busy", "message", "Server is busy, please try again in a few minutes"))
+                        .build();
+            }
+        } catch (InterruptedException e) {
+            queued.decrementAndGet();
+            Thread.currentThread().interrupt();
+            return Response.status(503)
+                    .entity(Map.of("error", "server_busy", "message", "Server is busy, please try again in a few minutes"))
+                    .build();
+        }
+        return null; // acquired
+    }
+
+    private void releaseLoginSlot() {
+        LOGIN_THROTTLE.release();
+        queued.decrementAndGet();
     }
 }
