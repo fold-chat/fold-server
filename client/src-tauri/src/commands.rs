@@ -372,9 +372,9 @@ pub async fn set_global_theme(
     log::info!("[cmd] set_global_theme: pref={}", theme_pref);
     let servers = servers::load_servers(&app);
     let script = format!(
-        r#"localStorage.setItem('fold_theme',{});localStorage.setItem('fold_custom_themes',{});if(window.__foldSyncTheme)window.__foldSyncTheme();"#,
-        serde_json::to_string(&theme_pref).unwrap_or_default(),
-        serde_json::to_string(&custom_themes_json).unwrap_or_default(),
+        r#"(function(){{var inc={custom};var ext=[];try{{ext=JSON.parse(localStorage.getItem('fold_custom_themes')||'[]')}}catch(e){{}}var ids=new Set(ext.map(function(t){{return t.id}}));inc.forEach(function(t){{if(!ids.has(t.id))ext.push(t)}});localStorage.setItem('fold_custom_themes',JSON.stringify(ext));localStorage.setItem('fold_theme',{pref});if(window.__foldSyncTheme)window.__foldSyncTheme()}})();"#,
+        pref = serde_json::to_string(&theme_pref).unwrap_or_default(),
+        custom = &custom_themes_json,
     );
     for s in &servers {
         let label = webview_label(&s.id);
