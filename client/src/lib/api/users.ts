@@ -26,18 +26,19 @@ export interface Member {
 	avatar_url: string | null;
 	status_preference: string;
 	status_text: string | null;
-	bio: string | null;
+	bio?: string | null;
 	created_at: string;
 	last_seen_at: string | null;
 	roles: RoleBadge[];
-	join_method: string | null;
-	invite_description: string | null;
-	banned_at: string | null;
-	banned_by: string | null;
-	ban_reason: string | null;
-	banned_by_username: string | null;
-	locked_until: string | null;
-	failed_login_count: number;
+	// Admin-only fields (omitted from HELLO slim payload)
+	join_method?: string | null;
+	invite_description?: string | null;
+	banned_at?: string | null;
+	banned_by?: string | null;
+	ban_reason?: string | null;
+	banned_by_username?: string | null;
+	locked_until?: string | null;
+	failed_login_count?: number;
 	is_bot?: boolean;
 	bot_enabled?: number;
 }

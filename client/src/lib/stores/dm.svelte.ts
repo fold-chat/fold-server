@@ -1,9 +1,12 @@
 import type { DmConversation } from '$lib/api/dm.js';
+import { getDmConversations as fetchDmConversationsApi, getBlocks as fetchBlocksApi } from '$lib/api/dm.js';
 
 let conversations = $state<DmConversation[]>([]);
 let blockedUserIds = $state<Set<string>>(new Set());
 let dmUnreadCounts = $state<Map<string, number>>(new Map());
 let dmMentionCounts = $state<Map<string, number>>(new Map());
+let dmLoaded = $state(false);
+let dmLoading = $state(false);
 
 // --- Conversations ---
 
@@ -98,4 +101,33 @@ export function incrementDmUnread(channelId: string) {
 /** Check if a channel ID belongs to a DM conversation */
 export function isDmChannel(channelId: string): boolean {
 	return conversations.some((c) => c.channel_id === channelId);
+}
+
+/** Lazy-load DM data on first access */
+export async function ensureDmLoaded(): Promise<void> {
+	if (dmLoaded || dmLoading) return;
+	dmLoading = true;
+	try {
+		const [convs, blocks] = await Promise.all([
+			fetchDmConversationsApi(),
+			fetchBlocksApi()
+		]);
+		if (!dmLoaded) {
+			setDmConversations(convs);
+			setBlockedUserIds(blocks);
+			dmLoaded = true;
+		}
+	} catch {
+		// ignore — will retry on next access
+	} finally {
+		dmLoading = false;
+	}
+}
+
+export function isDmLoaded(): boolean {
+	return dmLoaded;
+}
+
+export function resetDmLoaded() {
+	dmLoaded = false;
 }

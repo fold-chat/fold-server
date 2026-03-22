@@ -20,6 +20,7 @@ public class UserResource {
     @Inject UserRepository userRepo;
     @Inject PasswordService passwordService;
     @Inject RateLimitService rateLimitService;
+    @Inject chat.fold.service.HelloCacheService helloCacheService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -57,6 +58,7 @@ public class UserResource {
         String avatarUrl = req.avatar_url() != null ? req.avatar_url() : (String) user.get("avatar_url");
 
         userRepo.updateProfile(sc.getUserId(), displayName, bio, statusPref, statusText, avatarUrl);
+        helloCacheService.invalidateMembers();
 
         return userRepo.findById(sc.getUserId())
                 .map(u -> Response.ok(publicProfile(u, true)).build())

@@ -40,6 +40,7 @@ public class ConfigResource {
     @Inject EventBus eventBus;
     @Inject AuditLogService auditLogService;
     @Inject LiveKitService liveKitService;
+    @Inject chat.fold.service.HelloCacheService helloCacheService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -91,6 +92,7 @@ public class ConfigResource {
 
         if (!updated.isEmpty()) {
             runtimeConfig.refresh();
+            helloCacheService.invalidateCapabilities();
             eventBus.publish(Event.of(EventType.SERVER_CONFIG_UPDATE, updated, Scope.server()));
             auditLogService.log(sc.getUserId(), "SERVER_CONFIG_UPDATE", "server", null, Map.copyOf(updated));
 

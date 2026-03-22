@@ -26,6 +26,7 @@ public class CategoryResource {
     @Inject ChannelRepository channelRepo;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
+    @Inject chat.fold.service.HelloCacheService helloCacheService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -42,6 +43,7 @@ public class CategoryResource {
         String id = UUID.randomUUID().toString();
         int position = req.position() != null ? req.position() : categoryRepo.nextPosition();
         categoryRepo.create(id, req.name().trim(), position);
+        helloCacheService.invalidateCategories();
         var created = categoryRepo.findById(id);
         created.ifPresent(c -> eventBus.publish(Event.of(EventType.CATEGORY_CREATE, c, Scope.server())));
         return created
@@ -61,6 +63,7 @@ public class CategoryResource {
         String name = req.name() != null ? req.name().trim() : (String) cat.get("name");
         Integer position = req.position() != null ? req.position() : ((Long) cat.get("position")).intValue();
         categoryRepo.update(id, name, position);
+        helloCacheService.invalidateCategories();
         var updated = categoryRepo.findById(id);
         updated.ifPresent(c -> eventBus.publish(Event.of(EventType.CATEGORY_UPDATE, c, Scope.server())));
         return updated
@@ -82,6 +85,8 @@ public class CategoryResource {
             eventBus.publish(Event.of(EventType.CHANNEL_DELETE, Map.of("id", ch.get("id")), Scope.server()));
         }
         categoryRepo.delete(id);
+        helloCacheService.invalidateCategories();
+        helloCacheService.invalidateChannels();
         eventBus.publish(Event.of(EventType.CATEGORY_DELETE, Map.of("id", id), Scope.server()));
         return Response.noContent().build();
     }

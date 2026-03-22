@@ -27,6 +27,7 @@ public class RoleService {
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
     @Inject SessionRegistry sessionRegistry;
+    @Inject HelloCacheService helloCacheService;
 
     // --- Role CRUD ---
 
@@ -38,6 +39,7 @@ public class RoleService {
         String id = UUID.randomUUID().toString();
         roleRepo.create(id, name, permissions, position, color, false);
         permissionService.invalidateAll();
+        helloCacheService.invalidateRoles();
 
         var role = roleRepo.findById(id).orElseThrow();
         var serialized = serializeRole(role);
@@ -62,6 +64,7 @@ public class RoleService {
 
         roleRepo.update(roleId, newName, newPerms, existingPos, newColor);
         permissionService.invalidateAll();
+        helloCacheService.invalidateRoles();
 
         var updated = roleRepo.findById(roleId).orElseThrow();
         var serialized = serializeRole(updated);
@@ -104,6 +107,7 @@ public class RoleService {
         long userCount = roleRepo.countUsersWithRole(roleId);
         roleRepo.delete(roleId);
         permissionService.invalidateAll();
+        helloCacheService.invalidateRoles();
 
         eventBus.publish(Event.of(EventType.ROLE_DELETE, Map.of("id", roleId), Scope.server()));
         return userCount;
@@ -122,6 +126,7 @@ public class RoleService {
 
         roleRepo.assignRole(userId, roleId);
         permissionService.invalidateUser(userId);
+        helloCacheService.invalidateMembers();
 
         var userState = computeUserState(userId);
         var payload = new LinkedHashMap<String, Object>();
@@ -143,6 +148,7 @@ public class RoleService {
 
         roleRepo.removeRole(userId, roleId);
         permissionService.invalidateUser(userId);
+        helloCacheService.invalidateMembers();
 
         var userState = computeUserState(userId);
         var payload = new LinkedHashMap<String, Object>();

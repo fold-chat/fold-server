@@ -1,10 +1,13 @@
 <script lang="ts">
-	import { getDmConversations, getDmUnreadCount } from '$lib/stores/dm.svelte.js';
+	import { getDmConversations, getDmUnreadCount, ensureDmLoaded } from '$lib/stores/dm.svelte.js';
 	import { getUser, hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { getMembers } from '$lib/stores/members.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
 	import { openDm } from '$lib/api/dm.js';
 	import { goto } from '$app/navigation';
+
+	// Lazy-load DM data on mount
+	ensureDmLoaded();
 
 	let search = $state('');
 	let showNewDm = $state(false);

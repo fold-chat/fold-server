@@ -6,10 +6,12 @@
 	import { getUser, hasServerPermission } from '$lib/stores/auth.svelte.js';
 	import { isBlocked as isUserBlocked, addBlock, removeBlock, setDmConversations, getDmConversations, updateDmConversation } from '$lib/stores/dm.svelte.js';
 	import { PermissionName } from '$lib/permissions.js';
-	import { openDm, blockUser, unblockUser, getDmConversations as fetchDmConversations } from '$lib/api/dm.js';
-	import type { Member, RoleBadge } from '$lib/api/users.js';
+import { openDm, blockUser, unblockUser, getDmConversations as fetchDmConversations } from '$lib/api/dm.js';
+import { getUser as fetchUser } from '$lib/api/users.js';
+import type { Member, RoleBadge } from '$lib/api/users.js';
 
 	let selectedMember = $state<Member | null>(null);
+	let profileBio = $state<string | null>(null);
 
 	// Auto-select member when pendingUserId is set (e.g. from mention click)
 	$effect(() => {
@@ -88,10 +90,16 @@
 
 	function selectMember(m: Member) {
 		selectedMember = m;
+		profileBio = m.bio ?? null;
+		// Fetch full profile for bio if not present
+		if (m.bio === undefined) {
+			fetchUser(m.id).then(u => { profileBio = u.bio ?? null; }).catch(() => {});
+		}
 	}
 
 	function goBack() {
 		selectedMember = null;
+		profileBio = null;
 	}
 
 	const selectedMemberRoles = $derived(selectedMember ? parseRoles(selectedMember.roles) : []);
@@ -237,12 +245,12 @@
 					<span class="field-value">{selectedMember.status_text}</span>
 				</div>
 			{/if}
-			{#if selectedMember.bio}
-				<div class="profile-field">
-					<span class="field-label">Bio</span>
-					<span class="field-value">{selectedMember.bio}</span>
-				</div>
-			{/if}
+		{#if profileBio}
+			<div class="profile-field">
+				<span class="field-label">Bio</span>
+				<span class="field-value">{profileBio}</span>
+			</div>
+		{/if}
 		{#if selectedMemberRoles.length}
 			<div class="profile-field">
 				<span class="field-label">Roles</span>

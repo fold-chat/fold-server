@@ -39,6 +39,7 @@ public class EmojiResource {
     @Inject RateLimitService rateLimitService;
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
+    @Inject chat.fold.service.HelloCacheService helloCacheService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -104,6 +105,7 @@ public class EmojiResource {
             response.put("url", "/api/v0/files/" + fileResult.get("stored_name"));
             response.put("uploader_id", sc.getUserId());
 
+            helloCacheService.invalidateCustomEmoji();
             eventBus.publish(Event.of(EventType.EMOJI_CREATE, response, Scope.server()));
 
             return Response.status(201).entity(response).build();
@@ -130,6 +132,7 @@ public class EmojiResource {
 
         String emojiName = (String) existing.get().get("name");
         emojiRepo.delete(id);
+        helloCacheService.invalidateCustomEmoji();
 
         eventBus.publish(Event.of(EventType.EMOJI_DELETE,
                 Map.of("id", id, "name", emojiName),

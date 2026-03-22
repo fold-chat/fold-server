@@ -190,6 +190,23 @@ public class PermissionService {
         return result;
     }
 
+    /** Compact bitmask permissions for HELLO — only includes channel overrides that differ from server base */
+    public Map<String, Object> computeUserPermissionsBitmask(String userId, Set<String> channelIds) {
+        long base = computeBasePermissions(userId);
+        var result = new LinkedHashMap<String, Object>();
+        result.put("server", base);
+
+        var channels = new LinkedHashMap<String, Object>();
+        for (var channelId : channelIds) {
+            long effective = computeEffectivePermissions(userId, channelId);
+            if (effective != base) {
+                channels.put(channelId, effective);
+            }
+        }
+        result.put("channels", channels);
+        return result;
+    }
+
     // --- Cache invalidation ---
 
     public void invalidateUser(String userId) {

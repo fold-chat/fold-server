@@ -5,7 +5,7 @@ import type { ThreadReadState } from '$lib/api/threads.js';
 import type { DmConversation } from '$lib/api/dm.js';
 import { setChannels, getChannels, setCategories, addChannel, updateChannel, removeChannel, addCategory, updateCategory, removeCategory, setReadStates, setUnreadCounts, markChannelRead } from './channels.svelte.js';
 import { handleMessageEvent, handleTypingEvent, handleReactionEvent, handleAttachmentUpdate } from './messages.svelte.js';
-import { setDmConversations, addDmConversation, setBlockedUserIds, setDmUnreadCounts, updateDmLastActivity, isDmChannel, incrementDmUnread } from './dm.svelte.js';
+import { setDmConversations, addDmConversation, setBlockedUserIds, setDmUnreadCounts, updateDmLastActivity, isDmChannel, incrementDmUnread, resetDmLoaded } from './dm.svelte.js';
 import { handleThreadEvent, setThreadReadStates } from './threads.svelte.js';
 import { setRoles, addRole, updateRole as updateStoreRole, removeRole as removeStoreRole } from './roles.svelte.js';
 import { setMembers, addMember, removeMember, updateMember, getMembers as getStoreMembers, updateMemberRoleBadge } from './members.svelte.js';
@@ -326,7 +326,7 @@ interface HelloPayload {
 	read_states: Array<{ channel_id: string; last_read_message_id: string | null }>;
 	unread_counts: Array<{ channel_id: string; unread_count: number }>;
 	thread_read_states: ThreadReadState[];
-	user_permissions: { server: string[]; channels: Record<string, string[]> };
+	user_permissions: { server: string[] | number; channels: Record<string, string[] | number> };
 	online_user_ids?: string[];
 	heartbeat_interval_ms: number;
 	session_id: string;
@@ -336,9 +336,6 @@ interface HelloPayload {
 	voice_states?: Array<import('$lib/api/voice.js').VoiceState> | Record<string, Array<import('$lib/api/voice.js').VoiceState>>;
 	capabilities?: { voice_video?: boolean; voice_mode?: string; e2ee?: boolean; media_search?: boolean };
 	custom_emoji?: CustomEmoji[];
-	dm_conversations?: DmConversation[];
-	dm_blocked_user_ids?: string[];
-	dm_unread_counts?: Array<{ channel_id: string; unread_count: number }>;
 }
 
 function handleUserStateUpdate(data: Record<string, unknown>) {
@@ -430,10 +427,11 @@ function handleHello(data: HelloPayload) {
 	if (data.online_user_ids) setOnlineUserIds(data.online_user_ids);
 	setCustomEmoji(data.custom_emoji ?? []);
 	if (data.version) setServerVersion(data.version);
-	// DM state
-	setDmConversations(data.dm_conversations ?? []);
-	setBlockedUserIds(data.dm_blocked_user_ids ?? []);
-	setDmUnreadCounts(data.dm_unread_counts ?? []);
+	// DM data no longer in HELLO — lazy loaded on panel open
+	resetDmLoaded();
+	setDmConversations([]);
+	setBlockedUserIds([]);
+	setDmUnreadCounts([]);
 	// Server sends voice_states as { channelId: VoiceState[] } — flatten to array
 	const rawVs = data.voice_states;
 	let voiceArr: import('$lib/api/voice.js').VoiceState[] = [];

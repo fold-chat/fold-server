@@ -189,6 +189,23 @@ public class UserRepository {
                 """.formatted(banFilter));
     }
 
+    /** Slim member list for HELLO — drops admin-only fields and bio */
+    public List<Map<String, Object>> listAllMembersSlim(boolean includeBanned) {
+        String banFilter = includeBanned ? "" : "AND u.banned_at IS NULL";
+        return db.query("""
+                SELECT u.id, u.username, u.display_name, u.avatar_url, u.status_preference,
+                       u.status_text, u.created_at, u.last_seen_at,
+                       u.banned_at, u.is_bot, u.bot_enabled,
+                       JSON_GROUP_ARRAY(JSON_OBJECT('id', r.id, 'name', r.name, 'color', r.color)) AS roles
+                FROM user u
+                LEFT JOIN user_role ur ON u.id = ur.user_id
+                LEFT JOIN role r ON ur.role_id = r.id
+                WHERE u.deleted_at IS NULL %s
+                GROUP BY u.id
+                ORDER BY u.is_bot, u.banned_at IS NOT NULL, u.created_at
+                """.formatted(banFilter));
+    }
+
     /** Hard-delete a user row — cascades to messages, reactions, user_role, bot_token via FK */
     public void hardDelete(String id) {
         db.execute("DELETE FROM user WHERE id = ?", id);

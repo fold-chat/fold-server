@@ -1,6 +1,7 @@
 import { getMe, type User } from '$lib/api/users.js';
 import { getSetupStatus } from '$lib/api/auth.js';
 import type { Permission } from '$lib/permissions.js';
+import { decodePermissions } from '$lib/permissions.js';
 
 export interface UserPermissions {
 	server: string[];
@@ -85,11 +86,17 @@ export function getPermissions(): UserPermissions {
 	return permissions;
 }
 
-export function setPermissions(server: string[], channels: Record<string, string[]>) {
-	permissions = {
-		server,
-		channels: new Map(Object.entries(channels))
-	};
+/** Accept both legacy string[] and new bitmask formats */
+export function setPermissions(
+	server: string[] | number,
+	channels: Record<string, string[] | number>
+) {
+	const serverPerms = typeof server === 'number' ? decodePermissions(server) : server;
+	const channelMap = new Map<string, string[]>();
+	for (const [id, val] of Object.entries(channels)) {
+		channelMap.set(id, typeof val === 'number' ? decodePermissions(val) : val);
+	}
+	permissions = { server: serverPerms, channels: channelMap };
 	permissionsLoaded = true;
 }
 

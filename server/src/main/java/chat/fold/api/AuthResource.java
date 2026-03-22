@@ -27,6 +27,7 @@ public class AuthResource {
     @Inject UserRepository userRepo;
     @Inject ReadStateRepository readStateRepo;
     @Inject EventBus eventBus;
+    @Inject chat.fold.service.HelloCacheService helloCacheService;
     @Context ContainerRequestContext requestContext;
 
     @POST
@@ -49,6 +50,7 @@ public class AuthResource {
             readStateRepo.initializeForUser(result.userId());
 
             // Publish MEMBER_JOIN event so connected clients see the new member
+            helloCacheService.invalidateMembers();
             userRepo.findMemberById(result.userId()).ifPresent(member ->
                     eventBus.publish(Event.of(EventType.MEMBER_JOIN, member, Scope.server()))
             );

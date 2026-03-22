@@ -58,6 +58,53 @@ export function hasPermission(permissions: string[], perm: Permission): boolean 
 	return permissions.includes(perm);
 }
 
+/** Bitmask bit positions — must match server Permission enum */
+const PERMISSION_BITS: Record<string, number> = {
+	VIEW_CHANNEL: 0,
+	SEND_MESSAGES: 1,
+	MANAGE_OWN_MESSAGES: 2,
+	MANAGE_MESSAGES: 3,
+	UPLOAD_FILES: 4,
+	ADD_REACTIONS: 5,
+	MENTION_EVERYONE: 6,
+	CREATE_THREADS: 8,
+	MANAGE_OWN_THREADS: 9,
+	MANAGE_THREADS: 10,
+	SEND_IN_LOCKED_THREADS: 11,
+	MANAGE_CHANNELS: 16,
+	MANAGE_ROLES: 17,
+	MANAGE_SERVER: 18,
+	BAN_MEMBERS: 20,
+	CREATE_INVITES: 21,
+	MANAGE_INVITES: 22,
+	CHANGE_NICKNAME: 23,
+	MANAGE_NICKNAMES: 24,
+	RESET_PASSWORDS: 25,
+	INITIATE_DM: 26,
+	ADMINISTRATOR: 31,
+	USE_VOICE: 32,
+	VIDEO: 33,
+	MUTE_MEMBERS: 34,
+	DEAFEN_MEMBERS: 35,
+	MOVE_MEMBERS: 36,
+	PRIORITY_SPEAKER: 37
+};
+
+/** Decode a 64-bit bitmask (as number) into permission name strings */
+export function decodePermissions(bitmask: number): string[] {
+	const names: string[] = [];
+	for (const [name, bit] of Object.entries(PERMISSION_BITS)) {
+		// For bits > 31, JS bitwise ops won't work; use Math.pow
+		if (bit < 32) {
+			if ((bitmask & (1 << bit)) !== 0) names.push(name);
+		} else {
+			// bitmask is a JS number (up to 2^53), check via division
+			if (Math.floor(bitmask / Math.pow(2, bit)) % 2 === 1) names.push(name);
+		}
+	}
+	return names;
+}
+
 // Grouped for UI display
 export const PERMISSION_GROUPS = {
 	Server: [

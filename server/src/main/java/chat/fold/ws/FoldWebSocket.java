@@ -4,6 +4,7 @@ import chat.fold.auth.JwtService;
 import chat.fold.config.FoldMediaConfig;
 import chat.fold.config.RuntimeConfigService;
 import chat.fold.service.BackupService;
+import chat.fold.service.HelloCacheService;
 import chat.fold.service.MediaProcessingService;
 import chat.fold.db.*;
 import chat.fold.event.*;
@@ -11,6 +12,7 @@ import chat.fold.security.PermissionService;
 import chat.fold.service.LiveKitService;
 import chat.fold.service.MaintenanceService;
 import chat.fold.service.RoleService;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.websockets.next.*;
 import jakarta.inject.Inject;
@@ -49,8 +51,11 @@ public class FoldWebSocket {
     @Inject MaintenanceService maintenanceService;
     @Inject MediaProcessingService mediaProcessingService;
     @Inject BackupService backupService;
+    @Inject HelloCacheService helloCacheService;
 
     private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper helloMapper = new ObjectMapper()
+            .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
     @OnOpen
     public void onOpen(WebSocketConnection connection) {
@@ -400,9 +405,17 @@ public class FoldWebSocket {
     private String buildHello(String userId, String sessionId) {
         try {
             var user = userRepo.findById(userId).orElse(Map.of());
-            var allChannels = channelRepo.listServerChannels();
-            var categories = categoryRepo.listAll();
-var members = userRepo.listAllMembers(false);
+
+            // Shared data from cache
+            var allChannels = helloCacheService.getChannels();
+            var categories = helloCacheService.getCategories();
+            var members = helloCacheService.getMembers();
+            var roles = helloCacheService.getRoles();
+            var customEmoji = helloCacheService.getCustomEmoji();
+            var serverSettings = helloCacheService.getServerSettings();
+            var capabilities = helloCacheService.getCapabilities();
+
+            // Per-user data (queried live)
             var readStates = readStateRepo.findAllForUser(userId);
             var unreadCounts = readStateRepo.unreadCounts(userId);
 
@@ -429,13 +442,8 @@ var members = userRepo.listAllMembers(false);
                         .toList();
             }
 
-            // Serialize roles with permission names
-            var roles = roleRepo.findAll().stream()
-                    .map(roleService::serializeRole)
-                    .toList();
-
-            // Compute user permissions
-            var userPermissions = permissionService.computeUserPermissions(userId, viewableIds);
+            // Bitmask permissions with channel inheritance (omit channels matching server base)
+            var userPermissions = permissionService.computeUserPermissionsBitmask(userId, viewableIds);
 
             // Filter unread counts to viewable channels only
             var filteredUnreadCounts = unreadCounts.stream()
@@ -476,63 +484,11 @@ var members = userRepo.listAllMembers(false);
                 allVoiceStates.put(vcId, voiceStateRepo.findByChannel(vcId));
             }
             hello.put("voice_states", allVoiceStates);
-
-            // Capabilities
-            var capabilities = new LinkedHashMap<String, Object>();
-            capabilities.put("voice_video", liveKitService.isEnabled());
-            capabilities.put("voice_mode", liveKitService.getMode());
-            capabilities.put("e2ee", runtimeConfig.getBoolean("fold.livekit.e2ee", liveKitConfig.e2ee()));
-            capabilities.put("media_search", mediaConfig.klipyApiKey().filter(s -> !s.isBlank()).isPresent());
-            var mediaProcessing = new LinkedHashMap<String, Object>();
-            mediaProcessing.put("ffmpeg_available", mediaProcessingService.isFfmpegAvailable());
-            mediaProcessing.put("video_mode", runtimeConfig.getString("fold.media-processing.video-mode",
-                    mediaProcessingService.getVideoMode()));
-            capabilities.put("media_processing", mediaProcessing);
             hello.put("capabilities", capabilities);
-
-            // Server settings
-            var settingsRows = db.query("SELECT key, value FROM server_config WHERE key IN ('server_name', 'server_icon', 'server_description')");
-            var serverSettings = new LinkedHashMap<String, Object>();
-            for (var row : settingsRows) {
-                serverSettings.put((String) row.get("key"), row.get("value"));
-            }
-            serverSettings.put("maintenance_enabled", maintenanceService.isEnabled());
-            serverSettings.put("maintenance_message", maintenanceService.getMessage());
             hello.put("server_settings", serverSettings);
-
-            // DM conversations
-            var dmConversations = dmRepo.findConversationsForUser(userId);
-            var dmConvList = new ArrayList<Map<String, Object>>();
-            var dmChannelIds = new HashSet<String>();
-            for (var conv : dmConversations) {
-                var enriched = new LinkedHashMap<String, Object>(conv);
-                String dmChId = (String) conv.get("channel_id");
-                dmChannelIds.add(dmChId);
-                enriched.put("participants", dmRepo.findParticipantDetails(dmChId));
-                enriched.put("is_blocked", java.util.Objects.equals(conv.get("is_blocked"), 1L));
-                dmConvList.add(enriched);
-            }
-            hello.put("dm_conversations", dmConvList);
-            hello.put("dm_blocked_user_ids", dmBlockRepo.getBlockedIds(userId));
-
-            // DM unread counts (filter from existing unreadCounts)
-            var dmUnreadCounts = unreadCounts.stream()
-                    .filter(uc -> dmChannelIds.contains(uc.get("channel_id")))
-                    .toList();
-            hello.put("dm_unread_counts", dmUnreadCounts);
-
-            // Custom emoji
-            var customEmoji = emojiRepo.listAll().stream().map(e -> {
-                var em = new LinkedHashMap<String, Object>();
-                em.put("id", e.get("id"));
-                em.put("name", e.get("name"));
-                em.put("url", "/api/v0/files/" + e.get("stored_name"));
-                em.put("uploader_id", e.get("uploader_id"));
-                return (Map<String, Object>) em;
-            }).toList();
             hello.put("custom_emoji", customEmoji);
 
-            return mapper.writeValueAsString(Map.of("op", "HELLO", "d", hello));
+            return helloMapper.writeValueAsString(Map.of("op", "HELLO", "d", hello));
         } catch (Exception e) {
             LOG.errorf("Failed to build HELLO: %s", e.getMessage());
             return "{\"op\":\"HELLO\",\"d\":{}}";

@@ -71,6 +71,7 @@ public class ChannelResource {
     @Inject FoldLiveKitConfig liveKitConfig;
     @Inject LiveKitService liveKitService;
     @Inject ExternalImageService externalImageService;
+    @Inject chat.fold.service.HelloCacheService helloCacheService;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -96,6 +97,7 @@ public class ChannelResource {
             voiceKeyRepo.createKey(id);
         }
         var created = channelRepo.findById(id);
+        helloCacheService.invalidateChannels();
         created.ifPresent(c -> {
             eventBus.publish(Event.of(EventType.CHANNEL_CREATE, withCategory(c), Scope.server()));
             auditLogService.log(sc().getUserId(), "CHANNEL_CREATE", "channel", id, Map.of("name", req.name()));
@@ -123,6 +125,7 @@ public class ChannelResource {
         String icon = req.icon_set() ? req.icon() : (String) ch.get("icon");
         String iconUrl = req.icon_url_set() ? req.icon_url() : (String) ch.get("icon_url");
         channelRepo.update(id, name, topic, description, categoryId, position, icon, iconUrl);
+        helloCacheService.invalidateChannels();
         var updated = channelRepo.findById(id);
         updated.ifPresent(c -> {
             eventBus.publish(Event.of(EventType.CHANNEL_UPDATE, withCategory(c), Scope.server()));
@@ -199,6 +202,7 @@ public class ChannelResource {
             }
         }
         channelRepo.delete(id);
+        helloCacheService.invalidateChannels();
         eventBus.publish(Event.of(EventType.CHANNEL_DELETE, Map.of("id", id), Scope.server()));
         auditLogService.log(sc().getUserId(), "CHANNEL_DELETE", "channel", id);
         return Response.noContent().build();

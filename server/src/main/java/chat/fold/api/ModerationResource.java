@@ -35,6 +35,7 @@ public class ModerationResource {
     @Inject SessionRegistry sessionRegistry;
     @Inject RoleService roleService;
     @Inject AuditLogService auditLogService;
+    @Inject chat.fold.service.HelloCacheService helloCacheService;
     @Context ContainerRequestContext requestContext;
 
     @POST
@@ -58,6 +59,7 @@ public class ModerationResource {
 
         String reason = req != null ? req.reason() : null;
         userRepo.ban(targetId, sc.getUserId(), reason);
+        helloCacheService.invalidateMembers();
 
         // Revoke all sessions
         sessionRepo.deleteAllForUser(targetId);
@@ -95,6 +97,7 @@ public class ModerationResource {
         }
 
         userRepo.unban(targetId);
+        helloCacheService.invalidateMembers();
 
         eventBus.publish(Event.of(EventType.MEMBER_UNBAN, Map.of(
                 "user_id", targetId,

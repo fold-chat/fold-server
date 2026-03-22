@@ -38,6 +38,7 @@ public class ServerSettingsResource {
     @Inject PermissionService permissionService;
     @Inject EventBus eventBus;
     @Inject AuditLogService auditLogService;
+    @Inject chat.fold.service.HelloCacheService helloCacheService;
     @Context ContainerRequestContext requestContext;
 
     /** Public endpoint — serves the server icon image (no auth required) */
@@ -124,6 +125,7 @@ public class ServerSettingsResource {
         }
 
         if (!updated.isEmpty()) {
+            helloCacheService.invalidateServerSettings();
             eventBus.publish(Event.of(EventType.SERVER_SETTINGS_UPDATE, updated, Scope.server()));
             auditLogService.log(sc.getUserId(), "SERVER_SETTINGS_UPDATE", "server", null, updated);
         }

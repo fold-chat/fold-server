@@ -30,13 +30,16 @@ import ConfirmDialog from './ConfirmDialog.svelte';
 import { openMemberProfile } from '$lib/stores/membersPanel.svelte.js';
 	import CreateChannelDialog from './CreateChannelDialog.svelte';
 import { isSidebarCollapsed, isSidebarExpanded, isNarrowScreen, closeSidebar, toggleSidebar } from '$lib/stores/sidebar.svelte.js';
-import { getDmConversations, getDmUnreadCount, getTotalDmUnreadCount } from '$lib/stores/dm.svelte.js';
+import { getDmConversations, getDmUnreadCount, getTotalDmUnreadCount, ensureDmLoaded } from '$lib/stores/dm.svelte.js';
 import { getVoiceStatesForChannel, getCurrentVoiceChannelId, getJoiningChannelId, isLocalAudioMuted, isLocalDeafened, isServerMuted, isServerDeafened, leaveCurrentVoice, toggleMute, toggleDeafen, isSpeaking, isCameraActive, isScreenShareActive, toggleCamera, toggleScreenShare, isPttEnabled, isPttActive, isE2eeActive, isE2eeCapability, getLivekitConnectionState, getLastJoinError, optimisticSetServerMute, optimisticSetServerDeaf } from '$lib/stores/voice.svelte.js';
 	import { getChannelById } from '$lib/stores/channels.svelte.js';
 	import { serverMute, serverUnmute, serverDeafen, serverUndeafen, disconnectUser, moveUser } from '$lib/api/voice.js';
 	import type { VoiceState } from '$lib/api/voice.js';
 
 	const canManageChannels = $derived(hasServerPermission(PermissionName.MANAGE_CHANNELS));
+
+	// Lazy-load DM data for sidebar DM section
+	ensureDmLoaded();
 
 	// --- Channel dialog state (create + edit) ---
 	let channelDialogOpen = $state(false);

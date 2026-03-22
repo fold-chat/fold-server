@@ -208,7 +208,7 @@
 		}
 	}
 
-	function joinMethodLabel(method: string | null): string {
+	function joinMethodLabel(method: string | null | undefined): string {
 		switch (method) {
 			case 'invite': return 'Invite';
 			case 'registration': return 'Registration';
@@ -222,7 +222,7 @@
 		if (member.join_method === 'invite' && member.invite_description) {
 			return `Joined via ${label}: ${member.invite_description}`;
 		}
-		return `Joined via ${label}`;
+		return member.join_method ? `Joined via ${label}` : '';
 	}
 
 	function banTooltip(member: Member): string {

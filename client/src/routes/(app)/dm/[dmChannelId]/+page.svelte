@@ -4,7 +4,7 @@
 	import { getMessages as fetchMessages, sendMessage, editMessage, deleteMessage, updateReadState } from '$lib/api/messages.js';
 	import { blockUser, unblockUser, getDmConversations as fetchDmConversations } from '$lib/api/dm.js';
 	import { getMessages, setMessages, prependMessages, setLoading, setHasMore, hasMore, isLoading, setActiveChannelId, getTypingUsers } from '$lib/stores/messages.svelte.js';
-	import { markDmRead, getDmConversation, updateDmConversation, isBlocked as isUserBlocked, addBlock, removeBlock, isDmChannel } from '$lib/stores/dm.svelte.js';
+import { markDmRead, getDmConversation, updateDmConversation, isBlocked as isUserBlocked, addBlock, removeBlock, isDmChannel, ensureDmLoaded } from '$lib/stores/dm.svelte.js';
 	import { markChannelRead } from '$lib/stores/channels.svelte.js';
 	import { send } from '$lib/stores/ws.svelte.js';
 	import { getUser } from '$lib/stores/auth.svelte.js';
@@ -12,6 +12,9 @@
 	import MessageCompose from '$lib/components/MessageCompose.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import type { ApiError } from '$lib/api/client.js';
+
+	// Ensure DM data is loaded
+	ensureDmLoaded();
 
 	let dmChannelId = $derived(page.params.dmChannelId!);
 	let conversation = $derived(getDmConversation(dmChannelId));

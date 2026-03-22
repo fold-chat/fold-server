@@ -35,6 +35,7 @@ public class BotResource {
     @Inject PermissionService permissionService;
     @Inject FileService fileService;
     @Inject EventBus eventBus;
+    @Inject chat.fold.service.HelloCacheService helloCacheService;
     @Context ContainerRequestContext requestContext;
 
     // --- Create bot ---
@@ -67,6 +68,7 @@ public class BotResource {
         var bot = botRepo.findBotById(id).orElseThrow();
 
         // Notify connected clients of the new bot
+        helloCacheService.invalidateMembers();
         userRepo.findMemberById(id).ifPresent(member ->
                 eventBus.publish(Event.of(EventType.MEMBER_JOIN, member, Scope.server()))
         );
@@ -195,6 +197,7 @@ public class BotResource {
         if (bot.isEmpty()) return Response.status(404).entity(Map.of("error", "not_found")).build();
 
         botRepo.hardDeleteBot(id);
+        helloCacheService.invalidateMembers();
         eventBus.publish(Event.of(EventType.MEMBER_LEAVE, Map.of("user_id", id), Scope.server()));
         return Response.noContent().build();
     }
