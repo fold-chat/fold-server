@@ -26,6 +26,7 @@ class RoleServiceTest {
     private PermissionService permissionService;
     private EventBus eventBus;
     private SessionRegistry sessionRegistry;
+    private HelloCacheService helloCacheService;
     private RoleService roleService;
 
     private static final long VIEW_SEND = Permission.VIEW_CHANNEL.value | Permission.SEND_MESSAGES.value;
@@ -38,6 +39,7 @@ class RoleServiceTest {
         permissionService = mock(PermissionService.class);
         eventBus = mock(EventBus.class);
         sessionRegistry = mock(SessionRegistry.class);
+        helloCacheService = mock(HelloCacheService.class);
 
         when(channelRepo.listAll()).thenReturn(List.of());
         when(categoryRepo.listAll()).thenReturn(List.of());
@@ -50,6 +52,7 @@ class RoleServiceTest {
         inject(roleService, "permissionService", permissionService);
         inject(roleService, "eventBus", eventBus);
         inject(roleService, "sessionRegistry", sessionRegistry);
+        inject(roleService, "helloCacheService", helloCacheService);
     }
 
     private void inject(Object target, String fieldName, Object value) throws Exception {
