@@ -55,7 +55,7 @@ EOT
 
       resources {
         cpu    = 500
-        memory = 1024
+        memory = 256
       }
 
       service {
