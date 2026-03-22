@@ -202,4 +202,18 @@ export function initTheme() {
 			applyTheme(getSystemTheme());
 		}
 	});
+
+	// Cross-webview theme sync — called from Tauri eval when "Apply to all servers" is used.
+	// Reads freshly-written localStorage values and re-applies the theme visually.
+	(window as any).__foldSyncTheme = () => {
+		try {
+			const raw = localStorage.getItem(CUSTOM_STORAGE_KEY);
+			if (raw) customThemes = JSON.parse(raw);
+		} catch { /* ignore */ }
+		const stored = localStorage.getItem(STORAGE_KEY);
+		if (stored) {
+			preference = stored;
+			applyTheme(resolveTheme(preference));
+		}
+	};
 }

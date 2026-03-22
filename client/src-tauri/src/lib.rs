@@ -64,9 +64,11 @@ pub fn run() {
             commands::fetch_server_info,
             commands::open_server_in_content,
             commands::close_server_webview,
+            commands::navigate_server,
             commands::reorder_servers,
             commands::refresh_server,
             commands::show_server_context_menu,
+            commands::set_global_theme,
             tray::update_tray_badge,
         ])
         .setup(|app| {
@@ -156,37 +158,27 @@ pub fn run() {
                 }
             });
 
-            // Window event handler: resize server webviews + minimize-to-tray
+            // Window event handler: resize server webviews on window resize
             let handle2 = handle.clone();
             let window_ref = _window.as_ref().window().clone();
             let window_for_event = window_ref.clone();
             window_ref.on_window_event(move |event| {
-                match event {
-                    tauri::WindowEvent::Resized(size) => {
-                        let scale = window_for_event.scale_factor().unwrap_or(1.0);
-                        let w = size.width as f64 / scale;
-                        let h = size.height as f64 / scale;
+                if let tauri::WindowEvent::Resized(size) = event {
+                    let scale = window_for_event.scale_factor().unwrap_or(1.0);
+                    let w = size.width as f64 / scale;
+                    let h = size.height as f64 / scale;
 
-                        let servers = crate::servers::load_servers(&handle2);
-                        for s in &servers {
-                            let label = format!("sv-{}", s.id);
-                            if let Some(wv) = handle2.get_webview(&label) {
-                                if let Ok(size) = wv.size() {
-                                    if size.width > 0 {
-                                        let _ = wv.set_size(tauri::LogicalSize::new(w - 72.0, h));
-                                    }
+                    let servers = crate::servers::load_servers(&handle2);
+                    for s in &servers {
+                        let label = format!("sv-{}", s.id);
+                        if let Some(wv) = handle2.get_webview(&label) {
+                            if let Ok(size) = wv.size() {
+                                if size.width > 0 {
+                                    let _ = wv.set_size(tauri::LogicalSize::new(w - 72.0, h));
                                 }
                             }
                         }
                     }
-                    tauri::WindowEvent::CloseRequested { api, .. } => {
-                        // Hide to tray instead of quitting
-                        api.prevent_close();
-                        if let Some(w) = handle2.get_webview_window("main") {
-                            let _ = w.hide();
-                        }
-                    }
-                    _ => {}
                 }
             });
 
@@ -228,6 +220,35 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            match &event {
+                tauri::RunEvent::WindowEvent {
+                    label,
+                    event: tauri::WindowEvent::CloseRequested { api, .. },
+                    ..
+                } => {
+                    if label == "main" {
+                        api.prevent_close();
+                        if let Some(w) = app.get_window("main") {
+                            let _ = w.hide();
+                        }
+                        // macOS: remove from dock + Cmd+Tab when hidden
+                        #[cfg(target_os = "macos")]
+                        crate::tray::set_activation_policy_accessory();
+                    }
+                }
+                // macOS: dock icon clicked while hidden
+                tauri::RunEvent::Reopen { .. } => {
+                    #[cfg(target_os = "macos")]
+                    crate::tray::set_activation_policy_regular();
+                    if let Some(w) = app.get_window("main") {
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                    }
+                }
+                _ => {}
+            }
+        });
 }

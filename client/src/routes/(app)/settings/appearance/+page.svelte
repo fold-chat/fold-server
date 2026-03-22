@@ -15,6 +15,7 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import { exportTheme, decodeTheme, type DecodeResult } from '$lib/utils/theme-codec.js';
 	import { contrastRatio } from '$lib/utils/color.js';
+	import { isDesktop, setGlobalTheme } from '$lib/platform/index.js';
 
 	// ── Density ───────────────────────────────────────────────────────────────
 	const DENSITY_OPTIONS: { id: Density; label: string; icon: string; desc: string }[] = [
@@ -454,6 +455,20 @@
 			</div>
 			<p class="density-hint muted">{DENSITY_OPTIONS.find(o => o.id === getDensity())?.desc}</p>
 		</div>
+
+		<!-- ── Apply to all servers (desktop only) ─────────────────────── -->
+		{#if isDesktop()}
+			<div class="form-group" class:faded={editingTheme !== null}>
+				<button
+					class="btn-primary global-theme-btn"
+					onclick={() => setGlobalTheme(getThemePreference(), getCustomThemes())}
+				>
+					<span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px">sync</span>
+					Apply theme to all servers
+				</button>
+				<p class="muted" style="font-size:0.75rem;margin-top:0.25rem">Sets this theme across every Fold server in the desktop app.</p>
+			</div>
+		{/if}
 
 		<!-- ── Reset ──────────────────────────────────────────────────────── -->
 		<div class="reset-row">
@@ -1025,6 +1040,14 @@
 	/* ── Export button in editor actions ─────────────────────────────────────── */
 	.export-btn {
 		margin-right: auto;
+	}
+
+	/* ── Global theme button ─────────────────────────────────────────────────── */
+	.global-theme-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.85rem;
 	}
 
 	/* ── Reset ───────────────────────────────────────────────────────────────── */

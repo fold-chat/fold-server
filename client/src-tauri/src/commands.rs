@@ -345,6 +345,46 @@ pub async fn refresh_server(app: tauri::AppHandle, id: String) -> Result<ServerE
         .ok_or_else(|| "Server disappeared after refresh".to_string())
 }
 
+/// Navigate a server's webview to a specific URL.
+#[tauri::command]
+pub async fn navigate_server(
+    app: tauri::AppHandle,
+    id: String,
+    url: String,
+) -> Result<(), String> {
+    log::info!("[cmd] navigate_server: id={} url={}", id, url);
+    let label = webview_label(&id);
+    let wv = app.get_webview(&label)
+        .ok_or_else(|| format!("No webview for server '{}'", id))?;
+    let parsed: tauri::Url = url.parse()
+        .map_err(|e: url::ParseError| format!("Invalid URL: {}", e))?;
+    let _ = wv.navigate(parsed);
+    Ok(())
+}
+
+/// Set theme across all server webviews by injecting localStorage values + sync event.
+#[tauri::command]
+pub async fn set_global_theme(
+    app: tauri::AppHandle,
+    theme_pref: String,
+    custom_themes_json: String,
+) -> Result<(), String> {
+    log::info!("[cmd] set_global_theme: pref={}", theme_pref);
+    let servers = servers::load_servers(&app);
+    let script = format!(
+        r#"localStorage.setItem('fold_theme',{});localStorage.setItem('fold_custom_themes',{});if(window.__foldSyncTheme)window.__foldSyncTheme();"#,
+        serde_json::to_string(&theme_pref).unwrap_or_default(),
+        serde_json::to_string(&custom_themes_json).unwrap_or_default(),
+    );
+    for s in &servers {
+        let label = webview_label(&s.id);
+        if let Some(wv) = app.get_webview(&label) {
+            let _ = wv.eval(&script);
+        }
+    }
+    Ok(())
+}
+
 /// Hide all server webviews (returning to the add-server form).
 #[tauri::command]
 pub async fn close_server_webview(app: tauri::AppHandle) -> Result<(), String> {

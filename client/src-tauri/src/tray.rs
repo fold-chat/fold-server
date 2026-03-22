@@ -49,10 +49,36 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    set_activation_policy_regular();
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
         let _ = w.set_focus();
+    }
+}
+
+/// macOS: switch to accessory policy (hides from dock + Cmd+Tab).
+#[cfg(target_os = "macos")]
+pub fn set_activation_policy_accessory() {
+    use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+    use objc2::MainThreadMarker;
+    if let Some(mtm) = MainThreadMarker::new() {
+        let app = NSApplication::sharedApplication(mtm);
+        app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+    }
+}
+
+/// macOS: switch back to regular policy (visible in dock + Cmd+Tab).
+#[cfg(target_os = "macos")]
+pub fn set_activation_policy_regular() {
+    use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
+    use objc2::MainThreadMarker;
+    if let Some(mtm) = MainThreadMarker::new() {
+        let app = NSApplication::sharedApplication(mtm);
+        app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+        #[allow(deprecated)]
+        app.activateIgnoringOtherApps(true);
     }
 }
 

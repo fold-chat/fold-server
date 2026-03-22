@@ -5,6 +5,7 @@ export function isDesktop(): boolean {
 
 export { showNotification, requestNotificationPermission } from './notifications.js';
 export { updateTrayBadge } from './tray.js';
+export { setGlobalTheme } from './theme.js';
 export {
 	registerGlobalShortcut,
 	unregisterGlobalShortcut,

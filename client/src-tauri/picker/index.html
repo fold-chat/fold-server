@@ -166,7 +166,7 @@
     <h2>Add a Server</h2>
     <p>Enter the URL of a Fold server to connect</p>
     <form class="add-form" id="add-form">
-      <input type="url" id="url-input" placeholder="https://chat.example.com" autocomplete="off" required />
+      <input type="text" id="url-input" placeholder="chat.example.com" autocomplete="off" required />
       <button class="btn" type="submit" id="add-btn">Add</button>
     </form>
     <div class="status" id="status"></div>
@@ -327,13 +327,62 @@
       }
     }
 
+    function normalizeUrl(raw) {
+      raw = raw.trim().replace(/\/+$/, '');
+      if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+      return raw;
+    }
+
+    function serverHostKey(raw) {
+      try { var u = new URL(normalizeUrl(raw)); return u.host; }
+      catch(e) { return raw; }
+    }
+
+    function parseInviteUrl(raw) {
+      try {
+        var parsed = new URL(normalizeUrl(raw));
+        var match = parsed.pathname.match(/^\/invite\/([^\/]+)/);
+        if (match) return { baseUrl: parsed.origin, path: '/invite/' + match[1] };
+      } catch(e) {}
+      return null;
+    }
+
     async function handleAdd(e) {
       e.preventDefault();
       var input = document.getElementById('url-input');
       var btn = document.getElementById('add-btn');
-      var url = input.value.trim();
+      var url = normalizeUrl(input.value);
       if (!url) return;
       btn.disabled = true;
+
+      var invite = parseInviteUrl(url);
+      if (invite) {
+        showLoading('Connecting to server...');
+        try {
+          var inviteHost = serverHostKey(invite.baseUrl);
+          var existing = cachedServers.find(function(s) {
+            return serverHostKey(s.url) === inviteHost;
+          });
+          var serverId;
+          if (existing) {
+            serverId = existing.id;
+          } else {
+            var server = await invoke('add_server', { url: invite.baseUrl });
+            await renderSidebar();
+            serverId = server.id;
+          }
+          input.value = '';
+          clearStatus();
+          await selectServer(serverId);
+          await invoke('navigate_server', { id: serverId, url: invite.baseUrl + invite.path });
+        } catch (err) {
+          showError(String(err));
+        } finally {
+          btn.disabled = false;
+        }
+        return;
+      }
+
       showLoading('Connecting to server...');
       try {
         var server = await invoke('add_server', { url: url });

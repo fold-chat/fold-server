@@ -52,11 +52,25 @@ pub fn save_servers(app: &tauri::AppHandle, servers: &[ServerEntry]) {
     }
 }
 
+/// Extract host + optional non-default port for duplicate comparison.
+/// Ignores scheme so http and https of the same host are treated as one server.
+fn server_host_key(raw: &str) -> Option<String> {
+    url::Url::parse(raw).ok().and_then(|u| {
+        u.host_str().map(|h| match u.port() {
+            Some(p) => format!("{}:{}", h, p),
+            None => h.to_string(),
+        })
+    })
+}
+
 pub fn add_server(app: &tauri::AppHandle, entry: ServerEntry) -> Result<(), String> {
     log::info!("add_server: id={} url={} name={}", entry.id, entry.url, entry.name);
     let mut servers = load_servers(app);
-    if let Some(existing) = servers.iter().find(|s| s.url == entry.url) {
-        log::warn!("add_server: duplicate URL '{}', skipping", entry.url);
+    let new_key = server_host_key(&entry.url);
+    if let Some(existing) = servers.iter().find(|s| {
+        new_key.is_some() && server_host_key(&s.url) == new_key
+    }) {
+        log::warn!("add_server: duplicate host '{}', skipping", entry.url);
         return Err(format!("'{}' is already added", existing.name));
     }
     servers.push(entry);
