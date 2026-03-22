@@ -1,0 +1,22 @@
+{
+  "startTime": 1774212321123,
+  "endTime": 1774214890956,
+  "durationSeconds": 2569,
+  "messagesSent": 4794,
+  "messagesReceived": 248942,
+  "throughput": 1.8654908704184279,
+  "rateLimited": 1124,
+  "errors": 3679,
+  "reconnects": 165,
+  "refreshSuccess": 134,
+  "refreshFailed": 0,
+  "loginSuccess": 53,
+  "loginFailed": 197,
+  "helloReceived": 57,
+  "connectFailed": 353,
+  "latency": {
+    "p50": 136,
+    "p95": 25876,
+    "p99": 64095
+  }
+}

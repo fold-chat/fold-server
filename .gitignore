@@ -1,13 +1,10 @@
 # Server
-server/build/
 server/.gradle/
 server/src/main/resources/META-INF/resources/
 server/data
 
 # Client
-client/node_modules/
 client/.svelte-kit/
-client/build/
 
 # Tauri
 client/src-tauri/target/
@@ -28,9 +25,10 @@ Thumbs.db
 *.db-wal
 *.db-shm
 
-# Tools
-tools/fold-mcp/node_modules/
-tools/fold-mcp/dist/
+# Common
+node_modules/
+build/
+dist/
 
 # Secrets file
 .env

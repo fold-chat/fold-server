@@ -116,9 +116,16 @@ public class AuthResource {
     @POST
     @Path("/refresh")
     public Response refresh(@CookieParam("fold_refresh") Cookie refreshCookie) {
-        var ip = getClientIp();
+        // Rate limit per-session (hashed refresh token) so multiple users behind the same IP
+        // don't share a bucket. Fall back to per-IP if no cookie present.
+        String rlKey;
+        if (refreshCookie != null && refreshCookie.getValue() != null && !refreshCookie.getValue().isBlank()) {
+            rlKey = "session:" + AuthService.sha256(refreshCookie.getValue()).substring(0, 16) + ":refresh";
+        } else {
+            rlKey = "ip:" + getClientIp() + ":refresh";
+        }
         var policy = rateLimitService.resolvePolicy("refresh", RateLimitPolicy.REFRESH);
-        var rl = rateLimitService.check("ip:" + ip + ":refresh", policy);
+        var rl = rateLimitService.check(rlKey, policy);
         setRateLimit(rl);
         if (!rl.allowed()) {
             return Response.status(429)

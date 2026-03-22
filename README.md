@@ -173,6 +173,14 @@ open `http://localhost:5173`
 
 ---
 
+## Tools
+
+### [Load Test Harness](tools/loadtest/)
+
+Simulates up to 500+ concurrent users with WebSocket connections, messaging, reactions, and more. Useful for stress-testing the server under realistic load. See [`tools/loadtest/README.md`](tools/loadtest/README.md).
+
+---
+
 ## Contributing
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, code style, and how to submit changes.

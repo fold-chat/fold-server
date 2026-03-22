@@ -1,0 +1,13 @@
+baseUrl: http://localhost:8080
+users: 500
+rampUpSeconds: 600
+durationSeconds: 14400
+messageIntervalMs: 5000
+skipSeed: false
+password: password123
+serverPassword: ""
+personas:
+  active: 15
+  normal: 55
+  lurker: 25
+  spammer: 5

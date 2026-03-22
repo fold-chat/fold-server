@@ -86,8 +86,12 @@ server.tool(
       .string()
       .optional()
       .describe("Shared password for all seed users (default: 'password123')"),
+    prefix: z
+      .string()
+      .optional()
+      .describe("Username prefix for sequential naming (e.g. 'loadtest' → loadtest_1, loadtest_2, ...). Omit for random faker names."),
   },
-  async ({ count, password }) => {
+  async ({ count, password, prefix }) => {
     const pw = password ?? "password123";
 
     // Hash once — all seed users share the same hash (fast)
@@ -133,18 +137,26 @@ server.tool(
       db.transaction(() => {
         for (let i = 0; i < count; i++) {
           let username: string;
-          do {
-            username = faker.internet
-              .username()
-              .replace(/[^a-zA-Z0-9_-]/g, "_")
-              .slice(0, 32);
-            if (username.length < 2)
-              username = `user_${faker.string.alphanumeric(6)}`;
-          } while (existing.has(username.toLowerCase()));
+          if (prefix) {
+            // Sequential naming: prefix_1, prefix_2, ...
+            // Find next available number
+            let n = i + 1;
+            while (existing.has(`${prefix}_${n}`.toLowerCase())) n++;
+            username = `${prefix}_${n}`;
+          } else {
+            do {
+              username = faker.internet
+                .username()
+                .replace(/[^a-zA-Z0-9_-]/g, "_")
+                .slice(0, 32);
+              if (username.length < 2)
+                username = `user_${faker.string.alphanumeric(6)}`;
+            } while (existing.has(username.toLowerCase()));
+          }
           existing.add(username.toLowerCase());
 
           const id = uuidv4();
-          const displayName = faker.person.fullName();
+          const displayName = prefix ? username : faker.person.fullName();
           const bio = faker.person.bio();
 
           // Spread created_at over last 90 days
