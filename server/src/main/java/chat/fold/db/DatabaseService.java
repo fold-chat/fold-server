@@ -33,9 +33,6 @@ public class DatabaseService {
 
     private Database database;
 
-    // Simple thread-local connection pool (libsql connections are cheap)
-    private final ThreadLocal<Connection> connectionPool = new ThreadLocal<>();
-
     @PostConstruct
     void init() {
         // Ensure parent directory exists (e.g. /persist/pr-N/ for preview deploys)
@@ -70,21 +67,11 @@ public class DatabaseService {
             database.close();
             database = null;
         }
-        connectionPool.remove();
-    }
-
-    public Connection getConnection() {
-        var conn = connectionPool.get();
-        if (conn == null) {
-            conn = database.connect();
-            connectionPool.set(conn);
-        }
-        return conn;
     }
 
     /** Execute a write statement, return rows changed */
     public long execute(String sql, Object... params) {
-        try (var stmt = getConnection().prepare(sql)) {
+        try (var conn = database.connect(); var stmt = conn.prepare(sql)) {
             bindParams(stmt, params);
             return stmt.execute();
         }
@@ -92,12 +79,14 @@ public class DatabaseService {
 
     /** Execute a batch of SQL statements (semicolon-separated) */
     public void batch(String sql) {
-        getConnection().batch(sql);
+        try (var conn = database.connect()) {
+            conn.batch(sql);
+        }
     }
 
     /** Query returning list of row maps */
     public List<Map<String, Object>> query(String sql, Object... params) {
-        try (var stmt = getConnection().prepare(sql)) {
+        try (var conn = database.connect(); var stmt = conn.prepare(sql)) {
             bindParams(stmt, params);
             try (var rows = stmt.query()) {
                 return readAllRows(rows);
@@ -107,7 +96,7 @@ public class DatabaseService {
 
     /** Run work in a transaction, auto-commit on success, auto-rollback on failure */
     public <T> T transaction(Function<TxContext, T> work) {
-        try (var tx = getConnection().transaction()) {
+        try (var conn = database.connect(); var tx = conn.transaction()) {
             T result = work.apply(new TxContext(tx));
             tx.commit();
             return result;
