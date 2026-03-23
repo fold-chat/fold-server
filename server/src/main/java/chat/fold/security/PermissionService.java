@@ -21,6 +21,8 @@ public class PermissionService {
 
     /** DM participant cache: channelId → participant user IDs */
     private final Map<String, Set<String>> dmParticipantCache = new ConcurrentHashMap<>();
+    /** Negative cache: channel IDs confirmed to NOT be DM channels */
+    private final Set<String> notDmChannels = ConcurrentHashMap.newKeySet();
 
     /** Permissions granted to DM channel participants */
     private static final long DM_PERMISSIONS = Permission.VIEW_CHANNEL.value
@@ -126,8 +128,13 @@ public class PermissionService {
         if (participants != null) {
             return participants.contains(userId);
         }
+        // Fast negative check — already confirmed not a DM channel
+        if (notDmChannels.contains(channelId)) {
+            return false;
+        }
         // Check if this is a DM channel at all
         if (!dmRepo.isDmChannel(channelId)) {
+            notDmChannels.add(channelId);
             return false;
         }
         // Populate cache
@@ -139,7 +146,11 @@ public class PermissionService {
     /** Check if a channel is a DM channel (uses cache if available) */
     public boolean isDmChannel(String channelId) {
         if (dmParticipantCache.containsKey(channelId)) return true;
-        if (!dmRepo.isDmChannel(channelId)) return false;
+        if (notDmChannels.contains(channelId)) return false;
+        if (!dmRepo.isDmChannel(channelId)) {
+            notDmChannels.add(channelId);
+            return false;
+        }
         // Populate cache while we're here
         dmParticipantCache.put(channelId, dmRepo.findParticipants(channelId));
         return true;
@@ -219,6 +230,7 @@ public class PermissionService {
     public void invalidateChannel(String channelId) {
         effectivePermCache.keySet().removeIf(key -> key.endsWith(":" + channelId));
         dmParticipantCache.remove(channelId);
+        notDmChannels.remove(channelId);
     }
 
     public void invalidateAll() {
@@ -227,6 +239,7 @@ public class PermissionService {
         ownerCache.clear();
         ownerCacheLoaded = false;
         dmParticipantCache.clear();
+        notDmChannels.clear();
     }
 
     // --- Exception ---

@@ -13,6 +13,8 @@ import uk.co.rstl.libsql.Rows;
 import uk.co.rstl.libsql.Statement;
 import uk.co.rstl.libsql.Transaction;
 
+import io.quarkus.scheduler.Scheduled;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,7 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -37,6 +41,16 @@ public class DatabaseService {
     private Database database;
     private BlockingQueue<Connection> pool;
     private int poolSize;
+
+    // --- Metrics ---
+    private final AtomicLong queryCount = new AtomicLong();
+    private final AtomicLong writeCount = new AtomicLong();
+    private final AtomicLong totalQueryMs = new AtomicLong();
+    private final AtomicLong totalWriteMs = new AtomicLong();
+    private final AtomicLong totalPoolWaitMs = new AtomicLong();
+    private final AtomicLong poolTimeouts = new AtomicLong();
+    private final ConcurrentHashMap<String, AtomicLong> slowQueries = new ConcurrentHashMap<>();
+    private static final long SLOW_THRESHOLD_MS = 50;
 
     @PostConstruct
     void init() {
@@ -83,10 +97,17 @@ public class DatabaseService {
     }
 
     private Connection borrowConnection() {
+        long start = System.nanoTime();
         try {
             var conn = pool.poll(10, TimeUnit.SECONDS);
+            long waitMs = (System.nanoTime() - start) / 1_000_000;
+            totalPoolWaitMs.addAndGet(waitMs);
             if (conn == null) {
+                poolTimeouts.incrementAndGet();
                 throw new RuntimeException("Connection pool exhausted (pool=" + poolSize + ", timeout=10s)");
+            }
+            if (waitMs > 100) {
+                LOG.warnf("DB pool wait: %dms (available=%d/%d)", waitMs, pool.size(), poolSize);
             }
             return conn;
         } catch (InterruptedException e) {
@@ -105,10 +126,15 @@ public class DatabaseService {
     /** Execute a write statement, return rows changed */
     public long execute(String sql, Object... params) {
         var conn = borrowConnection();
+        long start = System.nanoTime();
         try (var stmt = conn.prepare(sql)) {
             bindParams(stmt, params);
             return stmt.execute();
         } finally {
+            long ms = (System.nanoTime() - start) / 1_000_000;
+            writeCount.incrementAndGet();
+            totalWriteMs.addAndGet(ms);
+            if (ms > SLOW_THRESHOLD_MS) trackSlow(sql, ms);
             returnConnection(conn);
         }
     }
@@ -126,12 +152,17 @@ public class DatabaseService {
     /** Query returning list of row maps */
     public List<Map<String, Object>> query(String sql, Object... params) {
         var conn = borrowConnection();
+        long start = System.nanoTime();
         try (var stmt = conn.prepare(sql)) {
             bindParams(stmt, params);
             try (var rows = stmt.query()) {
                 return readAllRows(rows);
             }
         } finally {
+            long ms = (System.nanoTime() - start) / 1_000_000;
+            queryCount.incrementAndGet();
+            totalQueryMs.addAndGet(ms);
+            if (ms > SLOW_THRESHOLD_MS) trackSlow(sql, ms);
             returnConnection(conn);
         }
     }
@@ -162,6 +193,44 @@ public class DatabaseService {
 
     public void sync() {
         database.sync();
+    }
+
+    // --- Metrics ---
+
+    private void trackSlow(String sql, long ms) {
+        // Use first 80 chars of SQL as key
+        var key = sql.strip().substring(0, Math.min(80, sql.strip().length()));
+        slowQueries.computeIfAbsent(key, k -> new AtomicLong()).addAndGet(ms);
+    }
+
+    @Scheduled(every = "10s")
+    void logMetrics() {
+        long reads = queryCount.getAndSet(0);
+        long writes = writeCount.getAndSet(0);
+        long readMs = totalQueryMs.getAndSet(0);
+        long writeMs = totalWriteMs.getAndSet(0);
+        long waitMs = totalPoolWaitMs.getAndSet(0);
+        long timeouts = poolTimeouts.getAndSet(0);
+
+        if (reads + writes == 0) return;
+
+        long avgRead = reads > 0 ? readMs / reads : 0;
+        long avgWrite = writes > 0 ? writeMs / writes : 0;
+
+        LOG.infof("DB [10s] reads=%d (avg %dms, total %dms) writes=%d (avg %dms, total %dms) poolWait=%dms timeouts=%d avail=%d/%d",
+                reads, avgRead, readMs, writes, avgWrite, writeMs, waitMs, timeouts, pool.size(), poolSize);
+
+        // Log top slow queries and reset
+        if (!slowQueries.isEmpty()) {
+            var sorted = slowQueries.entrySet().stream()
+                    .sorted((a, b) -> Long.compare(b.getValue().get(), a.getValue().get()))
+                    .limit(5)
+                    .toList();
+            for (var entry : sorted) {
+                LOG.infof("  SLOW: %dms total — %s", entry.getValue().get(), entry.getKey());
+            }
+            slowQueries.clear();
+        }
     }
 
     // --- Transaction context ---
