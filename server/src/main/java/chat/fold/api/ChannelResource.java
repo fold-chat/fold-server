@@ -265,7 +265,7 @@ public class ChannelResource {
         var rl = checkRate("message_send", sc.getUserId(), sc.isBot() ? RateLimitPolicy.BOT_MESSAGE_SEND : RateLimitPolicy.MESSAGE_SEND);
         if (rl != null) return rl;
 
-        var channelOpt = channelRepo.findById(channelId);
+        var channelOpt = helloCacheService.findChannelById(channelId);
         if (channelOpt.isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
         }
@@ -327,10 +327,10 @@ public class ChannelResource {
         var dmGuard = guardDmChannel(channelId, sc.getUserId());
         if (dmGuard != null) return dmGuard;
 
-        if (channelRepo.findById(channelId).isEmpty()) {
+        if (helloCacheService.findChannelById(channelId).isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
         }
-        // Buffer the write — flushed to DB every 2s, coalesced per (user, channel)
+        // Buffer the write
         readStateBuffer.buffer(sc.getUserId(), channelId, req.last_read_message_id());
         // Publish event immediately so other clients see the read state change
         eventBus.publish(Event.of(EventType.READ_STATE_UPDATE,

@@ -49,6 +49,7 @@ public class MessageResource {
     @Inject DmRepository dmRepo;
     @Inject DmBlockRepository dmBlockRepo;
     @Inject ExternalImageService externalImageService;
+    @Inject chat.fold.service.ReactionBuffer reactionBuffer;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -185,8 +186,7 @@ public class MessageResource {
             }
         }
 
-        String id = UUID.randomUUID().toString();
-        reactionRepo.create(id, messageId, sc.getUserId(), emoji);
+        reactionBuffer.buffer(messageId, sc.getUserId(), emoji);
 
         eventBus.publish(Event.of(EventType.REACTION_ADD,
                 Map.of("message_id", messageId, "channel_id", channelId,

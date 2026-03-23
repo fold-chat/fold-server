@@ -10,6 +10,7 @@ import jakarta.inject.Inject;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -168,6 +169,14 @@ public class HelloCacheService {
         } finally {
             lock.writeLock().unlock();
         }
+    }
+
+    /** Look up a channel by ID from the cache. Falls back to DB if cache is empty. */
+    public Optional<Map<String, Object>> findChannelById(String channelId) {
+        var channels = getChannels();
+        return channels.stream()
+                .filter(c -> channelId.equals(c.get("id")))
+                .findFirst();
     }
 
     // --- Invalidation ---
