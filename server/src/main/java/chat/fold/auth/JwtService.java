@@ -55,16 +55,23 @@ public class JwtService {
         LOG.info("[BOOT] JWT ... OK");
     }
 
-    /** Issue access token with userId as subject, username as claim */
+    /** Issue access token with userId as subject, username + pwc claims */
     public String issueAccessToken(String userId, String username) {
+        return issueAccessToken(userId, username, false);
+    }
+
+    public String issueAccessToken(String userId, String username, boolean passwordMustChange) {
         var now = Instant.now();
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(userId)
                 .claim("usr", username)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(ACCESS_TOKEN_TTL)))
-                .signWith(signingKey)
-                .compact();
+                .signWith(signingKey);
+        if (passwordMustChange) {
+            builder.claim("pwc", true);
+        }
+        return builder.compact();
     }
 
     /** Verify and parse access token. Returns claims or empty if invalid/expired. */

@@ -20,6 +20,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -32,6 +35,8 @@ public class DatabaseService {
     FoldConfig config;
 
     private Database database;
+    private BlockingQueue<Connection> pool;
+    private int poolSize;
 
     @PostConstruct
     void init() {
@@ -54,52 +59,99 @@ public class DatabaseService {
         builder.syncInterval(config.syncInterval());
         database = builder.build();
 
-        // Verify connectivity
-        try (var conn = database.connect()) {
-            conn.batch("SELECT 1");
+        // Initialize connection pool — PRAGMAs run once per connection at creation
+        poolSize = Math.max(1, config.poolSize());
+        pool = new ArrayBlockingQueue<>(poolSize);
+        for (int i = 0; i < poolSize; i++) {
+            pool.add(database.connect());
         }
-        LOG.info("[BOOT] Database ... OK");
+        LOG.infof("[BOOT] Database ... OK (pool=%d)", poolSize);
     }
 
     @PreDestroy
     public void shutdown() {
+        if (pool != null) {
+            Connection conn;
+            while ((conn = pool.poll()) != null) {
+                conn.close();
+            }
+        }
         if (database != null) {
             database.close();
             database = null;
         }
     }
 
+    private Connection borrowConnection() {
+        try {
+            var conn = pool.poll(10, TimeUnit.SECONDS);
+            if (conn == null) {
+                throw new RuntimeException("Connection pool exhausted (pool=" + poolSize + ", timeout=10s)");
+            }
+            return conn;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted waiting for connection", e);
+        }
+    }
+
+    private void returnConnection(Connection conn) {
+        if (conn != null && !pool.offer(conn)) {
+            // Pool is full (shouldn't happen), close the excess connection
+            conn.close();
+        }
+    }
+
     /** Execute a write statement, return rows changed */
     public long execute(String sql, Object... params) {
-        try (var conn = database.connect(); var stmt = conn.prepare(sql)) {
+        var conn = borrowConnection();
+        try (var stmt = conn.prepare(sql)) {
             bindParams(stmt, params);
             return stmt.execute();
+        } finally {
+            returnConnection(conn);
         }
     }
 
     /** Execute a batch of SQL statements (semicolon-separated) */
     public void batch(String sql) {
-        try (var conn = database.connect()) {
+        var conn = borrowConnection();
+        try {
             conn.batch(sql);
+        } finally {
+            returnConnection(conn);
         }
     }
 
     /** Query returning list of row maps */
     public List<Map<String, Object>> query(String sql, Object... params) {
-        try (var conn = database.connect(); var stmt = conn.prepare(sql)) {
+        var conn = borrowConnection();
+        try (var stmt = conn.prepare(sql)) {
             bindParams(stmt, params);
             try (var rows = stmt.query()) {
                 return readAllRows(rows);
             }
+        } finally {
+            returnConnection(conn);
         }
     }
 
     /** Run work in a transaction, auto-commit on success, auto-rollback on failure */
     public <T> T transaction(Function<TxContext, T> work) {
-        try (var conn = database.connect(); var tx = conn.transaction()) {
-            T result = work.apply(new TxContext(tx));
-            tx.commit();
-            return result;
+        var conn = borrowConnection();
+        try {
+            var tx = conn.transaction();
+            try {
+                T result = work.apply(new TxContext(tx));
+                tx.commit();
+                return result;
+            } catch (Exception e) {
+                // Transaction auto-rolls back on close if not committed
+                tx.close();
+                throw e;
+            }
+        } finally {
+            returnConnection(conn);
         }
     }
 

@@ -131,8 +131,9 @@ public class AuthFilter implements ContainerRequestFilter {
 
         ctx.setSecurityContext(new FoldSecurityContext(userId, (String) c.get("usr")));
 
-        // Block users who must change their password
-        if (!isPasswordChangePath(path) && isPasswordMustChange(userId)) {
+        // Block users who must change their password (read from JWT 'pwc' claim)
+        Boolean pwc = c.get("pwc", Boolean.class);
+        if (pwc != null && pwc && !isPasswordChangePath(path)) {
             ctx.abortWith(Response.status(403)
                     .entity(java.util.Map.of("error", "password_must_change", "message", "You must change your password"))
                     .build());
@@ -194,10 +195,4 @@ public class AuthFilter implements ContainerRequestFilter {
         return false;
     }
 
-    private boolean isPasswordMustChange(String userId) {
-        var user = userRepo.findById(userId);
-        if (user.isEmpty()) return false;
-        Long flag = (Long) user.get().get("password_must_change");
-        return flag != null && flag != 0;
-    }
 }

@@ -165,7 +165,9 @@ public class AuthService {
 
         sessionRepo.create(sessionId, userId, refreshHash, expiresAt, null);
 
-        String accessToken = jwtService.issueAccessToken(userId, (String) user.get("username"));
+        Long pwcFlag = (Long) user.get("password_must_change");
+        boolean pwc = pwcFlag != null && pwcFlag != 0;
+        String accessToken = jwtService.issueAccessToken(userId, (String) user.get("username"), pwc);
         return new LoginResult(userId, (String) user.get("username"), accessToken, refreshToken, sessionId);
     }
 
@@ -198,7 +200,9 @@ public class AuthService {
         String newExpiresAt = Instant.now().plus(REFRESH_TOKEN_TTL).toString();
         sessionRepo.updateRefreshToken(sessionId, newHash, newExpiresAt);
 
-        String accessToken = jwtService.issueAccessToken(userId, (String) user.get("username"));
+        Long pwcFlag = (Long) user.get("password_must_change");
+        boolean pwc = pwcFlag != null && pwcFlag != 0;
+        String accessToken = jwtService.issueAccessToken(userId, (String) user.get("username"), pwc);
         return new RefreshResult(accessToken, newRefreshToken, sessionId, userId, (String) user.get("username"));
     }
 

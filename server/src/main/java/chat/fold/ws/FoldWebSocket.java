@@ -404,9 +404,15 @@ public class FoldWebSocket {
 
     private String buildHello(String userId, String sessionId) {
         try {
+            long helloStart = System.nanoTime();
+            long t;
+
+            t = System.nanoTime();
             var user = userRepo.findById(userId).orElse(Map.of());
+            long userMs = (System.nanoTime() - t) / 1_000_000;
 
             // Shared data from cache
+            t = System.nanoTime();
             var allChannels = helloCacheService.getChannels();
             var categories = helloCacheService.getCategories();
             var members = helloCacheService.getMembers();
@@ -414,12 +420,19 @@ public class FoldWebSocket {
             var customEmoji = helloCacheService.getCustomEmoji();
             var serverSettings = helloCacheService.getServerSettings();
             var capabilities = helloCacheService.getCapabilities();
+            long cacheMs = (System.nanoTime() - t) / 1_000_000;
 
             // Per-user data (queried live)
+            t = System.nanoTime();
             var readStates = readStateRepo.findAllForUser(userId);
+            long readStatesMs = (System.nanoTime() - t) / 1_000_000;
+
+            t = System.nanoTime();
             var unreadCounts = readStateRepo.unreadCounts(userId);
+            long unreadMs = (System.nanoTime() - t) / 1_000_000;
 
             // Filter channels by VIEW_CHANNEL permission
+            t = System.nanoTime();
             var allChannelIds = allChannels.stream()
                     .map(c -> (String) c.get("id"))
                     .collect(java.util.stream.Collectors.toSet());
@@ -427,6 +440,7 @@ public class FoldWebSocket {
             var channels = allChannels.stream()
                     .filter(c -> viewableIds.contains(c.get("id")))
                     .toList();
+            long filterChannelsMs = (System.nanoTime() - t) / 1_000_000;
 
             // Users with MANAGE_CHANNELS see all categories; others only see populated ones
             List<Map<String, Object>> filteredCategories;
@@ -443,7 +457,9 @@ public class FoldWebSocket {
             }
 
             // Bitmask permissions with channel inheritance (omit channels matching server base)
+            t = System.nanoTime();
             var userPermissions = permissionService.computeUserPermissionsBitmask(userId, viewableIds);
+            long permsMs = (System.nanoTime() - t) / 1_000_000;
 
             // Filter unread counts to viewable channels only
             var filteredUnreadCounts = unreadCounts.stream()
@@ -451,12 +467,14 @@ public class FoldWebSocket {
                     .toList();
 
             // Build thread read states — capped at 10 per channel, only unread threads
+            t = System.nanoTime();
             var threadReadStates = new ArrayList<Map<String, Object>>();
             for (var ch : channels) {
                 var chId = (String) ch.get("id");
                 var unreadThreads = readStateRepo.unreadThreadsForUserChannel(userId, chId, 10);
                 threadReadStates.addAll(unreadThreads);
             }
+            long threadMs = (System.nanoTime() - t) / 1_000_000;
 
             var hello = new LinkedHashMap<String, Object>();
             hello.put("user", sanitizeUser(user));
@@ -475,6 +493,7 @@ public class FoldWebSocket {
             hello.put("youtube_embed", mediaConfig.youtubeEmbed());
 
             // Voice states for viewable voice channels
+            t = System.nanoTime();
             var voiceChannelIds = channels.stream()
                     .filter(c -> "VOICE".equals(c.get("type")))
                     .map(c -> (String) c.get("id"))
@@ -483,12 +502,21 @@ public class FoldWebSocket {
             for (var vcId : voiceChannelIds) {
                 allVoiceStates.put(vcId, voiceStateRepo.findByChannel(vcId));
             }
+            long voiceMs = (System.nanoTime() - t) / 1_000_000;
             hello.put("voice_states", allVoiceStates);
             hello.put("capabilities", capabilities);
             hello.put("server_settings", serverSettings);
             hello.put("custom_emoji", customEmoji);
 
-            return helloMapper.writeValueAsString(Map.of("op", "HELLO", "d", hello));
+            t = System.nanoTime();
+            var json = helloMapper.writeValueAsString(Map.of("op", "HELLO", "d", hello));
+            long serializeMs = (System.nanoTime() - t) / 1_000_000;
+
+            long totalMs = (System.nanoTime() - helloStart) / 1_000_000;
+            LOG.infof("HELLO [%s] total=%dms | user=%d cache=%d readStates=%d unread=%d filterCh=%d perms=%d threads=%d voice=%d serialize=%dms (%d bytes)",
+                    userId, totalMs, userMs, cacheMs, readStatesMs, unreadMs, filterChannelsMs, permsMs, threadMs, voiceMs, serializeMs, json.length());
+
+            return json;
         } catch (Exception e) {
             LOG.errorf("Failed to build HELLO: %s", e.getMessage());
             return "{\"op\":\"HELLO\",\"d\":{}}";

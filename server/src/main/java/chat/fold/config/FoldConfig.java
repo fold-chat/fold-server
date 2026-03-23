@@ -15,4 +15,7 @@ public interface FoldConfig {
 
     @WithDefault("60")
     long syncInterval();
+
+    @WithDefault("4")
+    int poolSize();
 }
