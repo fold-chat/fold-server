@@ -84,6 +84,26 @@ public class ReadStateRepository {
         );
     }
 
+    /**
+     * Get unread counts only for the given channel IDs (avoids scanning all channels).
+     */
+    public List<Map<String, Object>> unreadCountsForChannels(String userId, java.util.Set<String> channelIds) {
+        if (channelIds.isEmpty()) return List.of();
+        var placeholders = String.join(",", channelIds.stream().map(id -> "?").toList());
+        var params = new Object[channelIds.size() + 1];
+        params[0] = userId;
+        int i = 1;
+        for (var id : channelIds) params[i++] = id;
+        return db.query(
+                "SELECT rs.channel_id, COUNT(m.id) AS unread_count, COALESCE(rs.mention_count, 0) AS mention_count "
+                + "FROM channel_read_state rs "
+                + "LEFT JOIN message m ON m.channel_id = rs.channel_id AND m.thread_id IS NULL AND m.id > rs.last_read_message_id "
+                + "WHERE rs.user_id = ? AND rs.channel_id IN (" + placeholders + ") "
+                + "GROUP BY rs.channel_id",
+                params
+        );
+    }
+
     // --- Thread read state ---
 
     public void upsertThread(String userId, String threadId, String lastReadMessageId) {
@@ -125,6 +145,33 @@ public class ReadStateRepository {
                 LIMIT ?
                 """,
                 userId, channelId, limit
+        );
+    }
+
+    /**
+     * Bulk: get unread threads across multiple channels in a single query.
+     * Returns up to limitPerChannel unread threads per channel, ordered by most recent activity.
+     */
+    public List<Map<String, Object>> unreadThreadsForUserChannels(String userId, java.util.Set<String> channelIds, int limitPerChannel) {
+        if (channelIds.isEmpty()) return List.of();
+        var placeholders = String.join(",", channelIds.stream().map(id -> "?").toList());
+        var params = new Object[channelIds.size() + 2];
+        params[0] = userId;
+        int i = 1;
+        for (var id : channelIds) params[i++] = id;
+        params[i] = limitPerChannel;
+        return db.query(
+                "SELECT ranked.* FROM ("
+                + "SELECT t.id AS thread_id, t.channel_id, t.last_activity_at, "
+                + "trs.last_read_message_id, COUNT(m.id) AS unread_count, "
+                + "ROW_NUMBER() OVER (PARTITION BY t.channel_id ORDER BY t.last_activity_at DESC) AS rn "
+                + "FROM thread t "
+                + "LEFT JOIN thread_read_state trs ON trs.thread_id = t.id AND trs.user_id = ? "
+                + "LEFT JOIN message m ON m.thread_id = t.id AND (trs.last_read_message_id IS NULL OR m.id > trs.last_read_message_id) "
+                + "WHERE t.channel_id IN (" + placeholders + ") "
+                + "GROUP BY t.id HAVING COUNT(m.id) > 0"
+                + ") ranked WHERE ranked.rn <= ?",
+                params
         );
     }
 

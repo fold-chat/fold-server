@@ -24,6 +24,18 @@ public class VoiceStateRepository {
                 """, channelId);
     }
 
+    /** Bulk: list voice states for multiple channels in a single query */
+    public List<Map<String, Object>> findByChannels(java.util.Collection<String> channelIds) {
+        if (channelIds.isEmpty()) return java.util.List.of();
+        var placeholders = String.join(",", channelIds.stream().map(id -> "?").toList());
+        return db.query(
+                "SELECT vs.*, u.username, u.display_name, u.avatar_url "
+                + "FROM voice_state vs JOIN user u ON u.id = vs.user_id "
+                + "WHERE vs.channel_id IN (" + placeholders + ") "
+                + "ORDER BY vs.joined_at",
+                channelIds.toArray());
+    }
+
     /** Get the current voice state for a user (0-1 rows — one channel at a time) */
     public Optional<Map<String, Object>> findByUser(String userId) {
         var rows = db.query("SELECT * FROM voice_state WHERE user_id = ?", userId);

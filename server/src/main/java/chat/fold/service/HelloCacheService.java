@@ -4,8 +4,11 @@ import chat.fold.config.FoldLiveKitConfig;
 import chat.fold.config.FoldMediaConfig;
 import chat.fold.config.RuntimeConfigService;
 import chat.fold.db.*;
+import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import org.jboss.logging.Logger;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,7 +37,21 @@ public class HelloCacheService {
     @Inject MediaProcessingService mediaProcessingService;
     @Inject MaintenanceService maintenanceService;
 
+    private static final Logger LOG = Logger.getLogger(HelloCacheService.class);
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+
+    /** Warm all caches on startup so the first user doesn't pay the cost. */
+    void onStartup(@Observes StartupEvent event) {
+        long start = System.nanoTime();
+        getMembers();
+        getRoles();
+        getChannels();
+        getCategories();
+        getCustomEmoji();
+        getServerSettings();
+        getCapabilities();
+        LOG.infof("[BOOT] HelloCache ... OK (%dms)", (System.nanoTime() - start) / 1_000_000);
+    }
 
     // Cached data
     private volatile List<Map<String, Object>> cachedMembers;

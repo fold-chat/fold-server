@@ -422,25 +422,18 @@ public class FoldWebSocket {
             var capabilities = helloCacheService.getCapabilities();
             long cacheMs = (System.nanoTime() - t) / 1_000_000;
 
-            // Per-user data (queried live)
-            t = System.nanoTime();
-            var readStates = readStateRepo.findAllForUser(userId);
-            long readStatesMs = (System.nanoTime() - t) / 1_000_000;
-
-            t = System.nanoTime();
-            var unreadCounts = readStateRepo.unreadCounts(userId);
-            long unreadMs = (System.nanoTime() - t) / 1_000_000;
-
-            // Filter channels by VIEW_CHANNEL permission
+            // Bulk: filter viewable channels + compute permissions in one pass (1 DB query for overrides)
             t = System.nanoTime();
             var allChannelIds = allChannels.stream()
                     .map(c -> (String) c.get("id"))
                     .collect(java.util.stream.Collectors.toSet());
-            var viewableIds = permissionService.filterViewableChannels(userId, allChannelIds);
+            var permResult = permissionService.filterAndComputePermissionsBulk(userId, allChannelIds);
+            var viewableIds = permResult.viewable();
+            var userPermissions = permResult.permissions();
             var channels = allChannels.stream()
                     .filter(c -> viewableIds.contains(c.get("id")))
                     .toList();
-            long filterChannelsMs = (System.nanoTime() - t) / 1_000_000;
+            long permsMs = (System.nanoTime() - t) / 1_000_000;
 
             // Users with MANAGE_CHANNELS see all categories; others only see populated ones
             List<Map<String, Object>> filteredCategories;
@@ -456,25 +449,36 @@ public class FoldWebSocket {
                         .toList();
             }
 
-            // Bitmask permissions with channel inheritance (omit channels matching server base)
+            // Per-user data — scoped to viewable channels only
             t = System.nanoTime();
-            var userPermissions = permissionService.computeUserPermissionsBitmask(userId, viewableIds);
-            long permsMs = (System.nanoTime() - t) / 1_000_000;
+            var readStates = readStateRepo.findAllForUser(userId);
+            long readStatesMs = (System.nanoTime() - t) / 1_000_000;
 
-            // Filter unread counts to viewable channels only
-            var filteredUnreadCounts = unreadCounts.stream()
-                    .filter(uc -> viewableIds.contains(uc.get("channel_id")))
-                    .toList();
-
-            // Build thread read states — capped at 10 per channel, only unread threads
             t = System.nanoTime();
-            var threadReadStates = new ArrayList<Map<String, Object>>();
-            for (var ch : channels) {
-                var chId = (String) ch.get("id");
-                var unreadThreads = readStateRepo.unreadThreadsForUserChannel(userId, chId, 10);
-                threadReadStates.addAll(unreadThreads);
-            }
+            var unreadCounts = readStateRepo.unreadCountsForChannels(userId, viewableIds);
+            long unreadMs = (System.nanoTime() - t) / 1_000_000;
+
+            // Bulk: thread read states — single query across all viewable channels
+            t = System.nanoTime();
+            var threadReadStates = readStateRepo.unreadThreadsForUserChannels(userId, viewableIds, 10);
             long threadMs = (System.nanoTime() - t) / 1_000_000;
+
+            // Bulk: voice states — single query across all voice channels
+            t = System.nanoTime();
+            var voiceChannelIds = channels.stream()
+                    .filter(c -> "VOICE".equals(c.get("type")))
+                    .map(c -> (String) c.get("id"))
+                    .toList();
+            var voiceRows = voiceStateRepo.findByChannels(voiceChannelIds);
+            var allVoiceStates = new LinkedHashMap<String, Object>();
+            for (var vcId : voiceChannelIds) allVoiceStates.put(vcId, new ArrayList<>());
+            for (var row : voiceRows) {
+                var chId = (String) row.get("channel_id");
+                @SuppressWarnings("unchecked")
+                var list = (List<Map<String, Object>>) allVoiceStates.get(chId);
+                if (list != null) list.add(row);
+            }
+            long voiceMs = (System.nanoTime() - t) / 1_000_000;
 
             var hello = new LinkedHashMap<String, Object>();
             hello.put("user", sanitizeUser(user));
@@ -483,7 +487,7 @@ public class FoldWebSocket {
             hello.put("members", members);
             hello.put("roles", roles);
             hello.put("read_states", readStates);
-            hello.put("unread_counts", filteredUnreadCounts);
+            hello.put("unread_counts", unreadCounts);
             hello.put("thread_read_states", threadReadStates);
             hello.put("user_permissions", userPermissions);
             hello.put("online_user_ids", registry.onlineUserIds());
@@ -491,18 +495,6 @@ public class FoldWebSocket {
             hello.put("session_id", sessionId);
             hello.put("version", chat.fold.config.BuildInfo.VERSION);
             hello.put("youtube_embed", mediaConfig.youtubeEmbed());
-
-            // Voice states for viewable voice channels
-            t = System.nanoTime();
-            var voiceChannelIds = channels.stream()
-                    .filter(c -> "VOICE".equals(c.get("type")))
-                    .map(c -> (String) c.get("id"))
-                    .toList();
-            var allVoiceStates = new LinkedHashMap<String, Object>();
-            for (var vcId : voiceChannelIds) {
-                allVoiceStates.put(vcId, voiceStateRepo.findByChannel(vcId));
-            }
-            long voiceMs = (System.nanoTime() - t) / 1_000_000;
             hello.put("voice_states", allVoiceStates);
             hello.put("capabilities", capabilities);
             hello.put("server_settings", serverSettings);
@@ -513,8 +505,8 @@ public class FoldWebSocket {
             long serializeMs = (System.nanoTime() - t) / 1_000_000;
 
             long totalMs = (System.nanoTime() - helloStart) / 1_000_000;
-            LOG.infof("HELLO [%s] total=%dms | user=%d cache=%d readStates=%d unread=%d filterCh=%d perms=%d threads=%d voice=%d serialize=%dms (%d bytes)",
-                    userId, totalMs, userMs, cacheMs, readStatesMs, unreadMs, filterChannelsMs, permsMs, threadMs, voiceMs, serializeMs, json.length());
+            LOG.infof("HELLO [%s] total=%dms | user=%d cache=%d perms=%d readStates=%d unread=%d threads=%d voice=%d serialize=%dms (%d bytes)",
+                    userId, totalMs, userMs, cacheMs, permsMs, readStatesMs, unreadMs, threadMs, voiceMs, serializeMs, json.length());
 
             return json;
         } catch (Exception e) {

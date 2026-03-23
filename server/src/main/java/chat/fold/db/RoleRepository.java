@@ -152,4 +152,19 @@ public class RoleRepository {
                 params
         );
     }
+
+    /** Bulk: load all overrides for given channels + roles in one query. Returns flat list with channel_id + role_id on each row. */
+    public List<Map<String, Object>> findOverridesForChannelsAndRoles(java.util.Set<String> channelIds, List<String> roleIds) {
+        if (channelIds.isEmpty() || roleIds.isEmpty()) return List.of();
+        var chPlaceholders = String.join(",", channelIds.stream().map(id -> "?").toList());
+        var rolePlaceholders = String.join(",", roleIds.stream().map(id -> "?").toList());
+        var params = new Object[channelIds.size() + roleIds.size()];
+        int i = 0;
+        for (var id : channelIds) params[i++] = id;
+        for (var id : roleIds) params[i++] = id;
+        return db.query(
+                "SELECT * FROM channel_permission_override WHERE channel_id IN (" + chPlaceholders + ") AND role_id IN (" + rolePlaceholders + ")",
+                params
+        );
+    }
 }

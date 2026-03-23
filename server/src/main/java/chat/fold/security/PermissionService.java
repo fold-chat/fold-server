@@ -218,6 +218,85 @@ public class PermissionService {
         return result;
     }
 
+    /**
+     * Batch: filter viewable channels + compute bitmask permissions in one pass.
+     * Loads role IDs once, bulk-loads all overrides, computes in-memory.
+     * Returns {"viewable": Set<String>, "permissions": Map (server + channels bitmask)}.
+     */
+    public record BulkPermissionResult(Set<String> viewable, Map<String, Object> permissions) {}
+
+    public BulkPermissionResult filterAndComputePermissionsBulk(String userId, Set<String> allChannelIds) {
+        long base = computeBasePermissions(userId);
+        boolean isAdmin = isOwner(userId) || Permission.has(base, Permission.ADMINISTRATOR);
+
+        if (isAdmin) {
+            var permsMap = new LinkedHashMap<String, Object>();
+            permsMap.put("server", Permission.ALL);
+            permsMap.put("channels", Map.of());
+            return new BulkPermissionResult(allChannelIds, permsMap);
+        }
+
+        // Load user's roles + role objects once
+        var roleIds = roleRepo.findUserRoleIds(userId);
+        var roles = new LinkedHashMap<String, Long>(); // roleId → permissions
+        for (var roleId : roleIds) {
+            var role = roleRepo.findById(roleId);
+            role.ifPresent(r -> roles.put(roleId, (Long) r.get("permissions")));
+        }
+
+        // Bulk-load all overrides for all channels × all roles in one query
+        var allOverrides = roleRepo.findOverridesForChannelsAndRoles(allChannelIds, roleIds);
+        // Index: channelId:roleId → {allow, deny}
+        var overrideIndex = new HashMap<String, Map<String, Object>>();
+        for (var ov : allOverrides) {
+            overrideIndex.put(ov.get("channel_id") + ":" + ov.get("role_id"), ov);
+        }
+
+        var viewable = new HashSet<String>();
+        var channelPerms = new LinkedHashMap<String, Object>();
+
+        for (var channelId : allChannelIds) {
+            // Check DM fast path
+            if (isDmParticipant(channelId, userId)) {
+                if (Permission.has(DM_PERMISSIONS, Permission.VIEW_CHANNEL)) viewable.add(channelId);
+                continue;
+            }
+            if (dmParticipantCache.containsKey(channelId)) continue; // DM but not participant
+
+            // Compute effective permissions from roles + overrides
+            long effective = 0;
+            for (var entry : roles.entrySet()) {
+                long rolePerms = entry.getValue();
+                if (Permission.has(rolePerms, Permission.ADMINISTRATOR)) {
+                    effective = Permission.ALL;
+                    break;
+                }
+                var override = overrideIndex.get(channelId + ":" + entry.getKey());
+                if (override != null) {
+                    long allow = (Long) override.get("allow");
+                    long deny = (Long) override.get("deny");
+                    rolePerms = (rolePerms & ~deny) | allow;
+                }
+                effective |= rolePerms;
+            }
+
+            // Cache for other code paths
+            effectivePermCache.put(userId + ":" + channelId, effective);
+
+            if (Permission.has(effective, Permission.VIEW_CHANNEL)) {
+                viewable.add(channelId);
+                if (effective != base) {
+                    channelPerms.put(channelId, effective);
+                }
+            }
+        }
+
+        var permsMap = new LinkedHashMap<String, Object>();
+        permsMap.put("server", base);
+        permsMap.put("channels", channelPerms);
+        return new BulkPermissionResult(viewable, permsMap);
+    }
+
     // --- Cache invalidation ---
 
     public void invalidateUser(String userId) {
