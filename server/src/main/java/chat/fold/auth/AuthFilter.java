@@ -6,6 +6,7 @@ import chat.fold.security.Permission;
 import chat.fold.security.PermissionService;
 import chat.fold.service.BackupService;
 import chat.fold.service.MaintenanceService;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Priorities;
@@ -15,20 +16,34 @@ import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
 
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
 @Provider
 @Priority(Priorities.AUTHENTICATION)
 public class AuthFilter implements ContainerRequestFilter {
 
     private static final String ACCESS_COOKIE = "fold_access";
 
-    @Inject
-    JwtService jwtService;
+    /**
+     * In-memory set of banned user IDs. Populated by ModerationResource.ban(),
+     * cleared by ModerationResource.unban(). Avoids a DB query on every request.
+     * Banned users also have sessions revoked + WS closed, so this is a belt-and-suspenders
+     * check for the <15min window before their JWT expires.
+     */
+    private static final Set<String> bannedUserIds = ConcurrentHashMap.newKeySet();
 
-    @Inject
-    UserRepository userRepo;
+    public static void markBanned(String userId) { bannedUserIds.add(userId); }
+    public static void markUnbanned(String userId) { bannedUserIds.remove(userId); }
 
-    @Inject
-    BotRepository botRepo;
+    @Inject JwtService jwtService;
+    @Inject BotRepository botRepo;
+    @Inject UserRepository userRepo;
+
+    @PostConstruct
+    void loadBannedUsers() {
+        userRepo.findBanned().forEach(u -> bannedUserIds.add((String) u.get("id")));
+    }
 
     @Inject
     MaintenanceService maintenanceService;
@@ -121,8 +136,8 @@ public class AuthFilter implements ContainerRequestFilter {
         var c = claims.get();
         String userId = c.getSubject();
 
-        // Check if user is banned
-        if (userRepo.isBanned(userId)) {
+        // Check if user is banned (in-memory — populated by ban endpoint, no DB call)
+        if (bannedUserIds.contains(userId)) {
             ctx.abortWith(Response.status(403)
                     .entity(java.util.Map.of("error", "banned", "message", "You have been banned"))
                     .build());

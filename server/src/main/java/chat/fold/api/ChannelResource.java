@@ -72,6 +72,7 @@ public class ChannelResource {
     @Inject LiveKitService liveKitService;
     @Inject ExternalImageService externalImageService;
     @Inject chat.fold.service.HelloCacheService helloCacheService;
+    @Inject chat.fold.service.ReadStateBuffer readStateBuffer;
     @Context ContainerRequestContext requestContext;
 
     @GET
@@ -292,7 +293,7 @@ public class ChannelResource {
         }
 
         // Update sender's read state so their own messages don't appear unread
-        readStateRepo.upsert(sc.getUserId(), channelId, id);
+        readStateBuffer.buffer(sc.getUserId(), channelId, id);
 
         // DM channels: skip mentions, use Scope.users, update last_activity
         if (isDm) {
@@ -329,8 +330,9 @@ public class ChannelResource {
         if (channelRepo.findById(channelId).isEmpty()) {
             return Response.status(404).entity(Map.of("error", "not_found", "message", "Channel not found")).build();
         }
-        // upsert resets mention_count to 0
-        readStateRepo.upsert(sc.getUserId(), channelId, req.last_read_message_id());
+        // Buffer the write — flushed to DB every 2s, coalesced per (user, channel)
+        readStateBuffer.buffer(sc.getUserId(), channelId, req.last_read_message_id());
+        // Publish event immediately so other clients see the read state change
         eventBus.publish(Event.of(EventType.READ_STATE_UPDATE,
                 Map.of("channel_id", channelId, "last_read_message_id", req.last_read_message_id(), "mention_count", 0),
                 Scope.user(sc.getUserId())));

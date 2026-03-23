@@ -59,6 +59,7 @@ public class ModerationResource {
 
         String reason = req != null ? req.reason() : null;
         userRepo.ban(targetId, sc.getUserId(), reason);
+        chat.fold.auth.AuthFilter.markBanned(targetId);
         helloCacheService.invalidateMembers();
 
         // Revoke all sessions
@@ -97,6 +98,7 @@ public class ModerationResource {
         }
 
         userRepo.unban(targetId);
+        chat.fold.auth.AuthFilter.markUnbanned(targetId);
         helloCacheService.invalidateMembers();
 
         eventBus.publish(Event.of(EventType.MEMBER_UNBAN, Map.of(
