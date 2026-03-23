@@ -83,7 +83,7 @@ export class LoadTestClient {
   // --- Auth ---
 
   private async login(): Promise<void> {
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 10; attempt++) {
       const res = await fetch(`${this.config.baseUrl}/api/v0/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -101,6 +101,13 @@ export class LoadTestClient {
         const body = await res.json().catch(() => ({})) as Record<string, unknown>;
         const retryAfter = (body.retry_after as number) ?? 10;
         await sleep(retryAfter * 1000);
+        continue;
+      }
+
+      // 503 server_busy — back off and retry (login throttle shedding load)
+      if (res.status === 503) {
+        const backoff = Math.min(2000 * Math.pow(2, attempt), 30_000) + randInt(0, 2000);
+        await sleep(backoff);
         continue;
       }
 
