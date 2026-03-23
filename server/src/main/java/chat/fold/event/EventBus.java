@@ -4,12 +4,13 @@ import chat.fold.security.Permission;
 import chat.fold.security.PermissionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.websockets.next.WebSocketConnection;
-import io.vertx.core.Vertx;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 @ApplicationScoped
@@ -20,20 +21,21 @@ public class EventBus {
     @Inject SessionRegistry registry;
     @Inject PermissionService permissionService;
     @Inject EventBuffer eventBuffer;
-    @Inject Vertx vertx;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final AtomicLong sequenceCounter = new AtomicLong(0);
+    private final ExecutorService virtualExecutor = Executors.newVirtualThreadPerTaskExecutor();
 
     public void publish(Event event) {
         long seq = sequenceCounter.incrementAndGet();
 
-        vertx.executeBlocking(() -> {
+        // Run the entire publish on a virtual thread — no Vert.x worker pool contention
+        virtualExecutor.submit(() -> {
             Collection<WebSocketConnection> targets = resolveTargets(event.scope());
-                if (event.excludeUserId() != null) {
-                    var excluded = registry.getConnections(event.excludeUserId());
-                    targets = targets.stream().filter(c -> !excluded.contains(c)).toList();
-                }
+            if (event.excludeUserId() != null) {
+                var excluded = registry.getConnections(event.excludeUserId());
+                targets = targets.stream().filter(c -> !excluded.contains(c)).toList();
+            }
             try {
                 String json = mapper.writeValueAsString(Map.of(
                         "op", event.type().name(),
@@ -41,22 +43,24 @@ public class EventBus {
                         "s", seq
                 ));
 
-                // Send to active connections and buffer for their sessions
+                // Buffer for active sessions
                 var bufferedSessionIds = new HashSet<String>();
                 for (var conn : targets) {
                     var sessionId = registry.getSessionId(conn);
                     if (sessionId != null && bufferedSessionIds.add(sessionId)) {
                         eventBuffer.append(sessionId, seq, json);
                     }
-                    vertx.runOnContext(v ->
-                        conn.sendText(json).subscribe().with(
-                                ok -> {},
-                                err -> LOG.debugf("Error dispatching to %s: %s", conn.id(), err.getMessage())
-                        )
+                }
+
+                // Fan out sends — each send is independent I/O on its own virtual thread
+                for (var conn : targets) {
+                    conn.sendText(json).subscribe().with(
+                            ok -> {},
+                            err -> LOG.debugf("Error dispatching to %s: %s", conn.id(), err.getMessage())
                     );
                 }
 
-                // Buffer for suspended sessions that match the scope
+                // Buffer for suspended sessions
                 var suspendedTargets = resolveSuspendedTargets(event.scope(), event.excludeUserId());
                 for (var sessionId : suspendedTargets) {
                     if (bufferedSessionIds.add(sessionId)) {
@@ -66,7 +70,6 @@ public class EventBus {
             } catch (Exception e) {
                 LOG.errorf("Failed to serialize event %s: %s", event.type(), e.getMessage());
             }
-            return null;
         });
     }
 
