@@ -513,7 +513,7 @@ public class FoldWebSocket {
             long serializeMs = (System.nanoTime() - t) / 1_000_000;
 
             long totalMs = (System.nanoTime() - helloStart) / 1_000_000;
-            LOG.debugf("HELLO [%s] total=%dms | user=%d cache=%d readStates=%d unread=%d filterCh=%d perms=%d threads=%d voice=%d serialize=%dms (%d bytes)",
+            LOG.infof("HELLO [%s] total=%dms | user=%d cache=%d readStates=%d unread=%d filterCh=%d perms=%d threads=%d voice=%d serialize=%dms (%d bytes)",
                     userId, totalMs, userMs, cacheMs, readStatesMs, unreadMs, filterChannelsMs, permsMs, threadMs, voiceMs, serializeMs, json.length());
 
             return json;
