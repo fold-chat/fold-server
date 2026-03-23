@@ -6,7 +6,6 @@ import chat.fold.security.Permission;
 import chat.fold.security.PermissionService;
 import chat.fold.service.BackupService;
 import chat.fold.service.MaintenanceService;
-import jakarta.annotation.PostConstruct;
 import jakarta.annotation.Priority;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Priorities;
@@ -18,6 +17,7 @@ import jakarta.ws.rs.ext.Provider;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Provider
 @Priority(Priorities.AUTHENTICATION)
@@ -32,6 +32,7 @@ public class AuthFilter implements ContainerRequestFilter {
      * check for the <15min window before their JWT expires.
      */
     private static final Set<String> bannedUserIds = ConcurrentHashMap.newKeySet();
+    private static final AtomicBoolean bannedLoaded = new AtomicBoolean(false);
 
     public static void markBanned(String userId) { bannedUserIds.add(userId); }
     public static void markUnbanned(String userId) { bannedUserIds.remove(userId); }
@@ -39,11 +40,6 @@ public class AuthFilter implements ContainerRequestFilter {
     @Inject JwtService jwtService;
     @Inject BotRepository botRepo;
     @Inject UserRepository userRepo;
-
-    @PostConstruct
-    void loadBannedUsers() {
-        userRepo.findBanned().forEach(u -> bannedUserIds.add((String) u.get("id")));
-    }
 
     @Inject
     MaintenanceService maintenanceService;
@@ -136,7 +132,10 @@ public class AuthFilter implements ContainerRequestFilter {
         var c = claims.get();
         String userId = c.getSubject();
 
-        // Check if user is banned (in-memory — populated by ban endpoint, no DB call)
+        // Lazy-load banned set on first request (can't use @PostConstruct — breaks native image build)
+        if (bannedLoaded.compareAndSet(false, true)) {
+            userRepo.findBanned().forEach(u -> bannedUserIds.add((String) u.get("id")));
+        }
         if (bannedUserIds.contains(userId)) {
             ctx.abortWith(Response.status(403)
                     .entity(java.util.Map.of("error", "banned", "message", "You have been banned"))
