@@ -21,6 +21,7 @@ public class EventBus {
     @Inject SessionRegistry registry;
     @Inject PermissionService permissionService;
     @Inject EventBuffer eventBuffer;
+    @Inject OutboundBuffer outboundBuffer;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final AtomicLong sequenceCounter = new AtomicLong(0);
@@ -52,12 +53,9 @@ public class EventBus {
                     }
                 }
 
-                // Fan out sends — each send is independent I/O on its own virtual thread
+                // Fan out via outbound buffer — coalesced into batched flushes every 50ms
                 for (var conn : targets) {
-                    conn.sendText(json).subscribe().with(
-                            ok -> {},
-                            err -> LOG.debugf("Error dispatching to %s: %s", conn.id(), err.getMessage())
-                    );
+                    outboundBuffer.enqueue(conn, json);
                 }
 
                 // Buffer for suspended sessions

@@ -52,6 +52,7 @@ public class FoldWebSocket {
     @Inject MediaProcessingService mediaProcessingService;
     @Inject BackupService backupService;
     @Inject HelloCacheService helloCacheService;
+    @Inject OutboundBuffer outboundBuffer;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final ObjectMapper helloMapper = new ObjectMapper()
@@ -141,6 +142,7 @@ public class FoldWebSocket {
 
     @OnClose
     public void onClose(WebSocketConnection connection) {
+        outboundBuffer.remove(connection.id());
         var meta = registry.getMeta(connection);
         // Suspend session instead of unregistering — allows RESUME
         registry.suspend(connection);
