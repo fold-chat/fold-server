@@ -53,6 +53,7 @@ public class FoldWebSocket {
     @Inject BackupService backupService;
     @Inject HelloCacheService helloCacheService;
     @Inject OutboundBuffer outboundBuffer;
+    @Inject chat.fold.service.LastSeenBuffer lastSeenBuffer;
 
     private final ObjectMapper mapper = new ObjectMapper();
     private final ObjectMapper helloMapper = new ObjectMapper()
@@ -150,13 +151,11 @@ public class FoldWebSocket {
             LOG.debugf("WS disconnected (suspended): %s (%s) session=%s", meta.username(), connection.id(), meta.sessionId());
             // If user has no remaining connections, they went offline
             if (!registry.isOnline(meta.userId())) {
-                userRepo.updateLastSeen(meta.userId());
-                var user = userRepo.findById(meta.userId());
-                String lastSeen = user.map(u -> (String) u.get("last_seen_at")).orElse(null);
+                // Buffer the DB write — avoids 250 serialized writes during mass disconnect
+                lastSeenBuffer.buffer(meta.userId());
                 var data = new LinkedHashMap<String, Object>();
                 data.put("user_id", meta.userId());
                 data.put("status", "offline");
-                data.put("last_seen_at", lastSeen);
                 eventBus.publish(Event.of(EventType.PRESENCE_UPDATE, data, Scope.server()));
             }
         }
@@ -219,21 +218,13 @@ public class FoldWebSocket {
             ));
         }
 
-        // Send HELLO payload
+        // Send HELLO payload via OutboundBuffer — avoids concurrent sendText with event drain
         String hello = buildHello(userId, sessionId);
-        try {
-            connection.sendText(hello).subscribe().with(v -> {}, e -> {});
-        } catch (Exception e) {
-            LOG.debugf("Failed to send HELLO: %s", e.getMessage());
-        }
+        outboundBuffer.enqueue(connection, hello);
     }
 
     private void handleHeartbeat(WebSocketConnection connection) {
-        try {
-            connection.sendText("{\"op\":\"HEARTBEAT_ACK\"}").subscribe().with(v -> {}, e -> {});
-        } catch (Exception e) {
-            LOG.debugf("Failed to send heartbeat ack: %s", e.getMessage());
-        }
+        outboundBuffer.enqueue(connection, "{\"op\":\"HEARTBEAT_ACK\"}");
     }
 
     @SuppressWarnings("unchecked")
@@ -332,31 +323,16 @@ public class FoldWebSocket {
             ));
         }
 
-        // Send RESUMED ack
-        try {
-            connection.sendText("{\"op\":\"RESUMED\"}").subscribe().with(v -> {}, e -> {});
-        } catch (Exception e) {
-            LOG.debugf("Failed to send RESUMED: %s", e.getMessage());
-        }
-
-        // Replay missed events
+        // Send RESUMED ack + replay via OutboundBuffer — avoids concurrent sendText
+        outboundBuffer.enqueue(connection, "{\"op\":\"RESUMED\"}");
         for (var event : missedEvents) {
-            try {
-                connection.sendText(event.json()).subscribe().with(v -> {}, e -> {});
-            } catch (Exception e) {
-                LOG.debugf("Failed to replay event seq=%d: %s", event.sequence(), e.getMessage());
-                break;
-            }
+            outboundBuffer.enqueue(connection, event.json());
         }
     }
 
     private void sendResumeError(WebSocketConnection connection, String reason) {
         LOG.debugf("RESUME failed: %s", reason);
-        try {
-            connection.sendText("{\"op\":\"RESUME_FAILED\"}").subscribe().with(v -> {}, e -> {});
-        } catch (Exception e) {
-            LOG.debugf("Failed to send RESUME_FAILED: %s", e.getMessage());
-        }
+        outboundBuffer.enqueue(connection, "{\"op\":\"RESUME_FAILED\"}");
     }
 
     @SuppressWarnings("unchecked")

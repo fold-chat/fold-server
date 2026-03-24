@@ -33,6 +33,7 @@ public class OutboundBuffer {
         final WebSocketConnection connection;
         final ConcurrentLinkedQueue<String> queue = new ConcurrentLinkedQueue<>();
         final AtomicBoolean draining = new AtomicBoolean(false);
+        volatile boolean dead = false;
 
         ConnectionWriter(WebSocketConnection connection) {
             this.connection = connection;
@@ -42,15 +43,17 @@ public class OutboundBuffer {
     /** Enqueue a message and start sequential drain if not already running. */
     public void enqueue(WebSocketConnection conn, String json) {
         var writer = writers.computeIfAbsent(conn.id(), id -> new ConnectionWriter(conn));
+        if (writer.dead) return; // connection marked for closure, discard silently
         writer.queue.add(json);
 
-        // Slow consumer — if queue too deep, drop connection
+        // Slow consumer — if queue too deep, mark dead and close
         if (writer.queue.size() > SLOW_CONSUMER_THRESHOLD) {
+            if (writer.dead) return; // already being killed
+            writer.dead = true;
             slowConsumerKills.incrementAndGet();
             totalDropped.addAndGet(writer.queue.size());
             LOG.warnf("Slow consumer: conn=%s queue=%d, closing", conn.id(), writer.queue.size());
             writer.queue.clear();
-            writers.remove(conn.id());
             try {
                 conn.close().subscribe().with(v -> {}, e -> {});
             } catch (Exception e) {
@@ -74,11 +77,15 @@ public class OutboundBuffer {
     }
 
     private void drainNext(ConnectionWriter writer) {
+        if (writer.dead) {
+            writer.draining.set(false);
+            return;
+        }
         var msg = writer.queue.poll();
         if (msg == null) {
             writer.draining.set(false);
             // Re-check: something may have been enqueued between poll and set
-            if (!writer.queue.isEmpty() && writer.draining.compareAndSet(false, true)) {
+            if (!writer.dead && !writer.queue.isEmpty() && writer.draining.compareAndSet(false, true)) {
                 drainNext(writer);
             }
             return;
