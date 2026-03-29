@@ -18,6 +18,7 @@ public class AvatarResource {
         return Response.ok(svg)
                 .header("Cache-Control", "public, max-age=86400, immutable")
                 .header("Content-Type", "image/svg+xml")
+                .header("Content-Security-Policy", "sandbox")
                 .build();
     }
 }

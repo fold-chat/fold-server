@@ -65,6 +65,7 @@ public class ServerSettingsResource {
                     .type(mimeType)
                     .header("Cache-Control", "public, no-cache")
                     .header("ETag", etag)
+                    .header("Content-Security-Policy", "sandbox")
                     .build();
         } catch (IOException e) {
             return Response.status(500).build();
